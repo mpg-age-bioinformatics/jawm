@@ -17,14 +17,14 @@ process_hw = Process(
         echo 'Starting process...'
         echo 'Hello, World!' > output.txt
         cat output.txt
-    """,
-    cpus=2,
-    memory="4 GB",
-    time=60,
-    retries=1,
-    before_script="echo 'Preparing environment...'",
-    after_script="echo 'Cleanup complete.'",
-    when=True
+    """
+    # cpus=2,
+    # memory="4 GB",
+    # time=60,
+    # retries=1,
+    # before_script="echo 'Preparing environment...'",
+    # after_script="echo 'Cleanup complete.'",
+    # when=True
 )
 
 output = process_hw.execute()
@@ -69,3 +69,17 @@ print("Python Output:", output)
 # output = process_r.execute()
 # print("R Output:", output)
 
+# Run with slurm
+process_python = Process(
+    name="python_example",
+    script="""
+print("Hello from Python")
+print("2 + 3 =", 2 + 3)
+""",
+    interpreter="python3",
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
