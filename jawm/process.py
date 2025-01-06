@@ -4,7 +4,18 @@ import logging
 import tempfile
 
 class Process:
+    """
+    A class to define and execute processes with support for multiple interpreters, 
+    pre/post scripts, retries, and resource configurations.
+    """
     def __init__(self, name, script, **kwargs):
+        """
+        Initialize the Process object.
+
+        :param name: Name of the process.
+        :param script: The main script or command to execute.
+        :param kwargs: Additional parameters to configure the process.
+        """
         self.name = name
         self.script = script
         self.interpreter = kwargs.get("interpreter", "/bin/bash")
@@ -24,6 +35,12 @@ class Process:
         self.logger = logging.getLogger(name)
 
     def execute(self, options=None):
+        """
+        Execute the process with the specified configuration.
+
+        :param options: Additional execution options (not currently used).
+        :return: The output of the executed script.
+        """
         if not self.when:
             self.logger.info(f"Skipping process {self.name} due to condition.")
             return
