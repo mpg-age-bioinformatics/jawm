@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 ### Hello World example
 process_hw = Process(
     name="hello_world",
-    script="""
+    script="""#!/bin/bash
         echo 'Starting process...'
         echo 'Hello, World!' > output.txt
         cat output.txt
@@ -46,7 +46,7 @@ print("Process Output:", output)
 ### Python example
 process_python = Process(
     name="python_example",
-    script="""
+    script="""#!/usr/bin/env python3
 print("Hello from Python")
 print("2 + 2 =", 2 + 2)
 """,
@@ -72,11 +72,15 @@ print("Python Output:", output)
 # Run with slurm
 process_python = Process(
     name="python_example",
-    script="""
+    script="""#!/usr/bin/env python3
+import time
 print("Hello from Python")
 print("2 + 3 =", 2 + 3)
+print("start sleeping!")
+time.sleep(5)
+print("python script ends!")
 """,
-    interpreter="python3",
+    # interpreter="python3",
     manager="slurm",
     manager_slurm={"partition":"dedicated"}
 )

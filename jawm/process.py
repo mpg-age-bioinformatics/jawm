@@ -2,11 +2,10 @@ import subprocess
 import os
 import logging
 import tempfile
-import resource
 
 class Process:
     """
-    A class to define and execute processes with support for multiple interpreters, 
+    A class to define and execute processes with support for multiple managers,
     pre/post scripts, retries, and resource configurations.
     """
     def __init__(self, name, script, **kwargs):
@@ -19,16 +18,12 @@ class Process:
         """
         self.name = name
         self.script = script
-        self.interpreter = kwargs.get("interpreter", "/bin/bash")
         self.manager = kwargs.get("manager", "local")
         self.env = kwargs.get("env", os.environ.copy())
         self.inputs = kwargs.get("inputs", {})
         self.outputs = kwargs.get("outputs", {})
         self.retries = kwargs.get("retries", 0)
         self.container = kwargs.get("container", None)
-        # self.cpus = kwargs.get("cpus", 1)
-        # self.memory = kwargs.get("memory", "1 GB")
-        # self.time_limit = kwargs.get("time", None)
         self.use_scratch = kwargs.get("scratch", False)
         self.error_strategy = kwargs.get("error_strategy", "retry")
         self.when = kwargs.get("when", True)
@@ -37,12 +32,9 @@ class Process:
         self.logger = logging.getLogger(name)
 
         # Local execution configurations
-        self.manager_local = kwargs.get("manager_local", {
-            "cpus": 1,
-            "memory": "1G",
-            "time": None,
-        })
+        self.manager_local = kwargs.get("manager_local", {})
 
+        # Slurm execution configurations
         self.manager_slurm = kwargs.get("manager_slurm", {})
 
     def _generate_sbatch_command(self):
@@ -63,46 +55,34 @@ class Process:
             sbatch_command.extend(["--error", f"{self.name}.err"])
 
         return sbatch_command
-    
-    def _parse_memory(self, memory_str):
-        """
-        Parse memory string (e.g., "1G", "1024M") into bytes.
-        :param memory_str: Memory string to parse.
-        :return: Memory in bytes.
-        """
-        units = {"K": 1024, "M": 1024**2, "G": 1024**3}
-        if memory_str[-1] in units:
-            return int(memory_str[:-1]) * units[memory_str[-1]]
-        return int(memory_str)
-
-    def _set_memory_limit(self):
-        """
-        Set memory limits for the current process.
-        """
-        memory_limit = self.manager_local.get("memory", None)
-        if memory_limit:
-            memory_bytes = self._parse_memory(memory_limit)
-            resource.setrlimit(resource.RLIMIT_DATA, (memory_bytes, memory_bytes))
 
     def _generate_slurm_script(self):
         """
-        Generate a Slurm job script for the process.
-        :return: Path to the Slurm script.
-        """
+    Generate a Slurm job script that executes the provided script as an executable file.
+    :return: Path to the Slurm script.
+    """
         self.logger.info(f"Generating Slurm job script for process: {self.name}")
 
+        # Write the user's script to a standalone file
+        user_script_path = os.path.abspath(f"{self.name}_script")
+        with open(user_script_path, "w") as user_script_file:
+            user_script_file.write(self.script)
+
+        # Ensure the script is executable
+        os.chmod(user_script_path, 0o755)
+
+        # Create the Slurm job script
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".slurm") as slurm_script:
-            # Write Slurm script header
-            slurm_script.write("#!/bin/bash\n")
+            slurm_script.write("#!/bin/bash\n")  # Slurm script shebang
             
-            # Export environment variables
-            for key, value in self.env.items():
-                slurm_script.write(f"export {key}={value}\n")
-            
-            # Add the task script with the specified interpreter
-            slurm_script.write(f"\n# Run the task\n{self.interpreter} <<EOF\n{self.script}\nEOF\n")
-            
-            return slurm_script.name
+            # Add SLURM options dynamically
+            for key, value in self.manager_slurm.items():
+                slurm_script.write(f"#SBATCH --{key}={value}\n")
+
+            # Call the executable script
+            slurm_script.write(f"\n{user_script_path}\n")
+
+        return slurm_script.name
 
     def _execute_locally(self):
         """
@@ -119,12 +99,9 @@ class Process:
             # Make the script executable
             os.chmod(temp_script_path, 0o755)
             
-            # Apply resource limits (memory limit may fail on different local platforms, e.g. mac. Commented to avoid unnecessary issue)
-            # self._set_memory_limit()
-
-            # Execute the script using the specified interpreter
+            # Execute the script directly
             result = subprocess.run(
-                [self.interpreter, temp_script_path],
+                [temp_script_path],
                 env=self.env,
                 timeout=self.manager_local.get("time"),  # Apply timeout if specified
                 stdout=subprocess.PIPE,
@@ -200,5 +177,3 @@ class Process:
             return self._execute_slurm()
         else:
             raise ValueError(f"Unsupported manager: {self.manager}")
-
-
