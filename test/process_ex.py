@@ -6,6 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Start of the test script
 from jawm import Process
 import logging
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,6 +16,7 @@ process_hw = Process(
     name="hello_world",
     script="""#!/bin/bash
         echo 'Starting process...'
+        sleep 15
         echo 'Hello, World!' > output.txt
         cat output.txt
     """
@@ -43,6 +45,7 @@ print("Process Output:", output)
 # output = process_bash.execute()
 # print("Bash Output:", output)
 
+time.sleep(1)
 ### Python example
 process_python = Process(
     name="python_example",
@@ -69,6 +72,7 @@ print("Python Output:", output)
 # output = process_r.execute()
 # print("R Output:", output)
 
+time.sleep(1)
 # Run with slurm
 process_python = Process(
     name="python_example",
@@ -77,7 +81,7 @@ import time
 print("Hello from Python")
 print("2 + 3 =", 2 + 3)
 print("start sleeping!")
-time.sleep(5)
+time.sleep(3)
 print("python script ends!")
 """,
     # interpreter="python3",

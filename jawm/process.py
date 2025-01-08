@@ -1,7 +1,10 @@
 import subprocess
 import os
+import sys
 import logging
 import tempfile
+import time
+from datetime import datetime
 
 class Process:
     """
@@ -16,9 +19,19 @@ class Process:
         :param script: The main script or command to execute.
         :param kwargs: Additional parameters to configure the process.
         """
+        # Primary parameters
         self.name = name
         self.script = script
-        self.manager = kwargs.get("manager", "local")
+
+        # Directory parameters
+        self.project_directory = kwargs.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
+        os.makedirs(self.project_directory, exist_ok=True)
+        self.logs_directory = kwargs.get("logs_directory", os.path.join(self.project_directory, "logs"))
+        os.makedirs(self.logs_directory, exist_ok=True)
+        self.parameters_directory = kwargs.get("parameters_directory", os.path.join(self.project_directory, "parameters"))
+
+        # Management parameters
+        self.manager = kwargs.get("manager", "metal")
         self.env = kwargs.get("env", os.environ.copy())
         self.inputs = kwargs.get("inputs", {})
         self.outputs = kwargs.get("outputs", {})
@@ -37,6 +50,11 @@ class Process:
         # Slurm execution configurations
         self.manager_slurm = kwargs.get("manager_slurm", {})
 
+        # Metadata
+        self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.manager}")
+        os.makedirs(self.log_path, exist_ok=True)
+
     def _generate_sbatch_command(self):
         """
         Generate an sbatch command dynamically based on user-provided SLURM properties.
@@ -50,9 +68,9 @@ class Process:
 
         # Add defaults for output and error only if not provided by the user
         if "output" not in self.manager_slurm:
-            sbatch_command.extend(["--output", f"{self.name}.out"])
+            sbatch_command.extend(["--output", os.path.join(self.log_path, f"{self.name}.output")])
         if "error" not in self.manager_slurm:
-            sbatch_command.extend(["--error", f"{self.name}.err"])
+            sbatch_command.extend(["--error", os.path.join(self.log_path, f"{self.name}.error")])
 
         return sbatch_command
 
@@ -64,69 +82,90 @@ class Process:
         self.logger.info(f"Generating Slurm job script for process: {self.name}")
 
         # Write the user's script to a standalone file
-        user_script_path = os.path.abspath(f"{self.name}_script")
-        with open(user_script_path, "w") as user_script_file:
-            user_script_file.write(self.script)
+        original_script_path = os.path.join(self.log_path, f"{self.name}.script")
+        with open(original_script_path, "w") as original_script_file:
+            original_script_file.write(self.script)
 
         # Ensure the script is executable
-        os.chmod(user_script_path, 0o755)
+        os.chmod(original_script_path, 0o755)
+
+        # Define the Slurm script file name
+        slurm_script_path = os.path.join(self.log_path, f"{self.name}.slurm")
 
         # Create the Slurm job script
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".slurm") as slurm_script:
-            slurm_script.write("#!/bin/bash\n")  # Slurm script shebang
+        with open(slurm_script_path, "w") as slurm_script_file:
+            slurm_script_file.write("#!/bin/bash\n")  # Slurm script shebang
             
             # Add SLURM options dynamically
             for key, value in self.manager_slurm.items():
-                slurm_script.write(f"#SBATCH --{key}={value}\n")
+                slurm_script_file.write(f"#SBATCH --{key}={value}\n")
 
             # Call the executable script
-            slurm_script.write(f"\n{user_script_path}\n")
+            slurm_script_file.write(f"\n{original_script_path}\n")
 
-        return slurm_script.name
+        return slurm_script_path
 
-    def _execute_locally(self):
+    def _execute_metal(self):
         """
         Execute the process locally with resource constraints.
         :return: The output of the executed script.
         """
         self.logger.info(f"Executing process {self.name} locally")
         try:
-            # Write the script to a temporary file
-            with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_script:
-                temp_script.write(self.script)
-                temp_script_path = temp_script.name
+            # Define the path for the script/log files
+            script_path = os.path.join(self.log_path, f"{self.name}.script")
+            stdout_path = os.path.join(self.log_path, f"{self.name}.output")
+            stderr_path = os.path.join(self.log_path, f"{self.name}.error")
+
+            # Write the script content to the file
+            with open(script_path, "w") as script_file:
+                script_file.write(self.script)
             
             # Make the script executable
-            os.chmod(temp_script_path, 0o755)
+            os.chmod(script_path, 0o755)
             
-            # Execute the script directly
-            result = subprocess.run(
-                [temp_script_path],
-                env=self.env,
-                timeout=self.manager_local.get("time"),  # Apply timeout if specified
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
+            # Open the output and error files
+            with open(stdout_path, "w") as stdout_file, open(stderr_path, "w") as stderr_file:
+                # Execute the script directly
+                result = subprocess.Popen(
+                    [script_path],
+                    env=self.env,
+                    # timeout=self.manager_local.get("time"),  # Apply timeout if specified
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    text=True
+                )
+            process_id = result.pid
+            self.logger.info(f"Process {self.name} started with PID: {process_id}")
 
             # Check execution result
-            if result.returncode == 0:
-                self.logger.info(f"Process {self.name} completed successfully.")
-            else:
-                self.logger.error(f"Process {self.name} failed with error: {result.stderr}")
-                if self.retries > 0:
-                    self.logger.info(f"Retrying process {self.name}, {self.retries} retries left.")
-                    self.retries -= 1
-                    return self._execute_locally()
-                raise RuntimeError(f"Process {self.name} failed with error: {result.stderr}")
+            # if result.returncode == 0:
+            #     self.logger.info(f"Process {self.name} completed successfully.")
+            # else:
+            #     self.logger.error(f"Process {self.name} failed with error: {result.stderr}")
+            #     if self.retries > 0:
+            #         self.logger.info(f"Retrying process {self.name}, {self.retries} retries left.")
+            #         self.retries -= 1
+            #         return self._execute_metal()
+            #     raise RuntimeError(f"Process {self.name} failed with error: {result.stderr}")
+
+            # while result.poll() is None:
+            #     self.logger.info(f"Process {self.name} (PID: {process_id}) is still running...")
+            #     time.sleep(1)  # Sleep for a while before checking again
+
+            # # Once finished, get the return code
+            # returncode = result.returncode
+            # self.logger.info(f"Process {self.name} completed with return code: {returncode}")
+            # return process_id, returncode
 
             # Return the output
-            return result.stdout
+            return process_id
 
         finally:
+            pass
             # Cleanup the temporary script file
-            if os.path.exists(temp_script_path):
-                os.remove(temp_script_path)
+            # if os.path.exists(temp_script_path):
+            #     os.remove(temp_script_path)
 
     def _execute_slurm(self):
         """
@@ -134,6 +173,12 @@ class Process:
         :return: Slurm job ID.
         """
         self.logger.info(f"Executing process {self.name} in Slurm")
+
+        # Generate log folder for this slurm job
+        # log_folder = f"{self.name}_{self.date_time}_slurm"
+        # log_path = os.path.join(self.logs_directory, log_folder)
+        # os.makedirs(log_path, exist_ok=True)
+        self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
 
         # Generate the Slurm job script
         slurm_script_path = self._generate_slurm_script()
@@ -163,16 +208,17 @@ class Process:
                 raise RuntimeError(f"Slurm submission failed for process {self.name}")
 
         finally:
+            pass
             # Cleanup the Slurm script
-            if os.path.exists(slurm_script_path):
-                os.remove(slurm_script_path)
+            # if os.path.exists(slurm_script_path):
+            #     os.remove(slurm_script_path)
 
     def execute(self):
         """
         Execute the process based on the specified manager (local or slurm).
         """
-        if self.manager == "local":
-            return self._execute_locally()
+        if self.manager == "metal":
+            return self._execute_metal()
         elif self.manager == "slurm":
             return self._execute_slurm()
         else:
