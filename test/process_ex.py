@@ -16,11 +16,9 @@ process_hw = Process(
     name="hello_world",
     script="""#!/bin/bash
 echo 'Starting process...'
-non_existent_command
 # sleep 15
 echo 'Hello, World!' > output.txt
 cat output.txt
-exit 2
 """,
     retries=3
     # memory="4 GB",
@@ -83,7 +81,7 @@ import time
 print("Hello from Python")
 print("2 + 3 =", 2 + 3)
 print("start sleeping!")
-time.sleep(3)
+time.sleep(15)
 print("python script ends!")
 """,
     # interpreter="python3",

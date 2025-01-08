@@ -145,7 +145,7 @@ class Process:
                 """
                 Monitor/log the process in a background thread.
                 """
-                elapsed_time = 0
+                elapsed_time = 1
                 while result.poll() is None:
                     # log every 3mins of waiting for the process to be finished
                     if elapsed_time % 180 == 0:
@@ -170,8 +170,8 @@ class Process:
                         self.logger.info(f"Retrying process {self.name}, {self.retries} retries left.")
                         self.retries -= 1
                         return self._execute_metal()
-                    # raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
                     self.logger.error(f"Process {self.name} failed with error: {error_message}")
+                    raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
 
             # Start monitoring in a background thread
             monitor_thread = threading.Thread(target=monitor_process, daemon=False)
@@ -192,12 +192,9 @@ class Process:
         :return: Slurm job ID.
         """
         self.logger.info(f"Executing process {self.name} in Slurm")
-
-        # Generate log folder for this slurm job
-        # log_folder = f"{self.name}_{self.date_time}_slurm"
-        # log_path = os.path.join(self.logs_directory, log_folder)
-        # os.makedirs(log_path, exist_ok=True)
         self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
+        exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
+        id_path = os.path.join(self.log_path, f"{self.name}.id")
 
         # Generate the Slurm job script
         slurm_script_path = self._generate_slurm_script()
@@ -221,10 +218,55 @@ class Process:
             if result.returncode == 0:
                 job_id = result.stdout.strip().split()[-1]
                 self.logger.info(f"Process {self.name} submitted as Slurm job {job_id}.")
-                return job_id
+                with open(id_path, "w") as id_file:
+                    id_file.write(str(job_id))
             else:
                 self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}")
                 raise RuntimeError(f"Slurm submission failed for process {self.name}")
+
+            def monitor_slurm_job():
+                """
+                Monitor the Slurm job in the background and capture its exit code.
+                """
+                elapsed_time = 1
+                while True:
+                    # Query the job's status and exit code using sacct
+                    job_info = subprocess.run(
+                        ["sacct", "-j", job_id, "--format=JobID,State,ExitCode", "-n"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+
+                    if job_info.returncode != 0:
+                        self.logger.warning(f"Failed to query job {job_id} status: {job_info.stderr}")
+                        time.sleep(10)
+                        elapsed_time += 10
+                        continue  # Retry querying
+
+                    # Parse the job state and exit code
+                    output = job_info.stdout.strip()
+                    if output:
+                        _, state, exit_code = output.split()[:3]
+                        # log every 3mins of waiting for the process to be finished
+                        if elapsed_time % 180 == 0:
+                            self.logger.info(f"Job {job_id} state: {state}, exit code: {exit_code}")
+                        if state in {"COMPLETED", "FAILED", "CANCELLED"}:
+                            self.logger.info(f"Job {job_id} completed with exit code: {exit_code}")
+                            # log the exit code
+                            with open(exitcode_path, "w") as exitcode_file:
+                                exitcode_file.write(str(exit_code))
+                                break
+                            
+
+                    time.sleep(10)  # Check status every 10 seconds
+                    elapsed_time += 10
+
+            # Start monitoring in a background thread
+            monitor_thread = threading.Thread(target=monitor_slurm_job, daemon=False)
+            monitor_thread.start()
+
+            return job_id
 
         finally:
             pass
