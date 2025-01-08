@@ -15,12 +15,14 @@ logging.basicConfig(level=logging.INFO)
 process_hw = Process(
     name="hello_world",
     script="""#!/bin/bash
-        echo 'Starting process...'
-        sleep 15
-        echo 'Hello, World!' > output.txt
-        cat output.txt
-    """
-    # cpus=2,
+echo 'Starting process...'
+non_existent_command
+# sleep 15
+echo 'Hello, World!' > output.txt
+cat output.txt
+exit 2
+""",
+    retries=3
     # memory="4 GB",
     # time=60,
     # retries=1,

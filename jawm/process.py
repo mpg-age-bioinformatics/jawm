@@ -1,4 +1,5 @@
 import subprocess
+import threading
 import os
 import sys
 import logging
@@ -116,6 +117,7 @@ class Process:
             script_path = os.path.join(self.log_path, f"{self.name}.script")
             stdout_path = os.path.join(self.log_path, f"{self.name}.output")
             stderr_path = os.path.join(self.log_path, f"{self.name}.error")
+            exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
 
             # Write the script content to the file
             with open(script_path, "w") as script_file:
@@ -138,25 +140,39 @@ class Process:
             process_id = result.pid
             self.logger.info(f"Process {self.name} started with PID: {process_id}")
 
-            # Check execution result
-            # if result.returncode == 0:
-            #     self.logger.info(f"Process {self.name} completed successfully.")
-            # else:
-            #     self.logger.error(f"Process {self.name} failed with error: {result.stderr}")
-            #     if self.retries > 0:
-            #         self.logger.info(f"Retrying process {self.name}, {self.retries} retries left.")
-            #         self.retries -= 1
-            #         return self._execute_metal()
-            #     raise RuntimeError(f"Process {self.name} failed with error: {result.stderr}")
+            def monitor_process():
+                """
+                Monitor/log the process in a background thread.
+                """
+                elapsed_time = 0
+                while result.poll() is None:
+                    # log every 3mins of waiting for the process to be finished
+                    if elapsed_time % 180 == 0:
+                        self.logger.info(f"Process {self.name} (PID: {process_id}) is still running...")
+                    elapsed_time += 3
+                    time.sleep(3)  # Sleep for a while before checking again
 
-            # while result.poll() is None:
-            #     self.logger.info(f"Process {self.name} (PID: {process_id}) is still running...")
-            #     time.sleep(1)  # Sleep for a while before checking again
+                # Once finished, get the return code
+                exitcode = result.returncode
+                self.logger.info(f"Process {self.name} completed with exit code: {exitcode}")
+                with open(exitcode_path, "w") as exitcode_file:
+                    exitcode_file.write(str(exitcode))
 
-            # # Once finished, get the return code
-            # returncode = result.returncode
-            # self.logger.info(f"Process {self.name} completed with return code: {returncode}")
-            # return process_id, returncode
+                # Retries if fails
+                if exitcode != 0:
+                    with open(stderr_path, "r") as stderr_file:
+                        error_message = stderr_file.read().strip()
+                    self.logger.error(f"Process {self.name} failed with error: {error_message}")
+                    if self.retries > 0:
+                        self.logger.info(f"Retrying process {self.name}, {self.retries} retries left.")
+                        self.retries -= 1
+                        return self._execute_metal()
+                    # raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
+                    self.logger.error(f"Process {self.name} failed with error: {error_message}")
+
+            # Start monitoring in a background thread
+            monitor_thread = threading.Thread(target=monitor_process, daemon=False)
+            monitor_thread.start()
 
             # Return the output
             return process_id
