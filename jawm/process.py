@@ -118,6 +118,7 @@ class Process:
             stdout_path = os.path.join(self.log_path, f"{self.name}.output")
             stderr_path = os.path.join(self.log_path, f"{self.name}.error")
             exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
+            id_path = os.path.join(self.log_path, f"{self.name}.id")
 
             # Write the script content to the file
             with open(script_path, "w") as script_file:
@@ -157,6 +158,8 @@ class Process:
                 self.logger.info(f"Process {self.name} completed with exit code: {exitcode}")
                 with open(exitcode_path, "w") as exitcode_file:
                     exitcode_file.write(str(exitcode))
+                with open(id_path, "w") as id_file:
+                    id_file.write(str(process_id))
 
                 # Retries if fails
                 if exitcode != 0:
