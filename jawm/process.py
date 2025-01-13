@@ -12,7 +12,7 @@ class Process:
     A class to define and execute processes with support for multiple managers,
     pre/post scripts, retries, and resource configurations.
     """
-    def __init__(self, name, script, **kwargs):
+    def __init__(self, name, **kwargs):
         """
         Initialize the Process object.
 
@@ -22,7 +22,10 @@ class Process:
         """
         # Primary parameters
         self.name = name
-        self.script = script
+        # self.script = script
+        self.script = kwargs.get("script", "#!/bin/bash")
+        self.script_file = kwargs.get("script_file", None)
+        self.script_type = "file" if (self.script_file is not None and self.script != "#!/bin/bash") else "script"
 
         # Directory parameters
         self.project_directory = kwargs.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
@@ -121,8 +124,8 @@ class Process:
             id_path = os.path.join(self.log_path, f"{self.name}.id")
 
             # Write the script content to the file
-            with open(script_path, "w") as script_file:
-                script_file.write(self.script)
+            with open(script_path, "w") as script_content_file:
+                script_content_file.write(self.script)
             
             # Make the script executable
             os.chmod(script_path, 0o755)
