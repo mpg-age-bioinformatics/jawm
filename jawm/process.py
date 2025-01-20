@@ -25,7 +25,7 @@ class Process:
         # self.script = script
         self.script = kwargs.get("script", "#!/bin/bash")
         self.script_file = kwargs.get("script_file", None)
-        self.script_type = "file" if (self.script_file is not None and self.script != "#!/bin/bash") else "script"
+        self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
         self.script_parameters = kwargs.get("script_parameters", None)
         self.script_parameters_file = kwargs.get("script_parameters_file", None)
 
