@@ -84,7 +84,19 @@ print("start sleeping!")
 time.sleep(15)
 print("python script ends!")
 """,
-    # interpreter="python3",
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+
+time.sleep(1)
+# Run with slurm and script
+process_python = Process(
+    name="python_file",
+    script_file="scripts/hello.py",
     manager="slurm",
     manager_slurm={"partition":"dedicated"}
 )
