@@ -26,6 +26,8 @@ class Process:
         self.script = kwargs.get("script", "#!/bin/bash")
         self.script_file = kwargs.get("script_file", None)
         self.script_type = "file" if (self.script_file is not None and self.script != "#!/bin/bash") else "script"
+        self.script_parameters = kwargs.get("script_parameters", None)
+        self.script_parameters_file = kwargs.get("script_parameters_file", None)
 
         # Directory parameters
         self.project_directory = kwargs.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
@@ -59,6 +61,9 @@ class Process:
         self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.manager}")
         os.makedirs(self.log_path, exist_ok=True)
 
+        # For reuse and track (doesn't come from the user parameters directly)
+        self.base_script_path = None
+
     def _generate_sbatch_command(self):
         """
         Generate an sbatch command dynamically based on user-provided SLURM properties.
@@ -78,20 +83,48 @@ class Process:
 
         return sbatch_command
 
+    def _generate_base_script(self):
+        """
+        Generate the script file for execution.
+        :return: The path to the script file.
+        """
+        if self.base_script_path is not None:
+        # If the base script path is already set, return it directly
+            return self.base_script_path
+
+        self.logger.info(f"Preparing base script for process {self.name}")
+
+        self.base_script_path = os.path.join(self.log_path, f"{self.name}.script")
+
+        self.logger.info(f"Base script for process {self.base_script_path}")
+
+        if self.script_type == "script":
+            # If an inline script is provided, write it to the file
+            with open(self.base_script_path, "w") as script_file:
+                script_file.write(self.script)
+        elif self.script_type == "file" and self.script_file:
+            # If a script file is provided, copy its content to the target location
+            with open(self.script_file, "r") as original_script:
+                with open(self.base_script_path, "w") as script_file:
+                    script_file.write(original_script.read())
+            self.logger.info(f"Original script for process {self.script_file}")
+        else:
+            raise ValueError("Invalid script type or missing script content.")
+
+        # Make the script executable
+        os.chmod(self.base_script_path, 0o755)
+
+        return self.base_script_path
+
     def _generate_slurm_script(self):
         """
-    Generate a Slurm job script that executes the provided script as an executable file.
-    :return: Path to the Slurm script.
-    """
+        Generate a Slurm job script that executes the provided script as an executable file.
+        :return: Path to the Slurm script.
+        """
         self.logger.info(f"Generating Slurm job script for process: {self.name}")
 
-        # Write the user's script to a standalone file
-        original_script_path = os.path.join(self.log_path, f"{self.name}.script")
-        with open(original_script_path, "w") as original_script_file:
-            original_script_file.write(self.script)
-
-        # Ensure the script is executable
-        os.chmod(original_script_path, 0o755)
+        # Prepare base script and get the path
+        base_script_path = self._generate_base_script()
 
         # Define the Slurm script file name
         slurm_script_path = os.path.join(self.log_path, f"{self.name}.slurm")
@@ -105,7 +138,7 @@ class Process:
                 slurm_script_file.write(f"#SBATCH --{key}={value}\n")
 
             # Call the executable script
-            slurm_script_file.write(f"\n{original_script_path}\n")
+            slurm_script_file.write(f"\n{base_script_path}\n")
 
         return slurm_script_path
 
@@ -117,24 +150,17 @@ class Process:
         self.logger.info(f"Executing process {self.name} locally")
         try:
             # Define the path for the script/log files
-            script_path = os.path.join(self.log_path, f"{self.name}.script")
+            base_script_path = self._generate_base_script()
             stdout_path = os.path.join(self.log_path, f"{self.name}.output")
             stderr_path = os.path.join(self.log_path, f"{self.name}.error")
             exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
             id_path = os.path.join(self.log_path, f"{self.name}.id")
-
-            # Write the script content to the file
-            with open(script_path, "w") as script_content_file:
-                script_content_file.write(self.script)
-            
-            # Make the script executable
-            os.chmod(script_path, 0o755)
             
             # Open the output and error files
             with open(stdout_path, "w") as stdout_file, open(stderr_path, "w") as stderr_file:
                 # Execute the script directly
                 result = subprocess.Popen(
-                    [script_path],
+                    [base_script_path],
                     env=self.env,
                     # timeout=self.manager_local.get("time"),  # Apply timeout if specified
                     stdout=stdout_file,
