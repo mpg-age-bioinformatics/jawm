@@ -129,6 +129,11 @@ class Process:
         with open(self.base_script_path, "w") as script_file:
             script_file.write(script_content)
 
+        # Append original file path as a comment if applicable
+        if self.script_type == "file" and self.script_file:
+            with open(self.base_script_path, "a") as script_file:
+                script_file.write(f"\n##### Original script file: {os.path.abspath(self.script_file)}\n")
+
         # Make the script executable
         os.chmod(self.base_script_path, 0o755)
 
