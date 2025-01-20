@@ -64,57 +64,76 @@ class Process:
         # For reuse and track (doesn't come from the user parameters directly)
         self.base_script_path = None
 
-    def _generate_sbatch_command(self):
+    def _script_placeholders(self, script_content):
         """
-        Generate an sbatch command dynamically based on user-provided SLURM properties.
-        :return: The sbatch command as a list.
+        Replace placeholders in the script content with provided parameters.
+        :param script_content: The content of the script file.
+        :return: The updated script content with placeholders replaced.
         """
-        sbatch_command = ["sbatch"]
+        parameters = self.script_parameters or {}
+        
+        # Load additional parameters from file if provided
+        if self.script_parameters_file:
+            with open(self.script_parameters_file, "r") as param_file:
+                file_parameters = {}
+                for line in param_file:
+                    # Skip empty lines or lines without an '='
+                    if line.strip() and "=" in line:
+                        # Split into key and value, removing unnecessary spaces
+                        key, value = map(str.strip, line.strip().split("=", 1))
+                        
+                        # Remove surrounding quotes from the value if present
+                        if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
+                            value = value[1:-1]
 
-        # Add user-provided SLURM options dynamically
-        for key, value in self.manager_slurm.items():
-            sbatch_command.extend([f"--{key}", str(value)])
+                        file_parameters[key] = value
+                parameters.update(file_parameters)
 
-        # Add defaults for output and error only if not provided by the user
-        if "output" not in self.manager_slurm:
-            sbatch_command.extend(["--output", os.path.join(self.log_path, f"{self.name}.output")])
-        if "error" not in self.manager_slurm:
-            sbatch_command.extend(["--error", os.path.join(self.log_path, f"{self.name}.error")])
+        # Replace placeholders in the script
+        for key, value in parameters.items():
+            placeholder = f"{{{{{key}}}}}"  # e.g., {{param_name}}
+            script_content = script_content.replace(placeholder, str(value))
 
-        return sbatch_command
-
+        return script_content
+    
     def _generate_base_script(self):
         """
-        Generate the script file for execution.
+        Generate the script file for execution, replacing any placeholders with provided parameters.
         :return: The path to the script file.
         """
         if self.base_script_path is not None:
-        # If the base script path is already set, return it directly
+            # If the base script path is already set, return it directly
             return self.base_script_path
 
         self.logger.info(f"Preparing base script for process {self.name}")
 
         self.base_script_path = os.path.join(self.log_path, f"{self.name}.script")
 
-        self.logger.info(f"Base script for process {self.base_script_path}")
+        script_content = ""
 
         if self.script_type == "script":
-            # If an inline script is provided, write it to the file
-            with open(self.base_script_path, "w") as script_file:
-                script_file.write(self.script)
+            # If an inline script is provided, use it as the base content
+            script_content = self.script
         elif self.script_type == "file" and self.script_file:
-            # If a script file is provided, copy its content to the target location
+            # If a script file is provided, read its content
             with open(self.script_file, "r") as original_script:
-                with open(self.base_script_path, "w") as script_file:
-                    script_file.write(original_script.read())
+                script_content = original_script.read()
             self.logger.info(f"Original script for process {self.script_file}")
         else:
             raise ValueError("Invalid script type or missing script content.")
+
+        # Replace placeholders with provided parameters
+        script_content = self._script_placeholders(script_content)
+
+        # Write the updated script to the base script file
+        with open(self.base_script_path, "w") as script_file:
+            script_file.write(script_content)
 
         # Make the script executable
         os.chmod(self.base_script_path, 0o755)
 
         return self.base_script_path
+
 
     def _generate_slurm_script(self):
         """
@@ -141,6 +160,25 @@ class Process:
             slurm_script_file.write(f"\n{base_script_path}\n")
 
         return slurm_script_path
+
+    def _generate_sbatch_command(self):
+        """
+        Generate an sbatch command dynamically based on user-provided SLURM properties.
+        :return: The sbatch command as a list.
+        """
+        sbatch_command = ["sbatch"]
+
+        # Add user-provided SLURM options dynamically
+        for key, value in self.manager_slurm.items():
+            sbatch_command.extend([f"--{key}", str(value)])
+
+        # Add defaults for output and error only if not provided by the user
+        if "output" not in self.manager_slurm:
+            sbatch_command.extend(["--output", os.path.join(self.log_path, f"{self.name}.output")])
+        if "error" not in self.manager_slurm:
+            sbatch_command.extend(["--error", os.path.join(self.log_path, f"{self.name}.error")])
+
+        return sbatch_command
 
     def _execute_metal(self):
         """

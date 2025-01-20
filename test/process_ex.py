@@ -97,6 +97,25 @@ time.sleep(1)
 process_python = Process(
     name="python_file",
     script_file="scripts/hello.py",
+    script_parameters={
+        "APPNAME": "JAWM",
+        "BYEMSG": "GOOD BYE!",
+        "FRUITLIST": "['Apple', 'Banana', 'Orange']"
+    },
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+
+time.sleep(1)
+# Run with slurm, script and parameters file
+process_python = Process(
+    name="python_file_params",
+    script_file="scripts/hello.py",
+    script_parameters_file="scripts/hello.rc",
     manager="slurm",
     manager_slurm={"partition":"dedicated"}
 )
