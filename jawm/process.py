@@ -38,11 +38,12 @@ class Process:
 
         # Management parameters
         self.manager = kwargs.get("manager", "metal")
-        self.env = kwargs.get("env", os.environ.copy())
+        # self.source_env = os.environ.copy()
+        self.env = kwargs.get("env", {})
+        self.combined_env = {**os.environ.copy(), **self.env}
         self.inputs = kwargs.get("inputs", {})
         self.outputs = kwargs.get("outputs", {})
         self.retries = kwargs.get("retries", 0)
-        self.container = kwargs.get("container", None)
         self.use_scratch = kwargs.get("scratch", False)
         self.error_strategy = kwargs.get("error_strategy", "retry")
         self.when = kwargs.get("when", True)
@@ -55,6 +56,13 @@ class Process:
 
         # Slurm execution configurations
         self.manager_slurm = kwargs.get("manager_slurm", {})
+
+        # Execution environment configurations
+        self.environment = kwargs.get("environment", "local")
+        self.container = kwargs.get("container", None)
+        self.environment_apptainer = kwargs.get("environment_apptainer", {})
+        self.environment_docker = kwargs.get("environment_docker", {})
+        self.environment = {"apptainer": "apptainer", "singularity": "apptainer", "docker": "docker"}.get(self.environment, "local") if self.container is not None else "local"
 
         # Metadata
         self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -184,6 +192,39 @@ class Process:
             sbatch_command.extend(["--error", os.path.join(self.log_path, f"{self.name}.error")])
 
         return sbatch_command
+        
+    def _build_apptainer_command(self, script_path):
+        """
+        Build the Apptainer command dynamically based on user configurations.
+        :param script_path: The path to the script to execute inside the container.
+        :return: The Apptainer command as a list.
+        """
+        # Base command
+        apptainer_command = ["apptainer", "exec"]
+
+        # Apply user-defined Apptainer options dynamically
+        for option, value in self.environment_apptainer.items():
+            if isinstance(value, list):
+                # Handle options that require multiple values (e.g., --bind)
+                for v in value:
+                    apptainer_command.extend([f"--{option}", str(v)])
+            elif isinstance(value, bool):
+                # Handle flags (e.g., --no-home)
+                if value:  # Only include the flag if True
+                    apptainer_command.append(f"--{option}")
+            else:
+                # Handle regular key-value options
+                apptainer_command.extend([f"--{option}", str(value)])
+
+        # Add environment variables
+        if self.env:
+            apptainer_command.extend(["--env", f"{','.join(f'{k}={v}' for k, v in self.env.items())}"])
+
+        # Add container and script
+        apptainer_command.extend([self.container, script_path])
+
+        return apptainer_command
+
 
     def _execute_metal(self):
         """
@@ -198,18 +239,30 @@ class Process:
             stderr_path = os.path.join(self.log_path, f"{self.name}.error")
             exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
             id_path = os.path.join(self.log_path, f"{self.name}.id")
+            command_path = os.path.join(self.log_path, f"{self.name}.command")
             
             # Open the output and error files
             with open(stdout_path, "w") as stdout_file, open(stderr_path, "w") as stderr_file:
                 # Execute the script directly
-                result = subprocess.Popen(
-                    [base_script_path],
-                    env=self.env,
-                    # timeout=self.manager_local.get("time"),  # Apply timeout if specified
-                    stdout=stdout_file,
-                    stderr=stderr_file,
-                    text=True
-                )
+                if self.environment == "apptainer":
+                    self.logger.info(f"Executing process {self.name} with apptainer container {self.container}")
+                    command = self._build_apptainer_command(base_script_path)
+                    with open(command_path, "w") as command_path_file:
+                        command_path_file.write(" ".join(command))
+                    result = subprocess.Popen(
+                        command,
+                        stdout=stdout_file,
+                        stderr=stderr_file,
+                        text=True
+                    )
+                else:
+                    result = subprocess.Popen(
+                        [base_script_path],
+                        env=self.combined_env,
+                        stdout=stdout_file,
+                        stderr=stderr_file,
+                        text=True
+                    )
             process_id = result.pid
             self.logger.info(f"Process {self.name} started with PID: {process_id}")
 

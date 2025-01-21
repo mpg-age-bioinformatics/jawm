@@ -81,7 +81,7 @@ import time
 print("Hello from Python")
 print("2 + 3 =", 2 + 3)
 print("start sleeping!")
-time.sleep(15)
+time.sleep(5)
 print("python script ends!")
 """,
     manager="slurm",
@@ -118,6 +118,39 @@ process_python = Process(
     script_parameters_file="scripts/hello.rc",
     manager="slurm",
     manager_slurm={"partition":"dedicated"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+
+time.sleep(1)
+# Run with apptainer container
+process_python = Process(
+    name="local_apptainer",
+    script="""#!/bin/bash
+env
+""",
+    environment='apptainer',
+    container="/nexus/posix0/MAGE-flaski/service/hpc/home/hamin/python.sif",
+    # environment_apptainer={
+    #     "bind": ["/path/abc/:/abc/", "/path/def/:/def/"],
+    #     "home": "/path/home"
+    # },
+    env={"MY_VAR": "APP Value"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+time.sleep(1)
+# Run with apptainer container
+process_python = Process(
+    name="env",
+    script="""#!/bin/bash
+env
+""",
+    env={"MY_VAR": "value"}
 )
 
 output = process_python.execute()
