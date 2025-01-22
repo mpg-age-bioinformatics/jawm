@@ -161,6 +161,11 @@ class Process:
         # Define the Slurm script file name
         slurm_script_path = os.path.join(self.log_path, f"{self.name}.slurm")
 
+        if self.environment == "apptainer":
+            slurm_script_command = (" ".join(self._build_apptainer_command(base_script_path)))
+        else:
+            slurm_script_command = base_script_path
+
         # Create the Slurm job script
         with open(slurm_script_path, "w") as slurm_script_file:
             slurm_script_file.write("#!/bin/bash\n")  # Slurm script shebang
@@ -170,7 +175,7 @@ class Process:
                 slurm_script_file.write(f"#SBATCH --{key}={value}\n")
 
             # Call the executable script
-            slurm_script_file.write(f"\n{base_script_path}\n")
+            slurm_script_file.write(f"\n{slurm_script_command}\n")
 
         return slurm_script_path
 
@@ -218,7 +223,10 @@ class Process:
 
         # Add environment variables
         if self.env:
-            apptainer_command.extend(["--env", f"{','.join(f'{k}={v}' for k, v in self.env.items())}"])
+            # apptainer_command.extend(["--env", f"{','.join(f'{k}="{v}"' for k, v in self.env.items())}"])
+            for key, val in self.env.items():
+                # apptainer_command.extend(["--env", f'{key}="{val}"'])
+                apptainer_command.extend(["--env", f'{key}="{val}"' if " " in val else f"{key}={val}"])
 
         # Add container and script
         apptainer_command.extend([self.container, script_path])
@@ -256,6 +264,8 @@ class Process:
                         text=True
                     )
                 else:
+                    with open(command_path, "w") as command_path_file:
+                        command_path_file.write(base_script_path)
                     result = subprocess.Popen(
                         [base_script_path],
                         env=self.combined_env,
@@ -320,6 +330,7 @@ class Process:
         self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
         exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
         id_path = os.path.join(self.log_path, f"{self.name}.id")
+        command_path = os.path.join(self.log_path, f"{self.name}.command")
 
         # Generate the Slurm job script
         slurm_script_path = self._generate_slurm_script()
@@ -329,6 +340,8 @@ class Process:
         sbatch_command.append(slurm_script_path)
 
         self.logger.info(f"Submitting process {self.name} with command: {' '.join(sbatch_command)}")
+        with open(command_path, "w") as command_path_file:
+            command_path_file.write(" ".join(sbatch_command))
 
         try:
             # Submit the job script to Slurm

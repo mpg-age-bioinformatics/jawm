@@ -127,8 +127,10 @@ print("Python Output:", output)
 time.sleep(1)
 # Run with apptainer container
 process_python = Process(
-    name="local_apptainer",
+    name="slurm_apptainer",
     script="""#!/bin/bash
+echo $HOSTNAME
+echo $MY_VAR
 env
 """,
     environment='apptainer',
@@ -137,7 +139,12 @@ env
     #     "bind": ["/path/abc/:/abc/", "/path/def/:/def/"],
     #     "home": "/path/home"
     # },
-    env={"MY_VAR": "APP Value"}
+    env={
+        "MY_VAR": "APP_Value",
+        "ANOTHER_VAR": "ANOTHER_VAR"
+    },
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"}
 )
 
 output = process_python.execute()
@@ -148,9 +155,16 @@ time.sleep(1)
 process_python = Process(
     name="env",
     script="""#!/bin/bash
+echo $MY_VAR
+echo $SECVAL
 env
 """,
-    env={"MY_VAR": "value"}
+    env={
+        "MY_VAR": "value",
+        "SECVAL": "Second_Value"
+    },
+    environment='apptainer',
+    container="/nexus/posix0/MAGE-flaski/service/hpc/home/hamin/python.sif"
 )
 
 output = process_python.execute()
