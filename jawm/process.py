@@ -163,6 +163,8 @@ class Process:
 
         if self.environment == "apptainer":
             slurm_script_command = (" ".join(self._build_apptainer_command(base_script_path)))
+        elif self.environment == "docker":
+            slurm_script_command = (" ".join(self._build_docker_command(base_script_path)))
         else:
             slurm_script_command = base_script_path
 
@@ -232,7 +234,46 @@ class Process:
         apptainer_command.extend([self.container, script_path])
 
         return apptainer_command
+ 
+    def _build_docker_command(self, script_path):
+        """
+        Build the Docker command dynamically based on user configurations.
+        
+        :param script_path: The path to the script to execute inside the container.
+        :return: The Docker command as a list.
+        """
+        # Base command
+        docker_command = ["docker", "run", "--rm"]
 
+        # Apply user-defined Docker options dynamically
+        for option, value in self.environment_docker.items():
+            if isinstance(value, list):
+                # Handle options that require multiple values (e.g., --volume)
+                for v in value:
+                    docker_command.extend([f"--{option}", str(v)])
+            elif isinstance(value, bool):
+                # Handle flags (e.g., --privileged)
+                if value:  # Only include the flag if True
+                    docker_command.append(f"--{option}")
+            else:
+                # Handle regular key-value options
+                docker_command.extend([f"--{option}", str(value)])
+
+        # Add environment variables
+        if self.env:
+            for key, val in self.env.items():
+                docker_command.extend(["-e", f'{key}="{val}"' if " " in val else f"{key}={val}"])
+
+        # Mount working directory if necessary
+        # docker_command.extend(["-v", f"{self.project_directory}:{self.project_directory}"])
+
+        # Set working directory inside the container
+        # docker_command.extend(["-w", self.project_directory])
+
+        # Add container image and script to execute
+        docker_command.extend([self.container, "/bin/bash", "-c", script_path])
+
+        return docker_command
 
     def _execute_metal(self):
         """
@@ -255,6 +296,17 @@ class Process:
                 if self.environment == "apptainer":
                     self.logger.info(f"Executing process {self.name} with apptainer container {self.container}")
                     command = self._build_apptainer_command(base_script_path)
+                    with open(command_path, "w") as command_path_file:
+                        command_path_file.write(" ".join(command))
+                    result = subprocess.Popen(
+                        command,
+                        stdout=stdout_file,
+                        stderr=stderr_file,
+                        text=True
+                    )
+                elif self.environment == "docker":
+                    self.logger.info(f"Executing process {self.name} with docker container {self.container}")
+                    command = self._build_docker_command(base_script_path)
                     with open(command_path, "w") as command_path_file:
                         command_path_file.write(" ".join(command))
                     result = subprocess.Popen(
