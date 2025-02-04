@@ -8,6 +8,9 @@ import time
 from datetime import datetime
 
 class Process:
+    # Global registry to map process names to process instances.
+    registry = {}
+
     """
     A class to define and execute processes with support for multiple managers,
     pre/post scripts, retries, and resource configurations.
@@ -22,7 +25,13 @@ class Process:
         """
         # Primary parameters
         self.name = name
-        # self.script = script
+
+        # Register the process and get depends_on parameter
+        Process.registry[self.name] = self
+        self.depends_on = kwargs.get("depends_on", [])
+        if isinstance(self.depends_on, str):
+            self.depends_on = [self.depends_on]
+
         self.script = kwargs.get("script", "#!/bin/bash")
         self.script_file = kwargs.get("script_file", None)
         self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
@@ -71,6 +80,9 @@ class Process:
 
         # For reuse and track (doesn't come from the user parameters directly)
         self.base_script_path = None
+
+        # A threading event that signals when this process has finished.
+        self.finished_event = threading.Event()
 
     def _script_placeholders(self, script_content):
         """
@@ -359,6 +371,9 @@ class Process:
                         return self._execute_metal()
                     self.logger.error(f"Process {self.name} failed with error: {error_message}")
                     raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
+                
+                # Mark process as finished.
+                self.finished_event.set()
 
             # Start monitoring in a background thread
             monitor_thread = threading.Thread(target=monitor_process, daemon=False)
@@ -369,9 +384,6 @@ class Process:
 
         finally:
             pass
-            # Cleanup the temporary script file
-            # if os.path.exists(temp_script_path):
-            #     os.remove(temp_script_path)
 
     def _execute_slurm(self):
         """
@@ -452,6 +464,9 @@ class Process:
                     time.sleep(10)  # Check status every 10 seconds
                     elapsed_time += 10
 
+                # Mark process as finished.
+                self.finished_event.set()
+
             # Start monitoring in a background thread
             monitor_thread = threading.Thread(target=monitor_slurm_job, daemon=False)
             monitor_thread.start()
@@ -460,9 +475,6 @@ class Process:
 
         finally:
             pass
-            # Cleanup the Slurm script
-            # if os.path.exists(slurm_script_path):
-            #     os.remove(slurm_script_path)
 
     def execute(self):
         """
@@ -472,6 +484,15 @@ class Process:
         if not self.when:
             self.logger.info(f"Process {self.name} skipped as execution condition did not fulfilled!")
             return
+
+        # Wait for dependencies to complete.
+        for dep in self.depends_on:
+            dep_proc = Process.registry.get(dep)
+            if dep_proc is None:
+                self.logger.warning(f"Dependency {dep} not found in registry, skipping wait.")
+            else:
+                self.logger.info(f"Waiting for dependency process {dep} to finish before executing {self.name}.")
+                dep_proc.finished_event.wait()
 
         if self.manager == "metal":
             return self._execute_metal()
