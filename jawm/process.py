@@ -468,6 +468,11 @@ class Process:
         """
         Execute the process based on the specified manager (local or slurm).
         """
+        # Skip if the condition does not fulfilled
+        if not self.when:
+            self.logger.info(f"Process {self.name} skipped as execution condition did not fulfilled!")
+            return
+
         if self.manager == "metal":
             return self._execute_metal()
         elif self.manager == "slurm":
