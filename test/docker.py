@@ -11,3 +11,17 @@ import time
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
+time.sleep(1)
+# Run with docker container
+process_python = Process(
+    name="container",
+    script="""#!/bin/bash
+echo "Hello World!"
+env
+""",
+    environment='docker',
+    container="python:slim"
+)
+
+output = process_python.execute()
+print("Python Output:", output)

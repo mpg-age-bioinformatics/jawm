@@ -32,24 +32,139 @@ cat output.txt
 output = process_hw.execute()
 print("Process Output:", output)
 
+### Bash example
+# process_bash = Process(
+#     name="bash_example",
+#     script="""
+#         echo "Hello from Bash"
+#         echo "Current date: $(date)"
+#     """,
+#     interpreter="/bin/bash"
+# )
+
+# output = process_bash.execute()
+# print("Bash Output:", output)
+
+time.sleep(1)
+### Python example
+process_python = Process(
+    name="python_example",
+    script="""#!/usr/bin/env python3
+print("Hello from Python")
+print("2 + 2 =", 2 + 2)
+""",
+    interpreter="python3"
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+### R example
+# process_r = Process(
+#     name="r_example",
+#     script="""
+# cat("Hello from R\n")
+# print(2 + 2)
+# """,
+#     interpreter="Rscript"
+# )
+
+# output = process_r.execute()
+# print("R Output:", output)
+
+time.sleep(1)
+# Run with slurm
+process_python = Process(
+    name="python_example",
+    script="""#!/usr/bin/env python3
+import time
+print("Hello from Python")
+print("2 + 3 =", 2 + 3)
+print("start sleeping!")
+time.sleep(5)
+print("python script ends!")
+""",
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+
+time.sleep(1)
+# Run with slurm and script
+process_python = Process(
+    name="python_file",
+    script_file="scripts/hello.py",
+    script_parameters={
+        "APPNAME": "JAWM",
+        "BYEMSG": "GOOD BYE!",
+        "FRUITLIST": "['Apple', 'Banana', 'Orange']"
+    },
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+
+time.sleep(1)
+# Run with slurm, script and parameters file
+process_python = Process(
+    name="python_file_params",
+    script_file="scripts/hello.py",
+    script_parameters_file="scripts/hello.rc",
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+
 time.sleep(1)
 # Run with apptainer container
 process_python = Process(
-    name="container",
+    name="slurm_apptainer",
     script="""#!/bin/bash
-echo "Hello World!"
+echo $HOSTNAME
+echo $MY_VAR
 env
 """,
-    environment='docker',
-    container="python:slim",
+    environment='apptainer',
+    container="/nexus/posix0/MAGE-flaski/service/hpc/home/hamin/python.sif",
     # environment_apptainer={
     #     "bind": ["/path/abc/:/abc/", "/path/def/:/def/"],
     #     "home": "/path/home"
     # },
-    # env={
-    #     "MY_VAR": "APP_Value",
-    #     "ANOTHER_VAR": "ANOTHER_VAR"
-    # }
+    env={
+        "MY_VAR": "APP_Value",
+        "ANOTHER_VAR": "ANOTHER_VAR"
+    },
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"}
+)
+
+output = process_python.execute()
+print("Python Output:", output)
+
+time.sleep(1)
+# Run with apptainer container
+process_python = Process(
+    name="env",
+    script="""#!/bin/bash
+echo $MY_VAR
+echo $SECVAL
+env
+""",
+    env={
+        "MY_VAR": "value",
+        "SECVAL": "Second_Value"
+    },
+    environment='apptainer',
+    container="/nexus/posix0/MAGE-flaski/service/hpc/home/hamin/python.sif"
 )
 
 output = process_python.execute()
