@@ -164,3 +164,4 @@ cython_debug/
 # Test directories
 exercise/
 test/logs/
+test/monitoring

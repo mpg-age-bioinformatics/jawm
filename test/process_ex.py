@@ -150,26 +150,27 @@ logging.basicConfig(level=logging.INFO)
 # output = process_python.execute()
 # print("Python Output:", output)
 
-# time.sleep(1)
-# # Run with apptainer container
-# process_python = Process(
-#     name="env",
-#     script="""#!/bin/bash
-# echo $MY_VAR
-# echo $SECVAL
-# env
-# """,
-#     env={
-#         "MY_VAR": "value",
-#         "SECVAL": "Second_Value"
-#     },
-#     environment='apptainer',
-#     container="/nexus/posix0/MAGE-flaski/service/hpc/home/hamin/python.sif",
-#     when="abc"
-# )
+time.sleep(1)
+# Run with apptainer container
+process_python = Process(
+    name="env",
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"},
+    script="""#!/bin/bash
+echo $MY_VAR
+echo $SECVAL
+env
+""",
+    env={
+        "MY_VAR": "value",
+        "SECVAL": "Second_Value"
+    },
+    environment='apptainer',
+    container="/nexus/posix0/MAGE-flaski/service/hpc/home/hamin/python.sif",
+)
 
-# output = process_python.execute()
-# print("Python Output:", output)
+output = process_python.execute()
+print("Python Output:", output)
 
 
 # Process A (dependency)
@@ -177,13 +178,13 @@ process_a = Process(
     name="process_A",
     script="""#!/bin/bash
 echo 'Process A running'
-sleep 50
+sleep 10
 """,
     retries=1
 )
 process_a.execute()
 
-# Process B depends on process_A
+# Process B depends on process_A and process_C
 process_b = Process(
     name="process_B",
     script="""#!/bin/bash
@@ -198,7 +199,7 @@ process_c= Process(
     name="process_C",
     script="""#!/bin/bash
 echo 'Process C running'
-sleep 20
+sleep 5
 """,
     retries=1
 )

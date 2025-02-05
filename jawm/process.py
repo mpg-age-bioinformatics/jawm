@@ -45,6 +45,16 @@ class Process:
         os.makedirs(self.logs_directory, exist_ok=True)
         self.parameters_directory = kwargs.get("parameters_directory", os.path.join(self.project_directory, "parameters"))
 
+        # Setup monitoring directory
+        self.monitoring_directory = kwargs.get("monitoring_directory", os.environ.get("JAWM_MONITORING_DIRECTORY", None))
+        try:
+            os.makedirs(self.monitoring_directory, exist_ok=True) if self.monitoring_directory is not None else None
+            self.running_directory, self.completed_directory = (os.path.join(self.monitoring_directory, 'Running'), os.path.join(self.monitoring_directory, 'Completed')) if self.monitoring_directory else (None, None)
+            if self.monitoring_directory: os.makedirs(self.running_directory, exist_ok=True); os.makedirs(self.completed_directory, exist_ok=True)
+        except Exception as e:
+            self.logger.warning(f"Monitoring directory issue: {str(e)}")
+            self.monitoring_directory = None
+
         # Management parameters
         self.manager = kwargs.get("manager", "metal")
         # self.source_env = os.environ.copy()
@@ -287,6 +297,40 @@ class Process:
 
         return docker_command
 
+    def _monitoring_running_file(self, job_id, script_path):
+        """
+        Creates a file <self.manager>.<job_id>.txt in the running directory.
+        """
+        try:
+            running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
+            with open(running_file_path, "w") as file:
+                file.write(f"Job ID: {job_id}\n")
+                file.write(f"Path: {script_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to create running file for {self.name} in Monitoring: {str(e)}")
+
+    def _monitoring_completed_file(self, job_id, script_path, exit_code):
+        """
+        Moves the process from Running to Completed by deleting the running file
+        and creating a new file in the Completed directory.
+        """
+        try:
+            running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
+            completed_file_path = os.path.join(self.completed_directory, f"{self.manager}.{job_id}.{exit_code}.txt")
+
+            # Remove the running file if it exists
+            if os.path.exists(running_file_path):
+                os.remove(running_file_path)
+
+            # Create the completed file
+            with open(completed_file_path, "w") as file:
+                file.write(f"Job ID: {job_id}\n")
+                file.write(f"Path: {script_path}\n")
+                file.write(f"Exit Code: {exit_code}")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to create completed file for {self.name} in Monitoring: {str(e)}")
+
     def _execute_metal(self):
         """
         Execute the process locally with resource constraints.
@@ -340,6 +384,9 @@ class Process:
             process_id = result.pid
             self.logger.info(f"Process {self.name} started with PID: {process_id}")
 
+            # Create monitoring file in Running directory
+            self._monitoring_running_file(process_id, base_script_path)
+
             def monitor_process():
                 """
                 Monitor/log the process in a background thread.
@@ -371,6 +418,9 @@ class Process:
                         return self._execute_metal()
                     self.logger.error(f"Process {self.name} failed with error: {error_message}")
                     raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
+                
+                # Create monitoring file in Completed directory
+                self._monitoring_completed_file(process_id, base_script_path, exitcode)
                 
                 # Mark process as finished.
                 self.finished_event.set()
@@ -422,6 +472,8 @@ class Process:
                 self.logger.info(f"Process {self.name} submitted as Slurm job {job_id}.")
                 with open(id_path, "w") as id_file:
                     id_file.write(str(job_id))
+                # Create monitoring file in Running directory
+                self._monitoring_running_file(job_id, slurm_script_path)
             else:
                 self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}")
                 raise RuntimeError(f"Slurm submission failed for process {self.name}")
@@ -455,6 +507,8 @@ class Process:
                             self.logger.info(f"Job {job_id} state: {state}, exit code: {exit_code}")
                         if state in {"COMPLETED", "FAILED", "CANCELLED"}:
                             self.logger.info(f"Job {job_id} completed with exit code: {exit_code}")
+                            # Create monitoring file in Completed directory
+                            self._monitoring_completed_file(job_id, slurm_script_path, exit_code)
                             # log the exit code
                             with open(exitcode_path, "w") as exitcode_file:
                                 exitcode_file.write(str(exit_code))
