@@ -150,6 +150,9 @@ logging.basicConfig(level=logging.INFO)
 # output = process_python.execute()
 # print("Python Output:", output)
 
+def ret_false():
+    return False
+
 time.sleep(1)
 # Run with apptainer container
 process_python = Process(
@@ -180,7 +183,8 @@ process_a = Process(
 echo 'Process A running'
 sleep 10
 """,
-    retries=1
+    retries=1,
+    when=ret_false()
 )
 process_a.execute()
 
@@ -190,7 +194,7 @@ process_b = Process(
     script="""#!/bin/bash
 echo 'Process B running after A finishes'
 """,
-    depends_on=["process_A", "process_C"]  # or use a list: depends_on=["process_A"]
+    depends_on=["process_A"]  # or use a list: depends_on=["process_A"]
 )
 process_b.execute()
 

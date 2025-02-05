@@ -85,7 +85,8 @@ class Process:
 
         # Metadata
         self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.manager}")
+        self.hash = hex(hash(self.name) & 0xFF)[2:].zfill(2)
+        self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.manager}_{self.hash}")
         os.makedirs(self.log_path, exist_ok=True)
 
         # For reuse and track (doesn't come from the user parameters directly)
@@ -537,6 +538,7 @@ class Process:
         # Skip if the condition does not fulfilled
         if not self.when:
             self.logger.info(f"Process {self.name} skipped as execution condition did not fulfilled!")
+            self.finished_event.set()
             return
 
         # Wait for dependencies to complete.
