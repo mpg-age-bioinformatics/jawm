@@ -25,6 +25,7 @@ class Process:
         """
         # Primary parameters
         self.name = name
+        self.hash = hex(hash(self.name) & 0xFF)[2:].zfill(2)
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self

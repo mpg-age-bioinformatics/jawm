@@ -184,27 +184,28 @@ echo 'Process A running'
 sleep 10
 """,
     retries=1,
-    when=ret_false()
+    # when=ret_false()
 )
 process_a.execute()
-
-# Process B depends on process_A and process_C
-process_b = Process(
-    name="process_B",
-    script="""#!/bin/bash
-echo 'Process B running after A finishes'
-""",
-    depends_on=["process_A"]  # or use a list: depends_on=["process_A"]
-)
-process_b.execute()
 
 # Process C (dependency)
 process_c= Process(
     name="process_C",
     script="""#!/bin/bash
 echo 'Process C running'
-sleep 5
+sleep 15
 """,
     retries=1
 )
 process_c.execute()
+
+# Process B depends on process_A and process_C
+process_b = Process(
+    name="process_B",
+    script="""#!/bin/bash
+echo 'Process B running after A, C finishes'
+sleep 5
+""",
+    depends_on=["process_A", "process_C"]  # or use a list: depends_on=["process_A"]
+)
+process_b.execute()
