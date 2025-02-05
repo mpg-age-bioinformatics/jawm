@@ -307,6 +307,7 @@ class Process:
             running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
             with open(running_file_path, "w") as file:
                 file.write(f"Job ID: {job_id}\n")
+                file.write(f"Job Name: {self.name}\n")
                 file.write(f"Path: {script_path}")
         except Exception as e:
             self.logger.warning(f"Failed to create running file for {self.name} in Monitoring: {str(e)}")
@@ -327,6 +328,7 @@ class Process:
             # Create the completed file
             with open(completed_file_path, "w") as file:
                 file.write(f"Job ID: {job_id}\n")
+                file.write(f"Job Name: {self.name}\n")
                 file.write(f"Path: {script_path}\n")
                 file.write(f"Exit Code: {exit_code}")
 
