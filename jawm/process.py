@@ -20,7 +20,7 @@ class Process:
         """
         Initialize the Process object.
 
-        :param name: Name of the process.
+        :param name (required): Name of the process.
         :param param_file: YAML format file(s) that includes different parameters
         :param kwargs: Additional parameters to configure the process.
         """
@@ -484,7 +484,8 @@ class Process:
             return process_id
 
         finally:
-            pass
+            # Ensure finished_event is set, even in case of failure
+            self.finished_event.set()
 
     def _execute_slurm(self):
         """
@@ -579,7 +580,8 @@ class Process:
             return job_id
 
         finally:
-            pass
+            # Ensure finished_event is set, even in case of failure
+            self.finished_event.set()
 
     def execute(self):
         """

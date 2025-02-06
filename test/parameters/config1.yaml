@@ -1,5 +1,5 @@
 - scope: global
-  retries: 3
+  # retries: 1
   monitoring_directory: "monitoring"
   manager: "slurm"
   manager_slurm : {"partition":"dedicated"}
