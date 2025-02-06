@@ -1,0 +1,6 @@
+- scope: process
+  name: "process_C"
+  script: |
+    #!/bin/bash
+    echo "Process C"
+  manager: "metal"

@@ -176,36 +176,45 @@ output = process_python.execute()
 print("Python Output:", output)
 
 
-# Process A (dependency)
-process_a = Process(
-    name="process_A",
-    script="""#!/bin/bash
-echo 'Process A running'
-sleep 10
-""",
-    retries=1,
-    # when=ret_false()
-)
-process_a.execute()
+# # Process A (dependency)
+# process_a = Process(
+#     name="process_A",
+#     script="""#!/bin/bash
+# echo 'Process A running'
+# sleep 10
+# """,
+#     retries=1,
+#     # when=ret_false()
+# )
+# process_a.execute()
 
-# Process C (dependency)
-process_c= Process(
-    name="process_C",
-    script="""#!/bin/bash
-echo 'Process C running'
-sleep 15
-""",
-    retries=1
-)
+# # Process C (dependency)
+# process_c= Process(
+#     name="process_C",
+#     script="""#!/bin/bash
+# echo 'Process C running'
+# sleep 15
+# """,
+#     retries=1
+# )
+# process_c.execute()
+
+# # Process B depends on process_A and process_C
+# process_b = Process(
+#     name="process_B",
+#     script="""#!/bin/bash
+# echo 'Process B running after A, C finishes'
+# sleep 5
+# """,
+#     depends_on=["process_A", "process_C"]  # or use a list: depends_on=["process_A"]
+# )
+# process_b.execute()
+
+process_c = Process(name="process_C", param_file=["parameters/config1.yaml", "parameters/config2.yaml"])
 process_c.execute()
 
-# Process B depends on process_A and process_C
-process_b = Process(
-    name="process_B",
-    script="""#!/bin/bash
-echo 'Process B running after A, C finishes'
-sleep 5
-""",
-    depends_on=["process_A", "process_C"]  # or use a list: depends_on=["process_A"]
-)
+process_a = Process(name="process_A", param_file="parameters/config1.yaml")
+process_a.execute()
+
+process_b = Process(name="process_B", param_file="parameters/config1.yaml")
 process_b.execute()

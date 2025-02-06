@@ -5,6 +5,7 @@ import sys
 import logging
 import tempfile
 import time
+import yaml
 from datetime import datetime
 
 class Process:
@@ -15,39 +16,49 @@ class Process:
     A class to define and execute processes with support for multiple managers,
     pre/post scripts, retries, and resource configurations.
     """
-    def __init__(self, name, **kwargs):
+    def __init__(self, name, param_file=None, **kwargs):
         """
         Initialize the Process object.
 
         :param name: Name of the process.
-        :param script: The main script or command to execute.
+        :param param_file: YAML format file(s) that includes different parameters
         :param kwargs: Additional parameters to configure the process.
         """
+        # Load YAML parameters if provided
+        yaml_params = self.parse_yaml_config(param_file) if param_file else {"global": {}, "process": {}}
+
+        # Retrieve configurations: Process-specific first, fallback to global
+        process_params = yaml_params["process"].get(name, {})
+        global_params = yaml_params["global"]
+
+        # Merge in priority order: global < process < kwargs
+        self.params = {**global_params, **process_params, **kwargs}
+
         # Primary parameters
         self.name = name
         self.hash = hex(hash(self.name) & 0xFF)[2:].zfill(2)
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
-        self.depends_on = kwargs.get("depends_on", [])
+        self.depends_on = self.params.get("depends_on", [])
         if isinstance(self.depends_on, str):
             self.depends_on = [self.depends_on]
 
-        self.script = kwargs.get("script", "#!/bin/bash")
-        self.script_file = kwargs.get("script_file", None)
+        self.script = self.params.get("script", "#!/bin/bash")
+        self.script_file = self.params.get("script_file", None)
         self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
-        self.script_parameters = kwargs.get("script_parameters", None)
-        self.script_parameters_file = kwargs.get("script_parameters_file", None)
+        self.script_parameters = self.params.get("script_parameters", None)
+        self.script_parameters_file = self.params.get("script_parameters_file", None)
 
         # Directory parameters
-        self.project_directory = kwargs.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
+        self.project_directory = self.params.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
         os.makedirs(self.project_directory, exist_ok=True)
-        self.logs_directory = kwargs.get("logs_directory", os.path.join(self.project_directory, "logs"))
+        self.logs_directory = self.params.get("logs_directory", os.path.join(self.project_directory, "logs"))
         os.makedirs(self.logs_directory, exist_ok=True)
-        self.parameters_directory = kwargs.get("parameters_directory", os.path.join(self.project_directory, "parameters"))
+        self.parameters_directory = self.params.get("parameters_directory", os.path.join(self.project_directory, "parameters"))
 
         # Setup monitoring directory
-        self.monitoring_directory = kwargs.get("monitoring_directory", os.environ.get("JAWM_MONITORING_DIRECTORY", None))
+        self.monitoring_directory = self.params.get("monitoring_directory", os.environ.get("JAWM_MONITORING_DIRECTORY", None))
         try:
             os.makedirs(self.monitoring_directory, exist_ok=True) if self.monitoring_directory is not None else None
             self.running_directory, self.completed_directory = (os.path.join(self.monitoring_directory, 'Running'), os.path.join(self.monitoring_directory, 'Completed')) if self.monitoring_directory else (None, None)
@@ -57,31 +68,31 @@ class Process:
             self.monitoring_directory = None
 
         # Management parameters
-        self.manager = kwargs.get("manager", "metal")
+        self.manager = self.params.get("manager", "metal")
         # self.source_env = os.environ.copy()
-        self.env = kwargs.get("env", {})
+        self.env = self.params.get("env", {})
         self.combined_env = {**os.environ.copy(), **self.env}
-        self.inputs = kwargs.get("inputs", {})
-        self.outputs = kwargs.get("outputs", {})
-        self.retries = kwargs.get("retries", 0)
-        self.use_scratch = kwargs.get("scratch", False)
-        self.error_strategy = kwargs.get("error_strategy", "retry")
-        self.when = kwargs.get("when", True)
-        self.before_script = kwargs.get("before_script", None)
-        self.after_script = kwargs.get("after_script", None)
+        self.inputs = self.params.get("inputs", {})
+        self.outputs = self.params.get("outputs", {})
+        self.retries = self.params.get("retries", 0)
+        self.use_scratch = self.params.get("scratch", False)
+        self.error_strategy = self.params.get("error_strategy", "retry")
+        self.when = self.params.get("when", True)
+        self.before_script = self.params.get("before_script", None)
+        self.after_script = self.params.get("after_script", None)
         self.logger = logging.getLogger(name)
 
         # Local execution configurations
-        self.manager_local = kwargs.get("manager_local", {})
+        self.manager_local = self.params.get("manager_local", {})
 
         # Slurm execution configurations
-        self.manager_slurm = kwargs.get("manager_slurm", {})
+        self.manager_slurm = self.params.get("manager_slurm", {})
 
         # Execution environment configurations
-        self.environment = kwargs.get("environment", "local")
-        self.container = kwargs.get("container", None)
-        self.environment_apptainer = kwargs.get("environment_apptainer", {})
-        self.environment_docker = kwargs.get("environment_docker", {})
+        self.environment = self.params.get("environment", "local")
+        self.container = self.params.get("container", None)
+        self.environment_apptainer = self.params.get("environment_apptainer", {})
+        self.environment_docker = self.params.get("environment_docker", {})
         self.environment = {"apptainer": "apptainer", "singularity": "apptainer", "docker": "docker"}.get(self.environment, "local") if self.container is not None else "local"
 
         # Metadata
@@ -95,6 +106,40 @@ class Process:
 
         # A threading event that signals when this process has finished.
         self.finished_event = threading.Event()
+
+    def parse_yaml_config(self, param_file):
+        """
+        Parses one or multiple YAML files and merges configurations.
+
+        :param param_file: A string (single file) or a list of YAML file paths.
+        :return: Dictionary with merged global and process-specific parameters.
+        """
+        yaml_params = {"global": {}, "process": {}}
+
+        # Ensure param_file is a list
+        if isinstance(param_file, str):
+            param_file = [param_file]
+
+        for yaml_file in param_file:
+            try:
+                with open(yaml_file, "r") as file:
+                    yaml_data = yaml.safe_load(file) or []
+            except Exception as e:
+                raise ValueError(f"Failed to load YAML file {yaml_file}: {str(e)}")
+
+            for entry in yaml_data:
+                scope = entry.get("scope")
+                name = entry.get("name", None)
+
+                if scope == "global":
+                    yaml_params["global"].update(entry)  # Merge into global scope
+                elif scope == "process" and name:
+                    if name not in yaml_params["process"]:
+                        yaml_params["process"][name] = entry
+                    else:
+                        yaml_params["process"][name].update(entry)  # Merge process-specific configs
+
+        return yaml_params
 
     def _script_placeholders(self, script_content):
         """
@@ -303,37 +348,39 @@ class Process:
         """
         Creates a file <self.manager>.<job_id>.txt in the running directory.
         """
-        try:
-            running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
-            with open(running_file_path, "w") as file:
-                file.write(f"Job ID: {job_id}\n")
-                file.write(f"Job Name: {self.name}\n")
-                file.write(f"Path: {script_path}")
-        except Exception as e:
-            self.logger.warning(f"Failed to create running file for {self.name} in Monitoring: {str(e)}")
+        if self.running_directory:
+            try:
+                running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
+                with open(running_file_path, "w") as file:
+                    file.write(f"Job ID: {job_id}\n")
+                    file.write(f"Job Name: {self.name}\n")
+                    file.write(f"Path: {script_path}")
+            except Exception as e:
+                self.logger.warning(f"Failed to create running file for {self.name} in Monitoring: {str(e)}")
 
     def _monitoring_completed_file(self, job_id, script_path, exit_code):
         """
         Moves the process from Running to Completed by deleting the running file
         and creating a new file in the Completed directory.
         """
-        try:
-            running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
-            completed_file_path = os.path.join(self.completed_directory, f"{self.manager}.{job_id}.{exit_code}.txt")
+        if self.running_directory and self.completed_directory:
+            try:
+                running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
+                completed_file_path = os.path.join(self.completed_directory, f"{self.manager}.{job_id}.{exit_code}.txt")
 
-            # Remove the running file if it exists
-            if os.path.exists(running_file_path):
-                os.remove(running_file_path)
+                # Remove the running file if it exists
+                if os.path.exists(running_file_path):
+                    os.remove(running_file_path)
 
-            # Create the completed file
-            with open(completed_file_path, "w") as file:
-                file.write(f"Job ID: {job_id}\n")
-                file.write(f"Job Name: {self.name}\n")
-                file.write(f"Path: {script_path}\n")
-                file.write(f"Exit Code: {exit_code}")
+                # Create the completed file
+                with open(completed_file_path, "w") as file:
+                    file.write(f"Job ID: {job_id}\n")
+                    file.write(f"Job Name: {self.name}\n")
+                    file.write(f"Path: {script_path}\n")
+                    file.write(f"Exit Code: {exit_code}")
 
-        except Exception as e:
-            self.logger.warning(f"Failed to create completed file for {self.name} in Monitoring: {str(e)}")
+            except Exception as e:
+                self.logger.warning(f"Failed to create completed file for {self.name} in Monitoring: {str(e)}")
 
     def _execute_metal(self):
         """
