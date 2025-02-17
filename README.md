@@ -9,7 +9,9 @@ Just Another Workflow Manager
 - local and external storage agnostic
 
 ## Installation
-
+```
+pip3 install git+https://github.com/mpg-age-bioinformatics/JAWM.git --user
+```
 
 ## HelloWorld
 
