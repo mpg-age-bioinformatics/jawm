@@ -10,7 +10,7 @@ Just Another Workflow Manager
 
 ## Installation
 ```
-pip3 install git+https://github.com/mpg-age-bioinformatics/JAWM.git --user
+pip install git+ssh://git@github.com/mpg-age-bioinformatics/JAWM.git --user
 ```
 
 ## HelloWorld
