@@ -51,7 +51,8 @@ class Process:
         self.script_parameters_file = self.params.get("script_parameters_file", None)
 
         # Directory parameters
-        self.project_directory = self.params.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
+        # self.project_directory = self.params.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
+        self.project_directory = self.params.get("project_directory", os.getcwd())
         os.makedirs(self.project_directory, exist_ok=True)
         self.logs_directory = self.params.get("logs_directory", os.path.join(self.project_directory, "logs"))
         os.makedirs(self.logs_directory, exist_ok=True)
