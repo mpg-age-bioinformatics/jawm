@@ -1,0 +1,1 @@
+/nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs/python_example_20250217_150137_metal_59/python_example.script

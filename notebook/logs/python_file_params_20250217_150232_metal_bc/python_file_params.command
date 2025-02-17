@@ -1,0 +1,1 @@
+/nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs/python_file_params_20250217_150232_metal_bc/python_file_params.script

@@ -1,0 +1,1 @@
+/nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs/hello_world_20250217_150111_metal_65/hello_world.script

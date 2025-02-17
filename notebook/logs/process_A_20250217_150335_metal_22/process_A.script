@@ -1,0 +1,3 @@
+#!/bin/bash
+sleep 7
+echo "Process A running"

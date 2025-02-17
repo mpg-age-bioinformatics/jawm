@@ -1,0 +1,1 @@
+/nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs/process_A_20250217_150335_metal_22/process_A.script

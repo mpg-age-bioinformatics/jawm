@@ -1,0 +1,6 @@
+- scope: process
+  name: "process_C"
+  script: |
+    #!/bin/bash
+    sleep 15
+    echo "Process C runs independently"

@@ -1,0 +1,4 @@
+Job ID: 542666
+Job Name: hello_world
+Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs/hello_world_20250217_150111_metal_65/hello_world.script
+Exit Code: 0

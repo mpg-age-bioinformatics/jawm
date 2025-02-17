@@ -1,0 +1,4 @@
+Job ID: 544094
+Job Name: process_B
+Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs/process_B_20250217_150335_metal_ca/process_B.script
+Exit Code: 0

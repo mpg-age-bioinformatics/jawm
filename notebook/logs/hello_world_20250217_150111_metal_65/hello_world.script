@@ -1,0 +1,5 @@
+#!/bin/bash
+echo 'Starting process...'
+# sleep 15
+echo 'Hello, World!' > output.txt
+cat output.txt
