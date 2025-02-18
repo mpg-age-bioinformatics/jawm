@@ -52,7 +52,8 @@ class Process:
 
         # Directory parameters
         # self.project_directory = self.params.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
-        self.project_directory = self.params.get("project_directory", os.getcwd())
+        # self.project_directory = self.params.get("project_directory", os.getcwd())
+        self.project_directory = os.path.abspath(self.params.get("project_directory", "."))
         os.makedirs(self.project_directory, exist_ok=True)
         self.logs_directory = self.params.get("logs_directory", os.path.join(self.project_directory, "logs"))
         os.makedirs(self.logs_directory, exist_ok=True)
@@ -443,13 +444,13 @@ class Process:
                 """
                 Monitor/log the process in a background thread.
                 """
-                elapsed_time = 1
+                elapsed_time = 0
                 while result.poll() is None:
                     # log every 3mins of waiting for the process to be finished
                     if elapsed_time % 180 == 0:
                         self.logger.info(f"Process {self.name} (PID: {process_id}) is still running...")
-                    elapsed_time += 3
-                    time.sleep(3)  # Sleep for a while before checking again
+                    elapsed_time += 5
+                    time.sleep(5)  # Sleep for a while before checking again
 
                 # Once finished, get the return code
                 exitcode = result.returncode
@@ -537,7 +538,7 @@ class Process:
                 """
                 elapsed_time = 0
                 retry_fail = 0
-                max_fail = 5
+                max_fail = 10
                 while True:
                     # Query the job's status and exit code using sacct
                     job_info = subprocess.run(
