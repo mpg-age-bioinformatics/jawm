@@ -37,8 +37,6 @@ class Process:
 
         # Primary parameters
         self.name = name
-        self.hash = f"{random.randint(0, 255):02x}"
-        # self.hash = hex(hash(self.name) & 0xFF)[2:].zfill(2)
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
@@ -101,7 +99,7 @@ class Process:
 
         # Metadata
         self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.hash = hex(hash(self.name) & 0xFF)[2:].zfill(2)
+        self.hash = f"{random.randint(0, 255):02x}"
         self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.manager}_{self.hash}")
         os.makedirs(self.log_path, exist_ok=True)
 
