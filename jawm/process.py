@@ -535,7 +535,9 @@ class Process:
                 """
                 Monitor the Slurm job in the background and capture its exit code.
                 """
-                elapsed_time = 1
+                elapsed_time = 0
+                retry_fail = 0
+                max_fail = 5
                 while True:
                     # Query the job's status and exit code using sacct
                     job_info = subprocess.run(
@@ -545,10 +547,14 @@ class Process:
                         text=True
                     )
 
+                    # Handle failure on slurm job querieng
                     if job_info.returncode != 0:
+                        if retry_fail >= max_fail:
+                            self.logger.error(f"Max retries ({max_fail}) for quering job with sacct tool reached for id {job_id}. Please make sure, sacct tool is working. Monitoring stopped!")
+                            break
                         self.logger.warning(f"Failed to query job {job_id} status: {job_info.stderr}")
-                        time.sleep(10)
-                        elapsed_time += 10
+                        time.sleep(min(10 * (2 ** retry_fail), 300))
+                        retry_fail += 1
                         continue  # Retry querying
 
                     # Parse the job state and exit code
@@ -568,8 +574,8 @@ class Process:
                                 break
                             
 
-                    time.sleep(10)  # Check status every 10 seconds
-                    elapsed_time += 10
+                    time.sleep(20)  # Check status every 20 seconds
+                    elapsed_time += 20
 
                 # Mark process as finished.
                 self.finished_event.set()
