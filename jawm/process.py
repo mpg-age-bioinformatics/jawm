@@ -5,6 +5,7 @@ import sys
 import logging
 import tempfile
 import time
+import random
 import yaml
 from datetime import datetime
 
@@ -36,7 +37,8 @@ class Process:
 
         # Primary parameters
         self.name = name
-        self.hash = hex(hash(self.name) & 0xFF)[2:].zfill(2)
+        self.hash = f"{random.randint(0, 255):02x}"
+        # self.hash = hex(hash(self.name) & 0xFF)[2:].zfill(2)
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
@@ -445,7 +447,14 @@ class Process:
                 Monitor/log the process in a background thread.
                 """
                 elapsed_time = 0
+                # start_time = time.time()
+                # max_monitor_time = 5 * 24 * 3600
+
                 while result.poll() is None:
+                    # if time.time() - start_time > max_monitor_time:
+                    #     self.logger.error(f"Process {self.name} exceeded maximum monitoring time. Killing process.")
+                    #     result.terminate()
+                    #     break
                     # log every 3mins of waiting for the process to be finished
                     if elapsed_time % 180 == 0:
                         self.logger.info(f"Process {self.name} (PID: {process_id}) is still running...")
@@ -539,7 +548,13 @@ class Process:
                 elapsed_time = 0
                 retry_fail = 0
                 max_fail = 10
+                # start_time = time.time()
+                # max_monitor_time = 5 * 24 * 3600
+
                 while True:
+                    # if time.time() - start_time > max_monitor_time:
+                    #     self.logger.error(f"Slurm job {job_id} exceeded maximum monitoring time")
+                    #     break
                     # Query the job's status and exit code using sacct
                     job_info = subprocess.run(
                         ["sacct", "-j", job_id, "--format=JobID,State,ExitCode", "-n"],
