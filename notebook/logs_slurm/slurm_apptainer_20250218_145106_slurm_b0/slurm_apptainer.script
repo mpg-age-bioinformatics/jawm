@@ -1,0 +1,3 @@
+#!/bin/bash
+echo $HOSTNAME
+echo $MY_VAR

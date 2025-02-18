@@ -1,0 +1,4 @@
+Job ID: 489507
+Job Name: r_example
+Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/r_example_20250218_142553_slurm_cb/r_example.slurm
+Exit Code: 127:0

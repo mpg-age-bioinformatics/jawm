@@ -1,0 +1,4 @@
+#!/bin/bash
+echo 'Starting process...'
+echo 'Hello World from Slurm!' > output.txt
+cat output.txt

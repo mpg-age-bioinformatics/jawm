@@ -1,0 +1,4 @@
+Job ID: 489516
+Job Name: singularity_params
+Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/singularity_params_20250218_145805_slurm_a9/singularity_params.slurm
+Exit Code: 0:0

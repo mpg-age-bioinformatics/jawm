@@ -1,0 +1,23 @@
+- scope: global
+  retries: 3
+  monitoring_directory: "monitoring"
+  logs_directory: "logs_slurm"
+  manager: "slurm"
+  manager_slurm: {"partition":"cluster", "mem":"2GB"}
+
+- scope: process
+  name: "process_A"
+  script: |
+    #!/bin/bash
+    sleep 120
+    echo "Process A running"
+  depends_on: ["process_C"]
+
+- scope: process
+  name: "process_B"
+  script: |
+    #!/bin/bash
+    sleep 60
+    echo "Process B running after A finishes"
+  depends_on: ["process_A"]
+  retries: 7
