@@ -55,7 +55,7 @@ class Process:
         # self.project_directory = self.params.get("project_directory", os.getcwd())
         self.project_directory = os.path.abspath(self.params.get("project_directory", "."))
         os.makedirs(self.project_directory, exist_ok=True)
-        self.logs_directory = self.params.get("logs_directory", os.path.join(self.project_directory, "logs"))
+        self.logs_directory = os.path.abspath(self.params.get("logs_directory", os.path.join(self.project_directory, "logs")))
         os.makedirs(self.logs_directory, exist_ok=True)
         self.parameters_directory = self.params.get("parameters_directory", os.path.join(self.project_directory, "parameters"))
 
