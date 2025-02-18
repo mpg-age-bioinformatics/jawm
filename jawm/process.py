@@ -575,8 +575,8 @@ class Process:
                                 break
                             
 
-                    time.sleep(20)  # Check status every 20 seconds
-                    elapsed_time += 20
+                    time.sleep(10)  # Check status every 10 seconds
+                    elapsed_time += 10
 
                 # Mark process as finished.
                 self.finished_event.set()
