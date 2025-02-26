@@ -108,7 +108,7 @@ class Process:
 
         # Metadata
         self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.manager}_{self.hash}")
+        self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.hash}_{self.date_time}_{self.manager}")
         os.makedirs(self.log_path, exist_ok=True)
 
         # For reuse and track (doesn't come from the user parameters directly)
