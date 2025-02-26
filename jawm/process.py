@@ -32,6 +32,11 @@ class Process:
         :param param_file: YAML format file(s) that includes different parameters
         :param kwargs: Additional parameters to configure the process.
         """
+        
+        # Primary parameters
+        self.name = name
+        self.hash = f"{random.randint(0, 65535):04x}"
+        
         # Load YAML parameters if provided
         yaml_params = self.parse_yaml_config(param_file) if param_file else {"global": {}, "process": {}}
 
@@ -41,9 +46,6 @@ class Process:
 
         # Merge in priority order: global < process < kwargs
         self.params = {**global_params, **process_params, **kwargs}
-
-        # Primary parameters
-        self.name = name
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
@@ -106,7 +108,6 @@ class Process:
 
         # Metadata
         self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.hash = f"{random.randint(0, 255):02x}"
         self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.manager}_{self.hash}")
         os.makedirs(self.log_path, exist_ok=True)
 
@@ -621,13 +622,19 @@ class Process:
             self.finished_event.set()
             return
 
-        # Wait for dependencies to complete.
+        # Wait for dependencies to complete (supports name or hash)
         for dep in self.depends_on:
-            dep_proc = Process.registry.get(dep)
+            dep_proc = Process.registry.get(dep)  # Check by name first
+            
+            if dep_proc is None:
+                # Try to check by hash if name lookup fails
+                dep_proc = next((proc for proc in Process.registry.values() if proc.hash == dep), None)
+
             if dep_proc is None:
                 self.logger.warning(f"Dependency {dep} not found in registry, skipping wait.")
             else:
-                self.logger.info(f"Waiting for dependency process {dep} to finish before executing {self.name}.")
+                # self.logger.info(f"Waiting for dependency process {dep} (Name: {dep_proc.name}, Hash: {dep_proc.hash}) to finish before executing {self.name}.")
+                self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash}).")
                 dep_proc.finished_event.wait()
 
         if self.manager == "metal":
