@@ -13,6 +13,13 @@ class Process:
     # Global registry to map process names to process instances.
     registry = {}
 
+    # Configure logging with proper format
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="[%(asctime)s] %(levelname)s:: %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
     """
     A class to define and execute processes with support for multiple managers,
     pre/post scripts, retries, and resource configurations.
