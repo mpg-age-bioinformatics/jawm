@@ -36,6 +36,7 @@ class Process:
         # Primary parameters
         self.name = name
         self.hash = f"{random.randint(0, 65535):04x}"
+        self.logger = logging.getLogger(name)
         
         # Load YAML parameters if provided
         yaml_params = self.parse_yaml_config(param_file) if param_file else {"global": {}, "process": {}}
@@ -49,6 +50,7 @@ class Process:
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
+        Process.registry[self.hash] = self
         self.depends_on = self.params.get("depends_on", [])
         if isinstance(self.depends_on, str):
             self.depends_on = [self.depends_on]
@@ -67,6 +69,7 @@ class Process:
         self.logs_directory = os.path.abspath(self.params.get("logs_directory", os.path.join(self.project_directory, "logs")))
         os.makedirs(self.logs_directory, exist_ok=True)
         self.parameters_directory = self.params.get("parameters_directory", os.path.join(self.project_directory, "parameters"))
+        self.error_summary_file = os.path.abspath(self.params.get("error_summary_file", os.path.join(self.logs_directory, "error_summary.log")))
 
         # Setup monitoring directory
         self.monitoring_directory = self.params.get("monitoring_directory", os.environ.get("JAWM_MONITORING_DIRECTORY", None))
@@ -91,7 +94,6 @@ class Process:
         self.when = self.params.get("when", True)
         self.before_script = self.params.get("before_script", None)
         self.after_script = self.params.get("after_script", None)
-        self.logger = logging.getLogger(name)
 
         # Local execution configurations
         self.manager_local = self.params.get("manager_local", {})
@@ -110,6 +112,10 @@ class Process:
         self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.hash}_{self.date_time}_{self.manager}")
         os.makedirs(self.log_path, exist_ok=True)
+
+        # std path
+        self.stdout_path = os.path.join(self.log_path, f"{self.name}.output")
+        self.stderr_path = os.path.join(self.log_path, f"{self.name}.error")
 
         # For reuse and track (doesn't come from the user parameters directly)
         self.base_script_path = None
@@ -135,6 +141,7 @@ class Process:
                 with open(yaml_file, "r") as file:
                     yaml_data = yaml.safe_load(file) or []
             except Exception as e:
+                self._log_error_summary(f"Failed to load YAML file {yaml_file}: {str(e)}")
                 raise ValueError(f"Failed to load YAML file {yaml_file}: {str(e)}")
 
             for entry in yaml_data:
@@ -150,6 +157,15 @@ class Process:
                         yaml_params["process"][name].update(entry)  # Merge process-specific configs
 
         return yaml_params
+
+    def _log_error_summary(self, error_message):
+        """
+        Log errors to a central error summary file for easy tracking.
+        """
+        with open(self.error_summary_file, "a") as error_log:
+            error_log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Process: {self.name} (Hash: {self.hash})\n")
+            error_log.write(f"  Error: {error_message}\n")
+            error_log.write("-" * 80 + "\n")  # Separator for readability
 
     def _script_placeholders(self, script_content):
         """
@@ -207,6 +223,7 @@ class Process:
                 script_content = original_script.read()
             self.logger.info(f"Original script for process {self.script_file}")
         else:
+            self._log_error_summary("Invalid script type or missing script content.")
             raise ValueError("Invalid script type or missing script content.")
 
         # Replace placeholders with provided parameters
@@ -273,9 +290,9 @@ class Process:
 
         # Add defaults for output and error only if not provided by the user
         if "output" not in self.manager_slurm:
-            sbatch_command.extend(["--output", os.path.join(self.log_path, f"{self.name}.output")])
+            sbatch_command.extend(["--output", self.stdout_path])
         if "error" not in self.manager_slurm:
-            sbatch_command.extend(["--error", os.path.join(self.log_path, f"{self.name}.error")])
+            sbatch_command.extend(["--error", self.stderr_path])
 
         return sbatch_command
         
@@ -401,14 +418,12 @@ class Process:
         try:
             # Define the path for the script/log files
             base_script_path = self._generate_base_script()
-            stdout_path = os.path.join(self.log_path, f"{self.name}.output")
-            stderr_path = os.path.join(self.log_path, f"{self.name}.error")
             exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
             id_path = os.path.join(self.log_path, f"{self.name}.id")
             command_path = os.path.join(self.log_path, f"{self.name}.command")
             
             # Open the output and error files
-            with open(stdout_path, "w") as stdout_file, open(stderr_path, "w") as stderr_file:
+            with open(self.stdout_path, "w") as stdout_file, open(self.stderr_path, "w") as stderr_file:
                 # Execute the script directly
                 if self.environment == "apptainer":
                     self.logger.info(f"Executing process {self.name} with apptainer container {self.container}")
@@ -477,14 +492,14 @@ class Process:
 
                 # Retries if fails
                 if exitcode != 0:
-                    with open(stderr_path, "r") as stderr_file:
+                    with open(self.stderr_path, "r") as stderr_file:
                         error_message = stderr_file.read().strip()
                     self.logger.error(f"Process {self.name} failed with error: {error_message}")
+                    self._log_error_summary(error_message)
                     if self.retries > 0:
                         self.logger.info(f"Retrying process {self.name}, {self.retries} retries left.")
                         self.retries -= 1
                         return self._execute_metal()
-                    self.logger.error(f"Process {self.name} failed with error: {error_message}")
                     raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
                 
                 # Create monitoring file in Completed directory
@@ -544,6 +559,7 @@ class Process:
                 # Create monitoring file in Running directory
                 self._monitoring_running_file(job_id, slurm_script_path)
             else:
+                self._log_error_summary(result.stderr)
                 self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}")
                 raise RuntimeError(f"Slurm submission failed for process {self.name}")
 
@@ -572,6 +588,7 @@ class Process:
                     # Handle failure on slurm job querieng
                     if job_info.returncode != 0:
                         if retry_fail >= max_fail:
+                            self._log_error_summary("Monitoring failed from sacct tool!")
                             self.logger.error(f"Max retries ({max_fail}) for quering job with sacct tool reached for id {job_id}. Please make sure, sacct tool is working. Monitoring stopped!")
                             break
                         self.logger.warning(f"Failed to query job {job_id} status: {job_info.stderr}")
@@ -591,11 +608,15 @@ class Process:
                             # Create monitoring file in Completed directory
                             self._monitoring_completed_file(job_id, slurm_script_path, exit_code)
                             # log the exit code
+                            if str(exit_code) != "0:0":
+                                if os.path.exists(self.stderr_path) and os.path.getsize(self.stderr_path) > 0:
+                                    with open(self.stderr_path, "r") as error_file:
+                                        error_message = error_file.read().strip()
+                                    self._log_error_summary(error_message)
                             with open(exitcode_path, "w") as exitcode_file:
                                 exitcode_file.write(str(exit_code))
-                                break
+                            break
                             
-
                     time.sleep(10)  # Check status every 10 seconds
                     elapsed_time += 10
 
@@ -624,16 +645,11 @@ class Process:
 
         # Wait for dependencies to complete (supports name or hash)
         for dep in self.depends_on:
-            dep_proc = Process.registry.get(dep)  # Check by name first
-            
-            if dep_proc is None:
-                # Try to check by hash if name lookup fails
-                dep_proc = next((proc for proc in Process.registry.values() if proc.hash == dep), None)
+            dep_proc = Process.registry.get(dep)  # ✅ First check by name or hash (direct lookup)
 
             if dep_proc is None:
                 self.logger.warning(f"Dependency {dep} not found in registry, skipping wait.")
             else:
-                # self.logger.info(f"Waiting for dependency process {dep} (Name: {dep_proc.name}, Hash: {dep_proc.hash}) to finish before executing {self.name}.")
                 self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash}).")
                 dep_proc.finished_event.wait()
 
@@ -642,4 +658,5 @@ class Process:
         elif self.manager == "slurm":
             return self._execute_slurm()
         else:
+            self._log_error_summary(f"Unsupported manager: {self.manager}")
             raise ValueError(f"Unsupported manager: {self.manager}")
