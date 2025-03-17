@@ -110,7 +110,7 @@ class Process:
 
         # Metadata
         self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.hash}_{self.date_time}_{self.manager}")
+        self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.hash}")
         os.makedirs(self.log_path, exist_ok=True)
 
         # std path
