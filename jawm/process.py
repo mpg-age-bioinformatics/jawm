@@ -415,6 +415,7 @@ class Process:
         :return: The output of the executed script.
         """
         self.logger.info(f"Executing process {self.name} locally")
+        self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
         try:
             # Define the path for the script/log files
             base_script_path = self._generate_base_script()
@@ -645,7 +646,7 @@ class Process:
 
         # Wait for dependencies to complete (supports name or hash)
         for dep in self.depends_on:
-            dep_proc = Process.registry.get(dep)  # ✅ First check by name or hash (direct lookup)
+            dep_proc = Process.registry.get(dep)
 
             if dep_proc is None:
                 self.logger.warning(f"Dependency {dep} not found in registry, skipping wait.")
