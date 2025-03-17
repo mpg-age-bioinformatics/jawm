@@ -491,6 +491,9 @@ class Process:
                 with open(id_path, "w") as id_file:
                     id_file.write(str(process_id))
 
+                # Create monitoring file in Completed directory
+                self._monitoring_completed_file(process_id, base_script_path, exitcode)
+
                 # Retries if fails
                 if exitcode != 0:
                     with open(self.stderr_path, "r") as stderr_file:
@@ -503,15 +506,13 @@ class Process:
                         return self._execute_metal()
                     raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
                 
-                # Create monitoring file in Completed directory
-                self._monitoring_completed_file(process_id, base_script_path, exitcode)
-                
                 # Mark process as finished.
                 self.finished_event.set()
 
             # Start monitoring in a background thread
             monitor_thread = threading.Thread(target=monitor_process, daemon=False)
             monitor_thread.start()
+            monitor_thread.join()
 
             # Return the output
             return process_id
