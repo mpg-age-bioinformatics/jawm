@@ -516,10 +516,10 @@ class Process:
             # Return the output
             return process_id
 
-        finally:
-            # Ensure finished_event is set, even in case of failure
-            # self.finished_event.set()
-            pass
+        except Exception as e:
+            self.logger.error(f"Failed launching process {self.name}: {str(e)}")
+            self.finished_event.set()
+            raise
 
     def _execute_slurm(self):
         """
@@ -631,10 +631,10 @@ class Process:
 
             return job_id
 
-        finally:
-            # Ensure finished_event is set, even in case of failure
-            # self.finished_event.set()
-            pass
+        except Exception as e:
+            self.logger.error(f"Failed launching process {self.name}: {str(e)}")
+            self.finished_event.set()
+            raise
 
     def execute(self):
         """
