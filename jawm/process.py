@@ -518,7 +518,8 @@ class Process:
 
         finally:
             # Ensure finished_event is set, even in case of failure
-            self.finished_event.set()
+            # self.finished_event.set()
+            pass
 
     def _execute_slurm(self):
         """
@@ -632,7 +633,8 @@ class Process:
 
         finally:
             # Ensure finished_event is set, even in case of failure
-            self.finished_event.set()
+            # self.finished_event.set()
+            pass
 
     def execute(self):
         """
