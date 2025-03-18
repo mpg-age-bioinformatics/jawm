@@ -494,31 +494,27 @@ class Process:
                 # Create monitoring file in Completed directory
                 self._monitoring_completed_file(process_id, base_script_path, exitcode)
 
-                return exitcode
+                # Retries if fails
+                if exitcode != 0:
+                    with open(self.stderr_path, "r") as stderr_file:
+                        error_message = stderr_file.read().strip()
+                    self.logger.error(f"Process {self.name} failed with error: {error_message}")
+                    self._log_error_summary(error_message)
+                    if self.retries > 0:
+                        self.logger.info(f"Retrying process {self.name}, {self.retries} retries left.")
+                        self.retries -= 1
+                        return self._execute_metal()
+                    raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
+                
+                # Mark process as finished.
+                self.finished_event.set()
 
             # Start monitoring in a background thread
             monitor_thread = threading.Thread(target=monitor_process, daemon=False)
             monitor_thread.start()
-            monitor_thread.join()
 
-            exitcode = result.returncode
-
-            if exitcode == 0:
-                return process_id
-
-            # If process fails, check retries
-            error_message = ""
-            with open(self.stderr_path, "r") as stderr_file:
-                error_message = stderr_file.read().strip()
-            self.logger.error(f"Process {self.name} failed with error: {error_message}")
-            self._log_error_summary(error_message)
-
-            if self.retries > 0:
-                self.logger.info(f"Retrying process {self.name}, {self.retries} retries left.")
-                self.retries -= 1
-                return self._execute_metal()
-
-            raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
+            # Return the output
+            return process_id
 
         finally:
             # Ensure finished_event is set, even in case of failure
