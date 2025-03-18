@@ -638,28 +638,48 @@ class Process:
 
     def execute(self):
         """
-        Execute the process based on the specified manager (local or slurm).
+        Asynchronously execute the process, respecting dependencies:
+        1) If 'when' is false, skip immediately.
+        2) Spawn a background thread that:
+            a) Waits for all dependencies' finished_event.
+            b) Calls _execute_metal() or _execute_slurm().
+        3) Return immediately (non-blocking).
         """
-        # Skip if the condition does not fulfilled
+        # If the user condition says "skip," mark finished and return.
         if not self.when:
-            self.logger.info(f"Process {self.name} skipped as execution condition did not fulfilled!")
+            self.logger.info(f"Process {self.name} skipped because 'when' condition was not fulfilled!")
             self.finished_event.set()
             return
 
-        # Wait for dependencies to complete (supports name or hash)
-        for dep in self.depends_on:
-            dep_proc = Process.registry.get(dep)
+        def run_in_background():
+            """
+            Background function that first waits on dependencies, then executes the process.
+            """
+            # Wait for dependencies to complete (either by name or hash).
+            for dep in self.depends_on:
+                dep_proc = Process.registry.get(dep)
+                if dep_proc is None:
+                    self.logger.warning(f"[{self.name}] Dependency '{dep}' not found in registry, skipping wait.")
+                else:
+                    self.logger.info(f"[{self.name}] waiting for dependency process {dep_proc.name} ({dep_proc.hash}).")
+                    dep_proc.finished_event.wait()
 
-            if dep_proc is None:
-                self.logger.warning(f"Dependency {dep} not found in registry, skipping wait.")
-            else:
-                self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash}).")
-                dep_proc.finished_event.wait()
+            # Now run the actual process
+            try:
+                if self.manager == "metal":
+                    self._execute_metal()
+                elif self.manager == "slurm":
+                    self._execute_slurm()
+                else:
+                    self._log_error_summary(f"Unsupported manager: {self.manager}")
+                    raise ValueError(f"Unsupported manager: {self.manager}")
+            except Exception as e:
+                # If something fails before or during launch, set the event
+                # so that subsequent processes won't wait forever.
+                self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
+                self.finished_event.set()
+                raise
 
-        if self.manager == "metal":
-            return self._execute_metal()
-        elif self.manager == "slurm":
-            return self._execute_slurm()
-        else:
-            self._log_error_summary(f"Unsupported manager: {self.manager}")
-            raise ValueError(f"Unsupported manager: {self.manager}")
+        
+        p_thread = threading.Thread(target=run_in_background, daemon=False)
+        p_thread.start()
