@@ -12,6 +12,7 @@ from datetime import datetime
 class Process:
     # Global registry to map process names to process instances.
     registry = {}
+    stop_future_event = threading.Event() # A class-level event, shared across all Process instances
 
     # Configure logging with proper format
     logging.basicConfig(
@@ -142,6 +143,7 @@ class Process:
                     yaml_data = yaml.safe_load(file) or []
             except Exception as e:
                 self._log_error_summary(f"Failed to load YAML file {yaml_file}: {str(e)}")
+                Process.stop_future_event.set()
                 raise ValueError(f"Failed to load YAML file {yaml_file}: {str(e)}")
 
             for entry in yaml_data:
@@ -224,6 +226,7 @@ class Process:
             self.logger.info(f"Original script for process {self.script_file}")
         else:
             self._log_error_summary("Invalid script type or missing script content.")
+            Process.stop_future_event.set()
             raise ValueError("Invalid script type or missing script content.")
 
         # Replace placeholders with provided parameters
@@ -534,6 +537,7 @@ class Process:
                         self.logger.info(f"Retrying process {self.name}, {remaining} retries left.")
                     else:
                         self.finished_event.set()
+                        Process.stop_future_event.set()
                         raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
 
             # Start the background thread so _execute_metal() returns immediately
@@ -548,6 +552,7 @@ class Process:
             # we need to set finished_event so dependent processes won't wait forever.
             self.logger.error(f"[{self.name}] Failed launching process: {str(e)}")
             self.finished_event.set()
+            Process.stop_future_event.set()
             raise
 
 
@@ -593,6 +598,7 @@ class Process:
             else:
                 self._log_error_summary(result.stderr)
                 self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}")
+                Process.stop_future_event.set()
                 raise RuntimeError(f"Slurm submission failed for process {self.name}")
 
             def monitor_slurm_job():
@@ -664,6 +670,7 @@ class Process:
         except Exception as e:
             self.logger.error(f"Failed launching process {self.name}: {str(e)}")
             self.finished_event.set()
+            Process.stop_future_event.set()
             raise
 
     def execute(self):
@@ -689,10 +696,16 @@ class Process:
             for dep in self.depends_on:
                 dep_proc = Process.registry.get(dep)
                 if dep_proc is None:
-                    self.logger.warning(f"[{self.name}] Dependency '{dep}' not found in registry, skipping wait.")
+                    self.logger.warning(f"Dependency {dep} not found in registry, skipping wait")
                 else:
-                    self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash}).")
+                    self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
                     dep_proc.finished_event.wait()
+
+            # Check if another process has already failed
+            if Process.stop_future_event.is_set():
+                self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
+                self.finished_event.set()
+                return
 
             # Now run the actual process
             try:
@@ -703,10 +716,12 @@ class Process:
                 else:
                     self._log_error_summary(f"Unsupported manager: {self.manager}")
                     raise ValueError(f"Unsupported manager: {self.manager}")
+                    Process.stop_future_event.set()
             except Exception as e:
                 # If something fails before or during launch, set the event
                 # so that subsequent processes won't wait forever.
                 self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
+                Process.stop_future_event.set()
                 self.finished_event.set()
                 raise
 
