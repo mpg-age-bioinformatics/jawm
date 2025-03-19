@@ -38,7 +38,7 @@ class Process:
         # Primary parameters
         self.name = name
         self.hash = f"{random.randint(0, 65535):04x}"
-        self.logger = logging.getLogger(name)
+        self.logger = logging.getLogger(f"{self.name}|{self.hash}")
         
         # Load YAML parameters if provided
         yaml_params = self.parse_yaml_config(param_file) if param_file else {"global": {}, "process": {}}
