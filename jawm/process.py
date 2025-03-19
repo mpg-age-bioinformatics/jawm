@@ -12,7 +12,8 @@ from datetime import datetime
 class Process:
     # Global registry to map process names to process instances.
     registry = {}
-    stop_future_event = threading.Event() # A class-level event, shared across all Process instances
+    # A class-level event, shared across all Process instances. Run `Process.stop_future_event.clear()` to prevent preventing
+    stop_future_event = threading.Event()
 
     # Configure logging with proper format
     logging.basicConfig(
@@ -83,6 +84,7 @@ class Process:
             self.monitoring_directory = None
 
         # Management parameters
+        self.asynchronous = self.params.get("asynchronous", False)
         self.manager = self.params.get("manager", "metal")
         # self.source_env = os.environ.copy()
         self.env = self.params.get("env", {})
@@ -688,11 +690,14 @@ class Process:
             self.finished_event.set()
             return
 
-        def run_in_background():
-            """
-            Background function that first waits on dependencies, then executes the process.
-            """
-            # Wait for dependencies to complete (either by name or hash).
+        # Check if another process has already failed
+        if Process.stop_future_event.is_set():
+            self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
+            self.finished_event.set()
+            return
+
+        if not self.asynchronous:
+        # Wait for dependencies *in the main thread*
             for dep in self.depends_on:
                 dep_proc = Process.registry.get(dep)
                 if dep_proc is None:
@@ -700,31 +705,65 @@ class Process:
                 else:
                     self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
                     dep_proc.finished_event.wait()
-
+        
             # Check if another process has already failed
             if Process.stop_future_event.is_set():
                 self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
                 self.finished_event.set()
                 return
 
-            # Now run the actual process
+            # Perform synchronous runs
             try:
-                if self.manager == "metal":
-                    self._execute_metal()
-                elif self.manager == "slurm":
-                    self._execute_slurm()
-                else:
-                    self._log_error_summary(f"Unsupported manager: {self.manager}")
-                    raise ValueError(f"Unsupported manager: {self.manager}")
-                    Process.stop_future_event.set()
+                self._run_manager()
             except Exception as e:
-                # If something fails before or during launch, set the event
-                # so that subsequent processes won't wait forever.
                 self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
                 Process.stop_future_event.set()
                 self.finished_event.set()
                 raise
 
-        
-        p_thread = threading.Thread(target=run_in_background, daemon=False)
-        p_thread.start()
+        else:
+            def run_in_background():
+                """
+                This background thread for asynchronous run
+                """
+                # Wait for dependencies to complete (either by name or hash).
+                for dep in self.depends_on:
+                    dep_proc = Process.registry.get(dep)
+                    if dep_proc is None:
+                        self.logger.warning(f"Dependency {dep} not found in registry, skipping wait")
+                    else:
+                        self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
+                        dep_proc.finished_event.wait()
+
+                # Check if another process has already failed
+                if Process.stop_future_event.is_set():
+                    self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
+                    self.finished_event.set()
+                    return
+
+                # Perform asynchronous runs
+                try:
+                    self._run_manager()
+                except Exception as e:
+                    self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
+                    Process.stop_future_event.set()
+                    self.finished_event.set()
+                    raise
+            
+            # Spawn a background thread
+            a_thread = threading.Thread(target=run_in_background, daemon=False)
+            a_thread.start()
+            return None
+
+    def _run_manager(self):
+        """
+        A helper to choose between different manager execution
+        """
+        if self.manager == "metal":
+            self._execute_metal()
+        elif self.manager == "slurm":
+            self._execute_slurm()
+        else:
+            self._log_error_summary(f"Unsupported manager: {self.manager}")
+            raise ValueError(f"Unsupported manager: {self.manager}")
+            Process.stop_future_event.set()
