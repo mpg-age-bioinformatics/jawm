@@ -703,7 +703,19 @@ class Process:
             Process.stop_future_event.set()
             raise
 
-
+    def _run_manager(self):
+        """
+        A helper to choose between different manager execution
+        """
+        if self.manager == "metal":
+            self._execute_metal()
+        elif self.manager == "slurm":
+            self._execute_slurm()
+        else:
+            self._log_error_summary(f"Unsupported manager: {self.manager}")
+            Process.stop_future_event.set()
+            raise ValueError(f"Unsupported manager: {self.manager}")
+    
     def execute(self):
         """
         Asynchronously execute the process, respecting dependencies:
@@ -783,16 +795,3 @@ class Process:
             a_thread = threading.Thread(target=run_in_background, daemon=False)
             a_thread.start()
             return None
-
-    def _run_manager(self):
-        """
-        A helper to choose between different manager execution
-        """
-        if self.manager == "metal":
-            self._execute_metal()
-        elif self.manager == "slurm":
-            self._execute_slurm()
-        else:
-            self._log_error_summary(f"Unsupported manager: {self.manager}")
-            raise ValueError(f"Unsupported manager: {self.manager}")
-            Process.stop_future_event.set()
