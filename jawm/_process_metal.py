@@ -14,6 +14,7 @@ from ._method_lib import register_method
 __methods__ = []
 register = register_method(__methods__)
 
+
 @register
 def _execute_metal(self):
     """
