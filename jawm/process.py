@@ -1,16 +1,13 @@
-import subprocess
 import threading
 import os
-import sys
 import logging
-import tempfile
-import time
 import random
-import yaml
 from datetime import datetime
 
+# Extend the Process class with methods from modular backend implementations
 from ._method_lib import add_methods_from
 from . import _process_base, _process_metal, _process_slurm
+
 
 @add_methods_from(_process_base, _process_metal, _process_slurm)
 class Process:
@@ -144,7 +141,7 @@ class Process:
             Process.stop_future_event.set()
             raise ValueError(f"Unsupported manager: {self.manager}")
 
-    
+
     def execute(self):
         """
         Asynchronously execute the process, respecting dependencies:
