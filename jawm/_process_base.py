@@ -66,7 +66,9 @@ def _script_placeholders(self, script_content):
     Replace placeholders in the script content with parameters or object attribute values.
     Supports flat {{KEY}} and object attributes like {{JAWM.Process.logs_directory}} → self.logs_directory.
     If the provided parameter values is not found, then {{VAR}} would replaced by empty string.
-    This can fail a scipt if not used properly. user needs to be cautios with the use of {{VAR}} in the script
+    This can fail a scipt if not used properly. user needs to be cautios with the use of {{VAR}} in the script.
+    :param script_content: The content of the script file.
+    :return: The updated script content with placeholders replaced.
     """
 
     parameters = self.script_parameters or {}
