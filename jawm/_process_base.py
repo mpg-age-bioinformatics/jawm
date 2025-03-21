@@ -1,5 +1,7 @@
 import os
 import yaml
+import re
+from functools import reduce
 from datetime import datetime
 
 # Setup method registration for dynamic injection into the main Process class
@@ -61,35 +63,45 @@ def _log_error_summary(self, error_message):
 @register
 def _script_placeholders(self, script_content):
     """
-    Replace placeholders in the script content with provided parameters.
-    :param script_content: The content of the script file.
-    :return: The updated script content with placeholders replaced.
+    Replace placeholders in the script content with parameters or object attribute values.
+    Supports flat {{KEY}} and object attributes like {{JAWM.Process.logs_directory}} → self.logs_directory.
+    If the provided parameter values is not found, then {{VAR}} would replaced by empty string.
+    This can fail a scipt if not used properly. user needs to be cautios with the use of {{VAR}} in the script
     """
+
     parameters = self.script_parameters or {}
-    
+
     # Load additional parameters from file if provided
     if self.script_parameters_file:
         with open(self.script_parameters_file, "r") as param_file:
-            file_parameters = {}
             for line in param_file:
-                # Skip empty lines or lines without an '='
                 if line.strip() and "=" in line:
-                    # Split into key and value, removing unnecessary spaces
                     key, value = map(str.strip, line.strip().split("=", 1))
-                    
-                    # Remove surrounding quotes from the value if present
                     if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
                         value = value[1:-1]
+                    parameters[key] = value
 
-                    file_parameters[key] = value
-            parameters.update(file_parameters)
+    # Resolve nested attribute like JAWM.Process.logs_directory → self.logs_directory
+    def resolve_placeholder(key):
+        if key in parameters:
+            return str(parameters[key])
 
-    # Replace placeholders in the script
-    for key, value in parameters.items():
-        placeholder = f"{{{{{key}}}}}"  # e.g., {{param_name}}
-        script_content = script_content.replace(placeholder, str(value))
+        prefix = "JAWM.Process."
+        if key.startswith(prefix):
+            attr_path = key[len(prefix):]  # get 'logs_directory'
+            try:
+                # Support nested attributes, e.g., a.b.c
+                value = reduce(getattr, attr_path.split("."), self)
+                return "" if value is None else str(value)
+            except AttributeError:
+                return ""  # or keep placeholder if preferred: return f"{{{{{key}}}}}"
 
-    return script_content
+        return f"{{{{{key}}}}}"  # if not matched, return as-is
+
+    # Regex pattern to find all {{...}} placeholders
+    pattern = re.compile(r"\{\{([^}]+)\}\}")
+
+    return pattern.sub(lambda match: resolve_placeholder(match.group(1).strip()), script_content)
 
 
 @register
