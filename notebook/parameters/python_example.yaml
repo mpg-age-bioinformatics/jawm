@@ -1,0 +1,31 @@
+- scope: process
+  name: "process_py1"
+  script: |
+    #!/usr/bin/env python3
+    print("Print some fruits name:")
+    for fruit in ["Apple", "Banana", "Ananas"]:
+        print(f"Fruit: {fruit}")
+
+- scope: process
+  name: "process_py2"
+  script: |
+    #!/usr/bin/env python3
+    import random
+    from datetime import datetime
+
+    def get_random_fruit(fruit_list):
+        return random.choice(fruit_list)
+
+    def log_fruit_selection(fruit):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{timestamp}] Selected fruit: {fruit}")
+
+    def main():
+        fruits = ["Apple", "Banana", "Ananas", "Mango", "Grapes"]
+        print("Welcome to the Fruit Picker!")
+        for _ in range(3):
+            fruit = get_random_fruit(fruits)
+            log_fruit_selection(fruit)
+
+    if __name__ == "__main__":
+        main()
