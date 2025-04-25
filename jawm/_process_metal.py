@@ -116,6 +116,7 @@ def _execute_metal(self):
             last_exit_code = None
 
             for attempt_i in range(1, total_attempts + 1):
+                self._apply_retry_parameters(attempt_i - 1)
                 exit_code = run_process_once(attempt_i, total_attempts)
                 last_exit_code = exit_code
 

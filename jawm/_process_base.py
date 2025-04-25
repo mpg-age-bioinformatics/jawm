@@ -272,3 +272,29 @@ def _monitoring_completed_file(self, job_id, script_path, exit_code):
 
         except Exception as e:
             self.logger.warning(f"Failed to create completed file for {self.name} in Monitoring: {str(e)}")
+
+
+@register
+def _apply_retry_parameters(self, attempt_i):
+    """
+    Apply retry-specific parameters before a retry attempt.
+    :param attempt_i: The current attempt index (1-based).
+    """
+    retry_params = self.retry_overrides.get(attempt_i, {})
+    if not retry_params:
+        return
+
+    self.logger.info(f"Applying retry parameters for retry attempt {attempt_i}: {retry_params}")
+
+    for key, value in retry_params.items():
+        # Handle existing fields to update
+        if hasattr(self, key):
+            current_val = getattr(self, key)
+            if isinstance(current_val, dict) and isinstance(value, dict):
+                current_val.update(value)
+                setattr(self, key, current_val)
+            else:
+                setattr(self, key, value)
+        else:
+            # If it's a new attribute, just assign
+            setattr(self, key, value)

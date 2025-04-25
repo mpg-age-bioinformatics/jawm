@@ -29,3 +29,17 @@
 
     if __name__ == "__main__":
         main()
+
+- scope: process
+  name: "process_ret"
+  manager: "slurm"
+  script: |
+    #!/usr/bin/env python3
+    import abcdf
+    print('test')
+  retries: 2
+  retry_overrides:
+    1:
+      manager_slurm: {"partition":"dedicated"}
+    2:
+      manager_slurm: {"partition":"cluster"}

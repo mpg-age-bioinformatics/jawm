@@ -184,6 +184,7 @@ def _execute_slurm(self):
         def monitor_process():
             total_attempts = self.retries + 1
             for attempt_i in range(1, total_attempts + 1):
+                self._apply_retry_parameters(attempt_i - 1)
                 exit_code = run_process_once_slurm(attempt_i, total_attempts)
                 if exit_code == 0:
                     # success on this attempt

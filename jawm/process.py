@@ -93,6 +93,7 @@ class Process:
         self.inputs = self.params.get("inputs", {})
         self.outputs = self.params.get("outputs", {})
         self.retries = self.params.get("retries", 0)
+        self.retry_overrides = self.params.get("retry_overrides", {})
         self.use_scratch = self.params.get("scratch", False)
         self.error_strategy = self.params.get("error_strategy", "retry")
         self.when = self.params.get("when", True)
