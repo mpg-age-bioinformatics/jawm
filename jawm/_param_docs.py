@@ -11,6 +11,7 @@ PROCESS_PARAM_DOCS = {
         "example": 'name="my_process"',
         "yaml_example": 'name: "my_process"'
     },
+
     "param_file": {
         "category": "parameter",
         "description": "YAML file or list of YAML files containing all the possible parameters.",
@@ -20,14 +21,23 @@ PROCESS_PARAM_DOCS = {
 # or with multiple files
 param_file=["parameters/param1.yaml", "parameters/param2.yaml"]""",
     },
+
     "script": {
         "category": "parameter",
-        "description": "Inline script content to be executed.",
+        "description": "Inline script content to be executed. Inline script would have the higher preference.",
+        "note": "Script requires to have a shebang initiation as the first line, such as`#!/bin/bash` or `#!/usr/bin/env python3`.",
         "type": "str",
         "default": "#!/bin/bash",
-        "example": 'script="echo Hello World"',
-        "yaml_example": 'script: "echo Hello World"'
+        "example": """script=\"\"\"#!/usr/bin/env python3
+for fruit in ["Apple", "Banana", "Ananas"]:
+    print(f"Fruit: {fruit}")
+\"\"\"""",
+        "yaml_example": """script: |
+#!/usr/bin/env python3
+for fruit in ["Apple", "Banana", "Ananas"]:
+    print(f"Fruit: {fruit}")"""
     },
+
     "script_file": {
         "category": "parameter",
         "description": "Path to an external script file to execute.",
