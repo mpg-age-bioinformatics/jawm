@@ -41,17 +41,29 @@ for fruit in ["Apple", "Banana", "Ananas"]:
     "script_file": {
         "category": "parameter",
         "description": "Path to an external script file to execute.",
+        "note": "Script file requires to have a shebang initiation as the first line, such as`#!/bin/bash` or `#!/usr/bin/env python3`.",
         "type": "str",
         "example": 'script_file="scripts/run.sh"',
         "yaml_example": 'script_file: "scripts/run.sh"'
     },
+
     "script_parameters": {
         "category": "parameter",
         "description": "Dictionary of parameters to substitute into the script.",
+        "note": "Parameter values will substitute the placeholder(s) in the script. Please be caution as any wrong use of paramters can break the script.",
         "type": "dict",
-        "example": 'script_parameters={"MEM": "4G", "THREADS": "2"}',
-        "yaml_example": 'script_parameters: {"MEM": "4G", "THREADS": "2"}'
+        "example": """script_parameters={
+    "APPNAME": "JAWM",
+    "BYEMSG": "GOOD BYE!",
+    "FRUITLIST": "['Apple', 'Banana', 'Orange']"
+}""",
+        "yaml_example": """script_parameters:
+    APPNAME: "JAWM"
+    BYEMSG: "GOOD BYE!"
+    FRUITLIST: "['Apple', 'Banana', 'Orange']"
+"""
     },
+
     "script_parameters_file": {
         "category": "parameter",
         "description": "File containing key=value pairs to use in script placeholder substitution.",
