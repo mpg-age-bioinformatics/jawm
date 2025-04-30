@@ -5,6 +5,7 @@ PROCESS_PARAM_DOCS = {
     "name": {
         "category": "parameter",
         "description": "Name of the process. Used to identify and track process executions.",
+        "note": "Unique process name is preferred for easier identification and to avoid conflicts.",
         "type": "str",
         "required": True,
         "example": 'name="my_process"',
@@ -12,7 +13,8 @@ PROCESS_PARAM_DOCS = {
     },
     "param_file": {
         "category": "parameter",
-        "description": "YAML file or list of YAML files containing all the possible parameters. Needs to be inputted directly in the Process call. This parameter defines the YAML file(s) the can shape the Process",
+        "description": "YAML file or list of YAML files containing all the possible parameters.",
+        "note": "Needs to be inputted directly in the Process call. This parameter defines the YAML file(s) that can shape the Process.",
         "type": "str or list of str",
         "example": """param_file="parameters/param1.yaml"
 # or with multiple files

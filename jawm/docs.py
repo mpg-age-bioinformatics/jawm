@@ -26,6 +26,9 @@ def jawm_help(class_name: str = "Process", param: str = None):
             if "description" in doc:
                 print(f"  Description: {doc['description']}")
 
+            if "note" in doc:
+                print(f"  Note: {doc['note']}")
+
             if "type" in doc:
                 print(f"  Type: {doc['type']}")
 
@@ -49,7 +52,12 @@ def jawm_help(class_name: str = "Process", param: str = None):
                     print(f"  {line}")
                 print("  ```")
         else:
-            print("Available docs for Process parameters and example uses:")
-            for key in sorted(PROCESS_PARAM_DOCS.keys()):
+            print("Available docs for Process parameters:::")
+            # for key in sorted(PROCESS_PARAM_DOCS.keys()):
+            #     print(f"  - {key}")
+            for key in (k for k, v in PROCESS_PARAM_DOCS.items() if v.get("category") == "parameter"):
+                print(f"  - {key}")
+            print("\nAvailable docs for example uses:::")
+            for key in (k for k, v in PROCESS_PARAM_DOCS.items() if v.get("category") == "example"):
                 print(f"  - {key}")
             print("\nUse: jawm_help('Process', 'key/param_name') for more details.")
