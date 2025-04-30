@@ -49,7 +49,7 @@ def jawm_help(class_name: str = "Process", param: str = None):
                     print(f"  {line}")
                 print("  ```")
         else:
-            print("Available Process parameters and example uses:")
+            print("Available docs for Process parameters and example uses:")
             for key in sorted(PROCESS_PARAM_DOCS.keys()):
                 print(f"  - {key}")
             print("\nUse: jawm_help('Process', 'key/param_name') for more details.")

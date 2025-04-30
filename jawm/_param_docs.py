@@ -12,10 +12,11 @@ PROCESS_PARAM_DOCS = {
     },
     "param_file": {
         "category": "parameter",
-        "description": "YAML file or list of YAML files containing configuration parameters.",
+        "description": "YAML file or list of YAML files containing all the possible parameters. Needs to be inputted directly in the Process call. This parameter defines the YAML file(s) the can shape the Process",
         "type": "str or list of str",
-        "example": 'param_file="config.yaml"',
-        "yaml_example": 'param_file: "config.yaml"'
+        "example": """param_file="parameters/param1.yaml"
+# or with multiple files
+param_file=["parameters/param1.yaml", "parameters/param2.yaml"]""",
     },
     "script": {
         "category": "parameter",
