@@ -4,9 +4,10 @@ Just Another Workflow Manager
 
 ## Why
 
-- python based
-- code fully independent of framework
-- local and external storage agnostic
+- Python based
+- Code fully independent of framework
+- Local and external storage agnostic
+- Notebook ready and data scientist friendly
 
 ## Installation
 ```
