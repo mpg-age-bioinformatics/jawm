@@ -66,14 +66,16 @@ for fruit in ["Apple", "Banana", "Ananas"]:
 
     "script_parameters_file": {
         "category": "parameter",
-        "description": "File containing key=value pairs to use in script placeholder substitution.",
+        "description": "File containing key = value pairs to use in script placeholder substitution.",
+        "note": "Parameter values will substitute the placeholder(s) in the script. Please be caution as any wrong use of paramters can break the script.",
         "type": "str",
-        "example": 'script_parameters_file="params.env"',
-        "yaml_example": 'script_parameters_file: "params.env"'
+        "example": 'script_parameters_file="script/hello.rc"',
+        "yaml_example": 'script_parameters_file: "script/hello.rc"'
     },
     "project_directory": {
         "category": "parameter",
         "description": "Directory for logs, parameters, and outputs.",
+        "note": "Current direcrtory would be the project directory by default",
         "type": "str",
         "default": ".",
         "example": 'project_directory="/data/project1"',
@@ -81,39 +83,35 @@ for fruit in ["Apple", "Banana", "Ananas"]:
     },
     "logs_directory": {
         "category": "parameter",
-        "description": "Directory to store logs for the process.",
+        "description": "Directory to store all the logs for the process.",
         "type": "str",
-        "default": "./logs",
+        "default": "<project_directory>/logs",
         "example": 'logs_directory="/data/logs"',
         "yaml_example": 'logs_directory: "/data/logs"'
     },
-    "parameters_directory": {
-        "category": "parameter",
-        "description": "Directory where parameter files are saved.",
-        "type": "str",
-        "example": 'parameters_directory="configs/"',
-        "yaml_example": 'parameters_directory: "configs/"'
-    },
     "error_summary_file": {
         "category": "parameter",
-        "description": "Path to a log file summarizing errors.",
+        "description": "Path to a log file summarizing all the errors with time records.",
+        "note": "This should be the go to file while checking for error logs",
         "type": "str",
-        "default": "./logs/error_summary.log",
-        "example": 'error_summary_file="logs/errors.log"',
-        "yaml_example": 'error_summary_file: "logs/errors.log"'
+        "default": "<logs_directory>/error_summary.log",
+        "example": 'error_summary_file="logs/error_summary.log"',
+        "yaml_example": 'error_summary_file: "logs/error_summary.log"'
     },
     "monitoring_directory": {
         "category": "parameter",
-        "description": "Directory used for monitoring process status. Can be set via env var JAWM_MONITORING_DIRECTORY.",
+        "description": "Directory used for monitoring process status. Completed or Running jobs with basic details can be found in this location",
+        "note": "Can be set via env var `JAWM_MONITORING_DIRECTORY`.",
         "type": "str",
-        "example": 'monitoring_directory="/mnt/monitoring"',
-        "yaml_example": 'monitoring_directory: "/mnt/monitoring"'
+        "example": 'monitoring_directory="/jawm/monitoring"',
+        "yaml_example": 'monitoring_directory: "/jawm/monitoring"'
     },
     "asynchronous": {
         "category": "parameter",
         "description": "Whether the process should run asynchronously.",
+        "note": "If asynchronous is True, the process runs in a background thread, allowing the main program to continue without blocking.",
         "type": "bool",
-        "default": False,
+        "default": "False",
         "example": 'asynchronous=True',
         "yaml_example": 'asynchronous: true'
     },
@@ -131,18 +129,21 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "description": "Environment variables to set for the process.",
         "type": "dict",
         "example": 'env={"PATH": "/usr/local/bin", "THREADS": "4"}',
-        "yaml_example": 'env: {"PATH": "/usr/local/bin", "THREADS": "4"}'
+        "yaml_example": """env:
+    PATH: "/usr/local/bin"
+    THREADS: "4"
+"""
     },
     "inputs": {
         "category": "parameter",
-        "description": "Input files or resources required by the process.",
+        "description": "Any extra/custom paramters to use in the Process or Process script can be pushed with inputs.",
         "type": "dict",
         "example": 'inputs={"input1": "data/input.txt"}',
         "yaml_example": 'inputs: {"input1": "data/input.txt"}'
     },
     "outputs": {
         "category": "parameter",
-        "description": "Expected output files or results from the process.",
+        "description": "Any extra/custom output paramters to use in the Process or Process script can be pushed with inputs.",
         "type": "dict",
         "example": 'outputs={"output1": "results/output.txt"}',
         "yaml_example": 'outputs: {"output1": "results/output.txt"}'
@@ -157,18 +158,22 @@ for fruit in ["Apple", "Banana", "Ananas"]:
     },
     "retry_overrides": {
         "category": "parameter",
-        "description": "Dictionary mapping retry index to parameter overrides for that attempt.",
+        "description": "Overrides specific parameters for each retry attempt. Keys represent retry attempt numbers (1-based).",
         "type": "dict[int -> dict]",
-        "example": 'retry_overrides={1: {"manager": "slurm"}}',
-        "yaml_example": 'retry_overrides: {1: {"manager": "slurm"}}'
-    },
-    "scratch": {
-        "category": "parameter",
-        "description": "Whether to use scratch space for this process.",
-        "type": "bool",
-        "default": False,
-        "example": 'scratch=True',
-        "yaml_example": 'scratch: true'
+        "example": """retry_overrides={
+    1: {"manager_slurm": {"partition": "dedicated", "mem": "4GB"}},
+    2: {"manager_slurm": {"partition": "cluster", "mem": "8GB"}}
+}""",
+        "yaml_example": """retry_overrides:
+    1:
+        manager_slurm:
+            partition: "dedicated"
+            mem: "4GB"
+    2:
+        manager_slurm:
+            partition: "cluster"
+            mem: "8GB"
+"""
     },
     "error_strategy": {
         "category": "parameter",
@@ -181,8 +186,9 @@ for fruit in ["Apple", "Banana", "Ananas"]:
     "when": {
         "category": "parameter",
         "description": "Conditional expression or boolean that determines whether to run the process.",
+        "note": "The `when` parameter can be a boolean or a function returning a boolean. If False, the process will be skipped entirely. Dynamic skipping also possible with like`when=lambda: os.path.exists(\"input.txt\")`",
         "type": "bool",
-        "default": True,
+        "default": "True",
         "example": 'when=False',
         "yaml_example": 'when: false'
     },
@@ -199,13 +205,6 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "type": "str",
         "example": 'after_script="echo Done."',
         "yaml_example": 'after_script: "echo Done."'
-    },
-    "manager_local": {
-        "category": "parameter",
-        "description": "Local execution manager-specific options.",
-        "type": "dict",
-        "example": 'manager_local={"threads": 2}',
-        "yaml_example": 'manager_local: {"threads": 2}'
     },
     "manager_slurm": {
         "category": "parameter",
