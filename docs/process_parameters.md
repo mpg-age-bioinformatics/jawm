@@ -1,0 +1,537 @@
+# Process Parameters Reference
+
+### `name`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Required**: `True`
+
+Name of the process. Used to identify and track process executions.
+
+_**Note**_: Unique process name is preferred for easier identification and to avoid conflicts.
+
+**Example:**
+```python
+name="my_process"
+```
+**YAML Example:**
+```yaml
+name: "my_process"
+```
+
+---
+
+### `param_file`
+
+- **Category**: `parameter`
+- **Type**: `str or list of str`
+
+YAML file or list of YAML files containing all the possible parameters.
+
+_**Note**_: Needs to be inputted directly in the Process call. This parameter defines the YAML file(s) that can shape the Process.
+
+**Example:**
+```python
+param_file="parameters/param1.yaml"
+# or with multiple files
+param_file=["parameters/param1.yaml", "parameters/param2.yaml"]
+```
+
+**YAML Example:**
+```yaml
+param_file:
+  - "parameters/param1.yaml"
+  - "parameters/param2.yaml"
+```
+
+---
+
+### `script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `#!/bin/bash`
+
+Inline script content to be executed. Inline script would have the higher preference.
+
+_**Note**_: Script requires to have a shebang initiation as the first line, such as `#!/bin/bash` or `#!/usr/bin/env python3`.
+
+**Example:**
+```python
+script=\"\"\"#!/usr/bin/env python3
+for fruit in ["Apple", "Banana", "Ananas"]:
+    print(f"Fruit: {fruit}")
+\"\"\"
+```
+
+**YAML Example:**
+```yaml
+script: |
+  #!/usr/bin/env python3
+  for fruit in ["Apple", "Banana", "Ananas"]:
+      print(f"Fruit: {fruit}")
+```
+
+---
+
+### `script_file`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Path to an external script file to execute.
+
+_**Note**_: Script file requires to have a shebang initiation as the first line, such as `#!/bin/bash` or `#!/usr/bin/env python3`.
+
+**Example:**
+```python
+script_file="scripts/run.sh"
+```
+
+**YAML Example:**
+```yaml
+script_file: "scripts/run.sh"
+```
+
+---
+
+### `script_parameters`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Dictionary of parameters to substitute into the script.
+
+_**Note**_: Parameter values will substitute the placeholder(s) in the script. Please be cautious as any wrong use of parameters can break the script.
+
+**Example:**
+```python
+script_parameters={
+    "APPNAME": "JAWM",
+    "BYEMSG": "GOOD BYE!",
+    "FRUITLIST": "['Apple', 'Banana', 'Orange']"
+}
+```
+
+**YAML Example:**
+```yaml
+script_parameters:
+  APPNAME: "JAWM"
+  BYEMSG: "GOOD BYE!"
+  FRUITLIST: "['Apple', 'Banana', 'Orange']"
+```
+
+---
+
+### `script_parameters_file`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+File containing key=value pairs to use in script placeholder substitution.
+
+**Example:**
+```python
+script_parameters_file="params.env"
+```
+
+**YAML Example:**
+```yaml
+script_parameters_file: "params.env"
+```
+
+---
+
+### `project_directory`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `.`
+
+Directory for logs, parameters, and outputs.
+
+**Example:**
+```python
+project_directory="/data/project1"
+```
+
+**YAML Example:**
+```yaml
+project_directory: "/data/project1"
+```
+
+---
+
+### `logs_directory`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `./logs`
+
+Directory to store logs for the process.
+
+**Example:**
+```python
+logs_directory="/data/logs"
+```
+
+**YAML Example:**
+```yaml
+logs_directory: "/data/logs"
+```
+
+---
+
+### `error_summary_file`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `<logs_directory>/error_summary.log`
+
+Path to a log file summarizing all the errors with time records.
+
+_**Note**_: This should be the go-to file while checking for error logs.
+
+**Example:**
+```python
+error_summary_file="logs/error_summary.log"
+```
+**YAML Example:**
+```yaml
+error_summary_file: "logs/error_summary.log"
+```
+
+---
+
+### `monitoring_directory`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Directory used for monitoring process status. Completed or Running jobs with basic details can be found in this location.
+
+_**Note**_: Can be set via env var `JAWM_MONITORING_DIRECTORY`.
+
+**Example:**
+```python
+monitoring_directory="/jawm/monitoring"
+```
+**YAML Example:**
+```yaml
+monitoring_directory: "/jawm/monitoring"
+```
+
+---
+
+### `asynchronous`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `False`
+
+Whether the process should run asynchronously.
+
+_**Note**_: If asynchronous is True, the process runs in a background thread, allowing the main program to continue without blocking.
+
+**Example:**
+```python
+asynchronous=True
+```
+**YAML Example:**
+```yaml
+asynchronous: true
+```
+
+---
+
+### `manager`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `metal`
+- **Allowed Values**: ['metal', 'slurm']
+
+Specifies which execution manager to use.
+
+**Example:**
+```python
+manager="slurm"
+```
+**YAML Example:**
+```yaml
+manager: "slurm"
+```
+
+---
+
+### `env`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Environment variables to set for the process.
+
+**Example:**
+```python
+env={"PATH": "/usr/local/bin", "THREADS": "4"}
+```
+**YAML Example:**
+```yaml
+env:
+  PATH: "/usr/local/bin"
+  THREADS: "4"
+```
+
+---
+
+### `inputs`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Any extra/custom parameters to use in the Process or Process script can be pushed with inputs.
+
+**Example:**
+```python
+inputs={"input1": "data/input.txt"}
+```
+**YAML Example:**
+```yaml
+inputs: {"input1": "data/input.txt"}
+```
+
+---
+
+### `outputs`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Any extra/custom output parameters to use in the Process or Process script can be pushed with outputs.
+
+**Example:**
+```python
+outputs={"output1": "results/output.txt"}
+```
+**YAML Example:**
+```yaml
+outputs: {"output1": "results/output.txt"}
+```
+
+---
+
+### `retries`
+
+- **Category**: `parameter`
+- **Type**: `int`
+- **Default**: `0`
+
+Number of times to retry the process if it fails.
+
+**Example:**
+```python
+retries=2
+```
+**YAML Example:**
+```yaml
+retries: "2"
+```
+
+---
+
+### `retry_overrides`
+
+- **Category**: `parameter`
+- **Type**: `dict[int -> dict]`
+
+Overrides specific parameters for each retry attempt. Keys represent retry attempt numbers (1-based).
+
+**Example:**
+```python
+retry_overrides={
+    1: {"manager_slurm": {"partition": "dedicated", "mem": "4GB"}},
+    2: {"manager_slurm": {"partition": "cluster", "mem": "8GB"}}
+}
+```
+**YAML Example:**
+```yaml
+retry_overrides:
+  1:
+    manager_slurm:
+      partition: "dedicated"
+      mem: "4GB"
+  2:
+    manager_slurm:
+      partition: "cluster"
+      mem: "8GB"
+```
+
+---
+
+### `error_strategy`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `retry`
+
+Strategy to follow when an error occurs.
+
+**Example:**
+```python
+error_strategy="fail"
+```
+**YAML Example:**
+```yaml
+error_strategy: "fail"
+```
+
+---
+
+### `when`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `True`
+
+Conditional expression or boolean that determines whether to run the process.
+
+_**Note**_: The `when` parameter can be a boolean or a function returning a boolean. If False, the process will be skipped entirely. Dynamic skipping also possible with `when=lambda: os.path.exists("input.txt")`.
+
+**Example:**
+```python
+when=False
+```
+**YAML Example:**
+```yaml
+when: false
+```
+
+---
+
+### `before_script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Script to execute before the main script.
+
+**Example:**
+```python
+before_script="echo Preparing..."
+```
+**YAML Example:**
+```yaml
+before_script: "echo Preparing..."
+```
+
+---
+
+### `after_script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Script to execute after the main script completes.
+
+**Example:**
+```python
+after_script="echo Done."
+```
+**YAML Example:**
+```yaml
+after_script: "echo Done."
+```
+
+---
+
+### `manager_slurm`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Slurm manager-specific options (e.g., memory, time).
+
+**Example:**
+```python
+manager_slurm={"mem": "4G", "time": "01:00:00"}
+```
+**YAML Example:**
+```yaml
+manager_slurm: {"mem": "4G", "time": "01:00:00"}
+```
+
+---
+
+### `environment`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `local`
+- **Allowed Values**: ["local", "docker", "apptainer"]
+
+Execution environment type.
+
+**Example:**
+```python
+environment="docker"
+```
+**YAML Example:**
+```yaml
+environment: "docker"
+```
+
+---
+
+### `container`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Container image to use for execution.
+
+**Example:**
+```python
+container="ubuntu:20.04"
+```
+**YAML Example:**
+```yaml
+container: "ubuntu:20.04"
+```
+
+---
+
+### `environment_apptainer`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Options for running the process inside Apptainer.
+
+**Example:**
+```python
+environment_apptainer={"bind": ["/data"]}
+```
+**YAML Example:**
+```yaml
+environment_apptainer: {"bind": ["/data"]}
+```
+
+---
+
+### `environment_docker`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Options for running the process inside Docker.
+
+**Example:**
+```python
+environment_docker={"cpus": "2"}
+```
+**YAML Example:**
+```yaml
+environment_docker: {"cpus": "2"}
+```
+
+---
