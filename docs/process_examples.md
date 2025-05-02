@@ -1,4 +1,4 @@
-# Process Example Workflows
+# Process Examples
 
 ### `example_hello_world`
 
