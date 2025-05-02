@@ -276,21 +276,21 @@ cat output.txt
         "description": "Simple example that runs an inline Python script.",
         "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"python_example\", param_file=\"parameters/example_python.yaml\")`.",
         "example": """process_python = Process(
-        name="python_example",
-        script=\"\"\"#!/usr/bin/env python3
-    print("Hello from Python")
-    print("2 + 2 =", 2 + 2)
-    \"\"\"
-    )
-    # This Process can be executed with `process_python.execute()`
-    """,
+    name="python_example",
+    script=\"\"\"#!/usr/bin/env python3
+print("Hello from Python")
+print("2 + 2 =", 2 + 2)
+\"\"\"
+)
+# This Process can be executed with `process_python.execute()`
+""",
         "yaml_example": """- scope: process
     name: "python_example"
     script: |
         #!/usr/bin/env python3
         print("Hello from Python")
         print("2 + 2 =", 2 + 2)
-    """
+"""
     },
 
     "example_r_script": {
@@ -298,14 +298,14 @@ cat output.txt
         "description": "Simple example that runs an inline R script.",
         "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"r_example\", param_file=\"parameters/example_r.yaml\")`.",
         "example": """process_r = Process(
-        name="r_example",
-        script=\"\"\"#!/usr/bin/env Rscript
-    cat("Hello from R\\n")
-    print(2 + 2)
-    \"\"\"
-    )
-    # This Process can be executed with `process_r.execute()`
-    """,
+    name="r_example",
+    script=\"\"\"#!/usr/bin/env Rscript
+cat("Hello from R\\n")
+print(2 + 2)
+\"\"\"
+)
+# This Process can be executed with `process_r.execute()`
+""",
         "yaml_example": """- scope: process
     name: "r_example"
     script: |
@@ -314,5 +314,72 @@ cat output.txt
         print(2 + 2)
     """
     },
-    
+
+    "example_script_file_with_parameters": {
+        "category": "example",
+        "description": "Run a Python script from file with parameter substitution.",
+        "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"python_file\", param_file=\"parameters/example_file.yaml\")`.",
+        "example": """process_file = Process(
+    name="python_file",
+    script_file="scripts/hello.py",
+    script_parameters={
+        "APPNAME": "JAWM",
+        "BYEMSG": "GOOD BYE!",
+        "FRUITLIST": "['Apple', 'Banana', 'Orange']"
+    }
+)
+# This Process can be executed with `process_file.execute()`
+""",
+        "yaml_example": """- scope: process
+    name: "python_file"
+    script_file: "scripts/hello.py"
+    script_parameters:
+        APPNAME: "JAWM"
+        BYEMSG: "GOOD BYE!"
+        FRUITLIST: "['Apple', 'Banana', 'Orange']"
+    """
+    },
+
+    "example_script_file_with_parameters_file": {
+        "category": "example",
+        "description": "Run a Python script from file with parameters provided via an external .rc or .env-style file.",
+        "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"python_file_params\", param_file=\"parameters/example_params.yaml\")`.",
+        "example": """process_params = Process(
+    name="python_file_params",
+    script_file="scripts/hello.py",
+    script_parameters_file="scripts/hello.rc"
+)
+# This Process can be executed with `process_params.execute()`
+""",
+        "yaml_example": """- scope: process
+    name: "python_file_params"
+    script_file: "scripts/hello.py"
+    script_parameters_file: "scripts/hello.rc"
+    """
+    },
+
+    "example_conditional_when": {
+        "category": "example",
+        "description": "Example showing how to conditionally skip a process using the `when` parameter.",
+        "note": "The `when` parameter can be a boolean or a function returning a boolean. If False, the process will be skipped entirely.",
+        "example": """process_skip = Process(
+    name="python_file_params",
+    script_file="scripts/hello.py",
+    script_parameters_file="scripts/hello.rc",
+    when=False
+)
+# This process will be skipped because `when=False`
+
+# Example of dynamic skipping:
+# when=lambda: os.path.exists("input.txt")
+""",
+        "yaml_example": """- scope: process
+    name: "python_file_params"
+    script_file: "scripts/hello.py"
+    script_parameters_file: "scripts/hello.rc"
+    when: false
+    """
+    },
+
+
 }
