@@ -243,5 +243,32 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "type": "dict",
         "example": 'environment_docker={"cpus": "2"}',
         "yaml_example": 'environment_docker: {"cpus": "2"}'
-    }
+    },
+
+    # Examples
+
+    "example_hello_world": {
+        "category": "example",
+        "description": "Basic Hello World example with default setup.",
+        "note": "With parameter yaml file the Process can be initiated with `Process(name=\"hello_world\", param_file=\"parameters/example.yaml\")`",
+        "example": """process_hw = Process(
+    name="hello_world",
+    script=\"\"\"#!/bin/bash
+echo 'Starting process...'
+echo 'Hello World!' > output.txt
+cat output.txt
+\"\"\"
+)
+# This Process can be executed with `process_hw.execute()`
+""",
+    "yaml_example": """- scope: process
+  name: "hello_world"
+  script: |
+    #!/bin/bash
+    echo 'Starting process...'
+    echo 'Hello World!' > output.txt
+    cat output.txt
+"""
+    },
+
 }
