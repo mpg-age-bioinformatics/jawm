@@ -241,7 +241,7 @@ cat output.txt
 
 Run a Bash script using an Apptainer container with Slurm as the process manager.
 
-_**Note**_: This example shows how to combine container execution, environment variables, and Slurm resource options.
+_**Note**_: This example shows how to combine container execution, environment variables, and Slurm resource options. With a parameter YAML file, this process can be initiated using `Process(name="slurm_apptainer", param_file="parameters/slurm_apptainer.yaml")`
 
 **Example:**
 ```python
@@ -293,7 +293,7 @@ echo $MY_VAR
 
 Run a Bash script inside a Docker container using the default local manager.
 
-_**Note**_: This example runs locally using Docker as the execution environment.
+_**Note**_: This example runs locally using Docker as the execution environment. With a parameter YAML file, this process can be initiated using `Process(name="docker_example", param_file="parameters/docker_example.yaml")`
 
 **Example:**
 ```python
@@ -335,7 +335,7 @@ echo $MY_VAR
 
 Demonstrates how to define dependencies between processes using `depends_on`.
 
-_**Note**_: `depends_on` can be a single process name or a list of process names. The current process will only run after all listed dependencies have completed successfully.
+_**Note**_: `depends_on` can be a single process name or a list of process names. The current process will only run after all listed dependencies have completed successfully. With a parameter YAML file, this process can be initiated using `Process(name="process_A", param_file="parameters/dependency.yaml")`
 
 **Example:**
 ```python
@@ -363,7 +363,7 @@ process_dependency = Process(
 
 Run a FastQC quality check inside an Apptainer container using Slurm.
 
-_**Note**_: This demonstrates containerized execution with Slurm, suitable for bioinformatics workflows.
+_**Note**_: This demonstrates containerized execution with Slurm, suitable for bioinformatics workflows. With a parameter YAML file, this process can be initiated using `Process(name="fastqc_apptainer", param_file="parameters/fastqc_apptainer.yaml")`
 
 **Python Example:**
 ```python
