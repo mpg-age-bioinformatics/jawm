@@ -12,11 +12,11 @@ _**Note**_: With parameter YAML file the Process can be initiated with `Process(
 ```python
 process_hw = Process(
     name="hello_world",
-    script=\"\"\"#!/bin/bash
+    script="""#!/bin/bash
 echo 'Starting process...'
 echo 'Hello World!' > output.txt
 cat output.txt
-\"\"\"
+"""
 )
 # This Process can be executed with `process_hw.execute()`
 ```
@@ -46,10 +46,10 @@ _**Note**_: With a parameter YAML file, this process can be initiated using `Pro
 ```python
 process_python = Process(
     name="python_example",
-    script=\"\"\"#!/usr/bin/env python3
+    script="""#!/usr/bin/env python3
 print("Hello from Python")
 print("2 + 2 =", 2 + 2)
-\"\"\"
+"""
 )
 # This Process can be executed with `process_python.execute()`
 ```
@@ -78,10 +78,10 @@ _**Note**_: With a parameter YAML file, this process can be initiated using `Pro
 ```python
 process_r = Process(
     name="r_example",
-    script=\"\"\"#!/usr/bin/env Rscript
+    script="""#!/usr/bin/env Rscript
 cat("Hello from R\\n")
 print(2 + 2)
-\"\"\"
+"""
 )
 # This Process can be executed with `process_r.execute()`
 ```
@@ -206,11 +206,11 @@ _**Note**_: With a parameter YAML file, this process can be initiated using `Pro
 ```python
 process_hw_slurm = Process(
     name="hello_world_slurm",
-    script=\"\"\"#!/bin/bash
+    script="""#!/bin/bash
 echo 'Starting process...'
 echo 'Hello World from Slurm!' > output.txt
 cat output.txt
-\"\"\",
+""",
     manager="slurm",
     manager_slurm={"partition":"dedicated"},
     logs_directory="logs_slurm"
@@ -247,10 +247,10 @@ _**Note**_: This example shows how to combine container execution, environment v
 ```python
 process_apptainer = Process(
     name="slurm_apptainer",
-    script=\"\"\"#!/bin/bash
+    script="""#!/bin/bash
 echo $HOSTNAME
 echo $MY_VAR
-\"\"\",
+""",
     environment='apptainer',
     container="/images/python.sif",
     env={
@@ -299,10 +299,10 @@ _**Note**_: This example runs locally using Docker as the execution environment.
 ```python
 process_docker = Process(
     name="docker_example",
-    script=\"\"\"#!/bin/bash
+    script="""#!/bin/bash
 echo $HOSTNAME
 echo $MY_VAR
-\"\"\",
+""",
     environment='docker',
     container="ubuntu:20.04",
     env={
