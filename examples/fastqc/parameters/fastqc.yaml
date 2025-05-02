@@ -1,0 +1,9 @@
+- scope: process
+  name: "fastqc_apptainer"
+  script: |
+    #!/bin/bash
+    mkdir output
+    fastqc -o output/ input/reads.fastq
+  container: "/nexus/posix0/MAGE-flaski/service/images/fastqc-0.11.9.sif"
+  environment: "apptainer"
+  manager: "slurm"
