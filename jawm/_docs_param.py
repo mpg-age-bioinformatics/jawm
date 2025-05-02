@@ -412,5 +412,96 @@ cat output.txt
 """
     },
 
+    "example_slurm_apptainer": {
+        "category": "example",
+        "description": "Run a Bash script using an Apptainer container with Slurm as the process manager.",
+        "note": "This example shows how to combine container execution, environment variables, and Slurm resource options.",
+        "example": """process_apptainer = Process(
+        name="slurm_apptainer",
+        script=\"\"\"#!/bin/bash
+echo $HOSTNAME
+echo $MY_VAR
+\"\"\",
+        environment='apptainer',
+        container="/images/python.sif",
+        env={
+            "MY_VAR": "APP_Value",
+            "ANOTHER_VAR": "ANOTHER_VAR"
+        },
+        manager="slurm",
+        manager_slurm={"partition": "dedicated", "mem": "4G"},
+        logs_directory="logs_slurm"
+    )
+    # This process runs via Slurm inside the specified Apptainer container.
+    # Use process_apptainer.execute() to run.
+    """,
+        "yaml_example": """- scope: process
+    name: "slurm_apptainer"
+    script: |
+        #!/bin/bash
+        echo $HOSTNAME
+        echo $MY_VAR
+    environment: "apptainer"
+    container: "/images/python.sif"
+    env:
+        MY_VAR: "APP_Value"
+        ANOTHER_VAR: "ANOTHER_VAR"
+    manager: "slurm"
+    manager_slurm:
+        partition: "dedicated"
+        mem: "4G"
+    logs_directory: "logs_slurm"
+    """
+    },
+
+    "example_docker_container": {
+        "category": "example",
+        "description": "Run a Bash script inside a Docker container using the default local manager.",
+        "note": "This example runs locally using Docker as the execution environment.",
+        "example": """process_docker = Process(
+        name="docker_example",
+        script=\"\"\"#!/bin/bash
+echo $HOSTNAME
+echo $MY_VAR
+\"\"\",
+        environment='docker',
+        container="ubuntu:20.04",
+        env={
+            "MY_VAR": "HelloFromDocker"
+        }
+    )
+    # This process runs locally inside the specified Docker container.
+    # Use process_docker.execute() to run.
+    """,
+        "yaml_example": """- scope: process
+    name: "docker_example"
+    script: |
+        #!/bin/bash
+        echo $HOSTNAME
+        echo $MY_VAR
+    environment: "docker"
+    container: "ubuntu:20.04"
+    env:
+        MY_VAR: "HelloFromDocker"
+    """
+    },
+
+    "example_with_dependencies": {
+        "category": "example",
+        "description": "Demonstrates how to define dependencies between processes using `depends_on`.",
+        "note": "`depends_on` can be a single process name or a list of process names. The current process will only run after all listed dependencies have completed successfully.",
+        "example": """process_dependency = Process(
+    name="process_A",
+    depends_on=["process_B", "process_C"]
+)
+# This process will wait for both process_B and process_C to finish before running.
+""",
+        "yaml_example": """- scope: process
+    name: "process_A"
+    depends_on:
+        - "process_B"
+        - "process_C"
+    """
+    }
 
 }
