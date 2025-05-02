@@ -381,5 +381,36 @@ print(2 + 2)
     """
     },
 
+    "example_hello_world_slurm": {
+        "category": "example",
+        "description": "Hello World example running on Slurm.",
+        "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"process_hw_slurm\", param_file=\"parameters/example_slurm.yaml\")`.",
+        "example": """process_hw_slurm = Process(
+    name="hello_world_slurm",
+    script=\"\"\"#!/bin/bash
+echo 'Starting process...'
+echo 'Hello World from Slurm!' > output.txt
+cat output.txt
+\"\"\",
+    manager="slurm",
+    manager_slurm={"partition":"dedicated"},
+    logs_directory="logs_slurm"
+)
+# This Process can be executed with `process_hw_slurm.execute()`
+""",
+        "yaml_example": """- scope: process
+    name: "hello_world_slurm"
+    script: |
+        #!/bin/bash
+        echo 'Starting process...'
+        echo 'Hello World from Slurm!' > output.txt
+        cat output.txt
+    manager: "slurm"
+    manager_slurm:
+        partition: "dedicated"
+    logs_directory: "logs_slurm"
+"""
+    },
+
 
 }
