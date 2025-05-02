@@ -384,7 +384,7 @@ print(2 + 2)
     "example_hello_world_slurm": {
         "category": "example",
         "description": "Hello World example running on Slurm.",
-        "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"process_hw_slurm\", param_file=\"parameters/example_slurm.yaml\")`.",
+        "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"hello_world_slurm\", param_file=\"parameters/example_slurm.yaml\")`.",
         "example": """process_hw_slurm = Process(
     name="hello_world_slurm",
     script=\"\"\"#!/bin/bash
