@@ -1,4 +1,4 @@
-from ._param_docs import PROCESS_PARAM_DOCS
+from ._docs_param import PROCESS_PARAM_DOCS
 
 def jawm_help(class_name: str = "Process", param: str = None):
     """
