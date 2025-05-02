@@ -271,4 +271,48 @@ cat output.txt
 """
     },
 
+    "example_python_script": {
+        "category": "example",
+        "description": "Simple example that runs an inline Python script.",
+        "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"python_example\", param_file=\"parameters/example_python.yaml\")`.",
+        "example": """process_python = Process(
+        name="python_example",
+        script=\"\"\"#!/usr/bin/env python3
+    print("Hello from Python")
+    print("2 + 2 =", 2 + 2)
+    \"\"\"
+    )
+    # This Process can be executed with `process_python.execute()`
+    """,
+        "yaml_example": """- scope: process
+    name: "python_example"
+    script: |
+        #!/usr/bin/env python3
+        print("Hello from Python")
+        print("2 + 2 =", 2 + 2)
+    """
+    },
+
+    "example_r_script": {
+        "category": "example",
+        "description": "Simple example that runs an inline R script.",
+        "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"r_example\", param_file=\"parameters/example_r.yaml\")`.",
+        "example": """process_r = Process(
+        name="r_example",
+        script=\"\"\"#!/usr/bin/env Rscript
+    cat("Hello from R\\n")
+    print(2 + 2)
+    \"\"\"
+    )
+    # This Process can be executed with `process_r.execute()`
+    """,
+        "yaml_example": """- scope: process
+    name: "r_example"
+    script: |
+        #!/usr/bin/env Rscript
+        cat("Hello from R\\n")
+        print(2 + 2)
+    """
+    },
+    
 }
