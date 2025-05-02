@@ -356,3 +356,42 @@ process_dependency = Process(
 ```
 
 ---
+
+### `example_fastqc`
+
+- **Category**: `example`
+
+Run a FastQC quality check inside an Apptainer container using Slurm.
+
+_**Note**_: This demonstrates containerized execution with Slurm, suitable for bioinformatics workflows.
+
+**Python Example:**
+```python
+fastqc_apptainer = Process(
+    name="fastqc_apptainer",
+    script="""#!/bin/bash
+mkdir output
+fastqc -o output/ input/reads.fastq
+""",
+    container="/images/fastqc.sif",
+    environment="apptainer",
+    manager="slurm"
+)
+# This Process can be executed with `fastqc_apptainer.execute()`
+```
+
+**YAML Example:**
+```yaml
+- scope: process
+  name: "fastqc_apptainer"
+  script: |
+    #!/bin/bash
+    mkdir output
+    fastqc -o output/ input/reads.fastq
+  container: "/images/fastqc.sif"
+  environment: "apptainer"
+  manager: "slurm"
+```
+
+---
+

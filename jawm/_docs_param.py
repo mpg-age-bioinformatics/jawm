@@ -501,6 +501,34 @@ echo $MY_VAR
         - "process_B"
         - "process_C"
     """
+    },
+
+    "example_fastqc": {
+        "category": "example",
+        "description": "Run a FastQC quality check inside an Apptainer container using Slurm.",
+        "note": "This demonstrates containerized execution with Slurm, suitable for bioinformatics workflows.",
+        "example": """fastqc_apptainer = Process(
+    name="fastqc_apptainer",
+    script=\"\"\"#!/bin/bash
+mkdir output
+fastqc -o output/ input/reads.fastq
+\"\"\",
+    container="/images/fastqc.sif",
+    environment="apptainer",
+    manager="slurm"
+)
+# This Process can be executed with `fastqc_apptainer.execute()`
+""",
+        "yaml_example": """- scope: process
+    name: "fastqc_apptainer"
+    script: |
+        #!/bin/bash
+        mkdir output
+        fastqc -o output/ input/reads.fastq
+    container: "/images/fastqc.sif"
+    environment: "apptainer"
+    manager: "slurm"
+    """
     }
 
 }
