@@ -414,7 +414,7 @@ cat output.txt
     "example_slurm_apptainer": {
         "category": "example",
         "description": "Run a Bash script using an Apptainer container with Slurm as the process manager.",
-        "note": "This example shows how to combine container execution, environment variables, and Slurm resource options.",
+        "note": "This example shows how to combine container execution, environment variables, and Slurm resource options. With a parameter YAML file, this process can be initiated using `Process(name=\"slurm_apptainer\", param_file=\"parameters/slurm_apptainer.yaml\")`.",
         "example": """process_apptainer = Process(
         name="slurm_apptainer",
         script=\"\"\"#!/bin/bash
@@ -456,7 +456,7 @@ echo $MY_VAR
     "example_docker_container": {
         "category": "example",
         "description": "Run a Bash script inside a Docker container using the default local manager.",
-        "note": "This example runs locally using Docker as the execution environment.",
+        "note": "This example runs locally using Docker as the execution environment. With a parameter YAML file, this process can be initiated using `Process(name=\"docker_example\", param_file=\"parameters/docker_example.yaml\")`.",
         "example": """process_docker = Process(
         name="docker_example",
         script=\"\"\"#!/bin/bash
@@ -488,7 +488,7 @@ echo $MY_VAR
     "example_with_dependencies": {
         "category": "example",
         "description": "Demonstrates how to define dependencies between processes using `depends_on`.",
-        "note": "`depends_on` can be a single process name or a list of process names. The current process will only run after all listed dependencies have completed successfully.",
+        "note": "`depends_on` can be a single process name or a list of process names. The current process will only run after all listed dependencies have completed successfully. With a parameter YAML file, this process can be initiated using `Process(name=\"process_A\", param_file=\"parameters/dependency.yaml\")`.",
         "example": """process_dependency = Process(
     name="process_A",
     depends_on=["process_B", "process_C"]
@@ -506,7 +506,7 @@ echo $MY_VAR
     "example_fastqc": {
         "category": "example",
         "description": "Run a FastQC quality check inside an Apptainer container using Slurm.",
-        "note": "This demonstrates containerized execution with Slurm, suitable for bioinformatics workflows.",
+        "note": "This demonstrates containerized execution with Slurm, suitable for bioinformatics workflows. With a parameter YAML file, this process can be initiated using `Process(name=\"fastqc_apptainer\", param_file=\"parameters/fastqc_apptainer.yaml\")`.",
         "example": """fastqc_apptainer = Process(
     name="fastqc_apptainer",
     script=\"\"\"#!/bin/bash
