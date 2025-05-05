@@ -542,11 +542,44 @@ fastqc -o output/ input/reads.fastq
         "category": "howto",
         "description": "A global JAWM monitoring directory can be set with setting up `JAWM_MONITORING_DIRECTORY` environment varriable",
         "note": "This directory would store the tracking info of different jobs with Job ID, log location, current state, etc. It can comes handy, if JAWM job management requires to be visualized.",
-        "type": "str",
         "example": """# With shell commands, can be kept permanantly if added to something like ~/.bashrc
 export JAWM_MONITORING_DIRECTORY="/path/monitoring"
 # With python per script
 os.environ["JAWM_MONITORING_DIRECTORY"] = "/path/monitoring"
+        """
+    },
+
+    "howto_get_process_value": {
+        "category": "howto",
+        "description": "Any applied Process class value can be retrieved by calling the initiated class",
+        "example": """# If a Process is initiated with `process_hw = Process(...)`, parameters can be retrieved like below:
+print(process_hw.name)
+print(process_hw.hash)
+print(process_hw.log_path)
+        """
+    },
+
+    "howto_yaml_global_value": {
+        "category": "howto",
+        "description": "User can set global values for Processes through yaml file using global scope.",
+        "note": "Global values can be overwritten by the Process name specific values or inline class values.",
+        "yaml_example": """- scope: global
+  retries: 3
+  monitoring_directory: "monitoring"
+  logs_directory: "logs_slurm"
+  manager: "slurm"
+  manager_slurm: {"partition":"cluster", "mem":"2GB"}
+        """
+    },
+
+    "howto_yaml_process_value": {
+        "category": "howto",
+        "description": "User can set Process specific values for a Processes by it's name through yaml file using process scope.",
+        "note": "Process name specific values will override the global scope values.",
+        "yaml_example": """- scope: process
+  name: "process_name"
+  environment: "apptainer"
+  container: "/images/python.sif"
         """
     },
 
