@@ -2,7 +2,7 @@
 Just Another Workflow Manager
 
 
-## Why
+## Why?
 
 - Python based
 - Code fully independent of framework
