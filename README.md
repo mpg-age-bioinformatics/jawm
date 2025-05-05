@@ -49,7 +49,7 @@ This Process would run the bash script locally with the default paramters (check
 
 Alternatively, with parameter YAML file the Process can be initiated with `Process(name="hello_world", param_file="parameters/example.yaml")`
 
-YAML Example:
+YAML Example (`parameters/example.yaml`):
 ```yaml
 - scope: process
   name: "hello_world"
@@ -58,6 +58,39 @@ YAML Example:
     echo 'Starting process...'
     echo 'Hello World!' > output.txt
     cat output.txt
+```
+
+## FastQC Example
+Follwing is another basic example of a single FastQC call, which is executed inside an Apptainer container using Slurm.
+
+```python
+fastqc_apptainer = Process(
+    name="fastqc_apptainer",
+    script="""#!/bin/bash
+mkdir output
+fastqc -o output/ input/reads.fastq
+""",
+    container="/images/fastqc.sif",
+    environment="apptainer",
+    manager="slurm"
+)
+```
+
+This Process can be executed with `fastqc_apptainer.execute()`
+
+With a parameter YAML file, the same process can be initiated using `Process(name="fastqc_apptainer", param_file="parameters/fastqc_apptainer.yaml")`.
+
+YAML Example (`parameters/fastqc_apptainer.yaml`):
+```yaml
+- scope: process
+  name: "fastqc_apptainer"
+  script: |
+    #!/bin/bash
+    mkdir output
+    fastqc -o output/ input/reads.fastq
+  container: "/images/fastqc.sif"
+  environment: "apptainer"
+  manager: "slurm"
 ```
 
 
