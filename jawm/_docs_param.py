@@ -536,6 +536,18 @@ fastqc -o output/ input/reads.fastq
     environment: "apptainer"
     manager: "slurm"
     """
-    }
+    },
+
+    "howto_set_monitoring": {
+        "category": "howto",
+        "description": "A global JAWM monitoring directory can be set with setting up `JAWM_MONITORING_DIRECTORY` environment varriable",
+        "note": "This directory would store the tracking info of different jobs with Job ID, log location, current state, etc. It can comes handy, if JAWM job management requires to be visualized.",
+        "type": "str",
+        "example": """# With shell commands, can be kept permanantly if added to something like ~/.bashrc
+export JAWM_MONITORING_DIRECTORY="/path/monitoring"
+# With python per script
+os.environ["JAWM_MONITORING_DIRECTORY"] = "/path/monitoring"
+        """
+    },
 
 }

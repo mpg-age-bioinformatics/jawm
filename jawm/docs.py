@@ -17,8 +17,10 @@ def jawm_help(class_name: str = "Process", param: str = None):
 
             if doc.get("category") == "parameter":
                 print(f"\nProcess Parameter: `{param}`")
-            else:
+            elif doc.get("category") == "example":
                 print(f"\nProcess Example: {param}")
+            else:
+                print(f"\nProcess HowTo: {param}")
 
             if doc.get("required"):
                 print(f"  Mandatory: YES")
@@ -53,9 +55,10 @@ def jawm_help(class_name: str = "Process", param: str = None):
                 print("  ```")
         else:
             print("Available docs for Process parameters:::")
-            # for key in sorted(PROCESS_PARAM_DOCS.keys()):
-            #     print(f"  - {key}")
             for key in (k for k, v in PROCESS_PARAM_DOCS.items() if v.get("category") == "parameter"):
+                print(f"  - {key}")
+            print("\nAvailable docs for Process howto:::")
+            for key in (k for k, v in PROCESS_PARAM_DOCS.items() if v.get("category") == "howto"):
                 print(f"  - {key}")
             print("\nAvailable docs for example uses:::")
             for key in (k for k, v in PROCESS_PARAM_DOCS.items() if v.get("category") == "example"):
