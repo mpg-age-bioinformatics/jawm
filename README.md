@@ -115,4 +115,6 @@ jawm_help("Process", "example_hello_world")
 
 Try `jawm_help()`, in order to get the summary of available paramters, examples and how to use.
 
-
+## Projected Development Timeline
+- 08.05.25 :: First draft for a one Fastqc call
+- 01.06.25 :: First draft for a pipeline development
