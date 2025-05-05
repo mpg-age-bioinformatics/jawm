@@ -21,6 +21,18 @@ name: "my_process"
 
 ---
 
+### `hash`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+A generated 4 digit hash. Used to identify and track process executions.
+
+_**Note**_: Process hash would be generated automatically when a Process initiated. User doesn't need to provide any value.
+
+
+---
+
 ### `param_file`
 
 - **Category**: `parameter`

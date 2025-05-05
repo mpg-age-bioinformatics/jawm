@@ -12,6 +12,13 @@ PROCESS_PARAM_DOCS = {
         "yaml_example": 'name: "my_process"'
     },
 
+    "hash": {
+        "category": "parameter",
+        "description": "A generated 4 digit hash. Used to identify and track process executions.",
+        "note": "Process hash would be generated automatically when a Process initiated. User doesn't need to provide any value.",
+        "type": "str",
+    },
+
     "param_file": {
         "category": "parameter",
         "description": "YAML file or list of YAML files containing all the possible parameters.",
