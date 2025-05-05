@@ -15,10 +15,10 @@ def jawm_help(class_name: str = "Process", param: str = None):
                 print(f"No documentation found for key '{param}'!")
                 return
 
-            if doc.get("category") == "example":
-                print(f"\nProcess Example: {param}")
-            else:
+            if doc.get("category") == "parameter":
                 print(f"\nProcess Parameter: `{param}`")
+            else:
+                print(f"\nProcess Example: {param}")
 
             if doc.get("required"):
                 print(f"  Mandatory: YES")
