@@ -583,4 +583,31 @@ print(process_hw.log_path)
         """
     },
 
+        "howto_process_value_priority": {
+        "category": "howto",
+        "description": "The values of a Process can have different priority based on how it is injected. Higher-priority values override lower-priority ones.",
+        "note": "The priority order from lowest to highest is:\n\n"
+                "1. Global parameters from YAML (scope: global)\n"
+                "2. Process-specific parameters from YAML (scope: process, name: <process_name>)\n"
+                "3. Inline keyword arguments passed directly to the Process constructor\n\n"
+                "This allows you to set general defaults globally, override them for specific processes in YAML, "
+                "and override everything explicitly in Python when needed.",
+        "example": """# parameters.yaml
+- scope: global
+  retries: 1
+
+- scope: process
+  name: "my_task"
+  retries: 2
+
+# Python code
+proc = Process(
+    name="my_task",
+    param_file="parameters.yaml",
+    retries=3
+)
+# Final value of `retries` will be 3
+"""
+    },
+
 }
