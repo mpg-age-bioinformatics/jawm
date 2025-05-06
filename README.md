@@ -104,6 +104,17 @@ jawm_help("Process", "logs_directory")
 
 Try `jawm_help()`, in order to get the summary of available paramters, examples and how to use.
 
+## HowTo
+You can find details about different [Process howto here](docs/process_howto.md).
+
+It can be also checked with the `jawm_help` function (e.g. get documentation of `howto_yaml_global_value`).
+```
+from jawm import jawm_help
+jawm_help("Process", "howto_yaml_global_value")
+```
+
+Try `jawm_help()`, in order to get the summary of available paramters, examples and how to use.
+
 ## Examples
 You can find some [basic examples of Process use here](docs/process_examples.md).
 
