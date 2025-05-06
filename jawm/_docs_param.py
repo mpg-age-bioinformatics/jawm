@@ -620,4 +620,13 @@ Process.set_log_level("INFO")
         """
     },
 
+    "howto_reset_stop_future_even": {
+        "category": "howto",
+        "description": "`stop_future_event` acts like a global stop signal for the entire workflow system. If any process fails it may get triggered and prevent future processes to be executed. `Process.stop_future_event.clear() would reset the stop flag to allow future processes to run again.",
+        "note": "This can be useful in case of Notebook use.",
+        "example": """from jawm import Process
+Process.stop_future_event.clear()
+        """
+    },
+
 }
