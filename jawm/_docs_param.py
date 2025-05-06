@@ -610,4 +610,14 @@ proc = Process(
 """
     },
 
+    "howto_set_logging_level": {
+        "category": "howto",
+        "description": "User can set logging level with `set_log_level` class method",
+        "note": "Log level should be `INFO` to get the best outcomes. As it is the default value, no need to do anything in general.",
+        "default": "INFO",
+        "example": """from jawm import Process
+Process.set_log_level("INFO")
+        """
+    },
+
 }
