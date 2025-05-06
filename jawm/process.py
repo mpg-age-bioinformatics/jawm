@@ -18,10 +18,25 @@ class Process:
 
     # Configure logging with proper format
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format="[%(asctime)s] %(levelname)s:: [%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
+
+    @classmethod
+    def set_log_level(cls, level_name="INFO"):
+        """
+        Set logging level for all Process loggers, default is INFO.
+        If an invalid level is provided, it will be ignored.
+        """
+        level_name = level_name.upper()
+        if level_name not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"]:
+            return
+        level = getattr(logging, level_name)
+        logging.getLogger().setLevel(level)
+        for proc in cls.registry.values():
+            if hasattr(proc, "logger"):
+                proc.logger.setLevel(level)
 
     """
     A class to define and execute processes with support for multiple managers,
