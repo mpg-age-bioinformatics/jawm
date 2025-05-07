@@ -583,7 +583,7 @@ print(process_hw.log_path)
         """
     },
 
-        "howto_process_value_priority": {
+    "howto_process_value_priority": {
         "category": "howto",
         "description": "The values of a Process can have different priority based on how it is injected. Higher-priority values override lower-priority ones.",
         "note": "The priority order from lowest to highest is:\n\n"
