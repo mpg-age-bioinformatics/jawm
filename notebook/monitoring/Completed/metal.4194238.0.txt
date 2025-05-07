@@ -1,0 +1,4 @@
+Job ID: 4194238
+Job Name: process_B
+Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs/process_B_20250507_081749_bd3c/process_B.script
+Exit Code: 0

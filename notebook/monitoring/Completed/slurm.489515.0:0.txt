@@ -1,4 +1,0 @@
-Job ID: 489515
-Job Name: slurm_apptainer
-Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/slurm_apptainer_20250218_145106_slurm_b0/slurm_apptainer.slurm
-Exit Code: 0:0

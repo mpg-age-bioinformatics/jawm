@@ -1,4 +1,0 @@
-Job ID: 489513
-Job Name: process_B
-Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/process_B_20250218_143805_slurm_90/process_B.slurm
-Exit Code: 0:0

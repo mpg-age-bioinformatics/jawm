@@ -1,4 +1,0 @@
-Job ID: 489505
-Job Name: hello_world
-Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/hello_world_20250218_142315_slurm_ee/hello_world.slurm
-Exit Code: 127:0

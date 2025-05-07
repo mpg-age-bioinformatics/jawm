@@ -1,4 +1,0 @@
-Job ID: 1064318
-Job Name: hello_world
-Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/hello_world_20250218_125131_metal_97/hello_world.script
-Exit Code: 0
