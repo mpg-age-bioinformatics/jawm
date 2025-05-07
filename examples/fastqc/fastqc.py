@@ -8,22 +8,20 @@
 #       format_version: '1.5'
 #       jupytext_version: 1.16.6
 #   kernelspec:
-#     display_name: Python 3.10.8
+#     display_name: Python 3.12.6
 #     language: python
-#     name: py3.10.8
+#     name: py3.12.6
 # ---
 
 # {{{
-import sys
 import os
-import logging
-import time
-
-sys.path.append(os.path.abspath(os.path.join(os.path.abspath(os.getcwd()), '../..')))
-from jawm import Process, jawm_help
-
-logging.basicConfig(level=logging.INFO)
 os.environ['JAWM_MONITORING_DIRECTORY'] = 'monitoring'
+
+# For development
+# import sys
+# sys.path.append(os.path.abspath(os.path.join(os.path.abspath(os.getcwd()), '../..')))
+
+from jawm import Process
 # }}}
 
 fastqc_apptainer = Process(name="fastqc_apptainer", param_file="parameters/fastqc.yaml")

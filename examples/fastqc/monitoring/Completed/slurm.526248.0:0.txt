@@ -1,0 +1,4 @@
+Job ID: 526248
+Job Name: fastqc_apptainer
+Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/examples/fastqc/logs/fastqc_apptainer_20250507_115125_9513/fastqc_apptainer.slurm
+Exit Code: 0:0
