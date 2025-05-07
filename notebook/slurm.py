@@ -14,14 +14,14 @@
 # ---
 
 # {{{
-import sys
 import os
-import logging
-import time
-from jawm import Process
-
-logging.basicConfig(level=logging.INFO)
 os.environ['JAWM_MONITORING_DIRECTORY'] = 'monitoring'
+
+# For development
+# import sys
+# sys.path.append(os.path.abspath(os.path.join(os.path.abspath(os.getcwd()), '..')))
+
+from jawm import Process
 # }}}
 
 ### Hello World example
@@ -29,8 +29,8 @@ process_hw = Process(
     name="hello_world",
     script="""#!/bin/bash
 echo 'Starting process...'
-echo 'Hello World from Slurm!' > output.txt
-cat output.txt
+echo 'Hello World from Slurm!' > output_slurm.txt
+cat output_slurm.txt
 """,
     manager="slurm",
     manager_slurm={"partition":"dedicated"},
@@ -40,9 +40,8 @@ cat output.txt
 # Get any paramters
 process_hw.logs_directory
 
-output = process_hw.execute()
+process_hw.execute()
 
-print(f"Process/Job ID: {output}")
 print(f"Log Path: {process_hw.log_path}")
 
 ### Hello World failed example
@@ -57,10 +56,12 @@ echoooooo 'ENding process...'
     logs_directory="logs_slurm"
 )
 
-output = process_hw.execute()
+process_hw.execute()
 
-print(f"Process/Job ID: {output}")
 print(f"Log Path: {process_hw.log_path}")
+
+# Reset stop_future_event to execute in the same script neglecting the last error
+Process.stop_future_event.clear()
 
 ### Python example
 process_python = Process(
@@ -75,9 +76,8 @@ print("2 + 2 =", 2 + 2)
     logs_directory="logs_slurm"
 )
 
-output = process_python.execute()
+process_python.execute()
 
-print(f"Process/Job ID: {output}")
 print(f"Log Path: {process_python.log_path}")
 
 ## R example
@@ -93,10 +93,34 @@ print(2 + 2)
     logs_directory="logs_slurm"
 )
 
-output = process_r.execute()
+process_r.execute()
 
-print(f"Process/Job ID: {output}")
 print(f"Log Path: {process_r.log_path}")
+print(f"Error Summary Log: {process_r.error_summary_file}")
+
+# process_r failed due to the absence of R in the system
+# Error can be checked easily from the `error_summary_file` or `log_path`
+# Got error "Error: /usr/bin/env: ‘Rscript’: No such file or directory"
+Process.stop_future_event.clear()
+
+## R example
+process_r_apptainer = Process(
+    name="r_example",
+    script="""#!/usr/bin/env Rscript
+cat("Hello from R\n")
+print(2 + 2)
+""",
+    retries=3,
+    manager="slurm",
+    manager_slurm={"partition":"cluster", "mem":"2GB"},
+    logs_directory="logs_slurm",
+    environment='apptainer',
+    container="/nexus/posix0/MAGE-flaski/service/images/posit-latest.sif",    
+)
+
+process_r_apptainer.execute()
+
+print(f"Log Path: {process_r_apptainer.log_path}")
 
 # Run with script parameters
 process_file = Process(
@@ -116,9 +140,8 @@ process_file = Process(
 # Check the provided params
 process_file.params
 
-output = process_file.execute()
+process_file.execute()
 
-print(f"Process/Job ID: {output}")
 print(f"Log Path: {process_file.log_path}")
 
 # Run with script and parameters file
@@ -131,9 +154,8 @@ process_params = Process(
     logs_directory="logs_slurm"
 )
 
-output = process_params.execute()
+process_params.execute()
 
-print(f"Process/Job ID: {output}")
 print(f"Log Path: {process_params.log_path}")
 
 process_skip = Process(
@@ -146,36 +168,32 @@ process_skip = Process(
     logs_directory="logs_slurm"
 )
 
-output = process_skip.execute()
+process_skip.execute()
 
-print(f"Process/Job ID: {output}")
+print(f"Log Path: {process_skip.log_path}")
 
 # Run from paramters
 process_c = Process(name="process_C", param_file=["parameters/slurm.yaml", "parameters/slurm2.yaml"])
 
-output = process_c.execute()
+process_c.execute()
 
-print(f"Process/Job ID: {output}")
 print(f"Log Path: {process_c.log_path}")
 
 # {{{
 # Run with dependency
 process_c = Process(name="process_C", param_file=["parameters/slurm.yaml", "parameters/slurm2.yaml"])
-output_c = process_c.execute()
+process_c.execute()
 
 process_a = Process(name="process_A", param_file="parameters/slurm.yaml")
-output_a = process_a.execute()
+process_a.execute()
 
 process_b = Process(name="process_B", param_file="parameters/slurm.yaml")
-output_b = process_b.execute()
+process_b.execute()
 # }}}
 
-print(f"Process/Job ID: {output_a}")
-print(f"Log Path: {process_a.log_path}")
-print(f"Process/Job ID: {output_b}")
-print(f"Log Path: {process_b.log_path}")
-print(f"Process/Job ID: {output_c}")
-print(f"Log Path: {process_c.log_path}")
+print(f"Log Path of {process_a.name}: {process_a.log_path}")
+print(f"Log Path of {process_b.name}: {process_b.log_path}")
+print(f"Log Path of {process_c.name}: {process_c.log_path}")
 
 # Run with apptainer container
 process_apptainer = Process(
@@ -199,16 +217,12 @@ echo $MY_VAR
     logs_directory="logs_slurm"
 )
 
-output = process_apptainer.execute()
+process_apptainer.execute()
 
-print(f"Process/Job ID: {process_apptainer}")
 print(f"Log Path: {process_apptainer.log_path}")
 
 # Run with singularity container from parameter file
 singularity_params = Process(name="singularity_params", param_file=["parameters/slurm.yaml", "parameters/slurm2.yaml"])
-output = singularity_params.execute()
+singularity_params.execute()
 
-print(f"Process/Job ID: {singularity_params}")
 print(f"Log Path: {singularity_params.log_path}")
-
-

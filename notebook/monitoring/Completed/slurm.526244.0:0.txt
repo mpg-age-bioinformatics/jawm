@@ -1,0 +1,4 @@
+Job ID: 526244
+Job Name: singularity_params
+Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/singularity_params_20250507_100011_640b/singularity_params.slurm
+Exit Code: 0:0

@@ -1,0 +1,5 @@
+#!/bin/bash
+#SBATCH --partition=cluster
+#SBATCH --mem=2GB
+
+/nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/process_B_20250507_095525_5766/process_B.script

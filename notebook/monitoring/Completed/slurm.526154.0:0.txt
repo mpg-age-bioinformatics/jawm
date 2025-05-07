@@ -1,0 +1,4 @@
+Job ID: 526154
+Job Name: python_example
+Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/python_example_20250507_084136_d5a8/python_example.slurm
+Exit Code: 0:0
