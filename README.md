@@ -37,7 +37,7 @@ cat output.txt
 process_hw.execute()
 ```
 
-This Process would run the bash script locally with the default paramters (check the available [paramters](docs/process_parameters.md)) and would generate logs with basic info:
+This Process would run the bash script locally with the default parameters (check the available [parameters](docs/process_parameters.md)) and would generate logs with basic info:
 ```
 [2025-05-05 08:47:46] INFO:: [hello_world|5c58] Executing process hello_world locally.
 [2025-05-05 08:47:46] INFO:: [hello_world|5c58] Log folder for process hello_world: /JAWM/notebook/logs/hello_world_20250505_084736_5c58
@@ -110,7 +110,7 @@ from jawm import jawm_help
 jawm_help("Process", "logs_directory")
 ```
 
-Try `jawm_help()`, in order to get the summary of available paramters, examples and how to use.
+Try `jawm_help()`, in order to get the summary of available parameters, examples and how to use.
 
 ## HowTo
 You can find details about different [Process howto here](docs/process_howto.md).
@@ -121,7 +121,7 @@ from jawm import jawm_help
 jawm_help("Process", "howto_yaml_global_value")
 ```
 
-Try `jawm_help()`, in order to get the summary of available paramters, examples and how to use.
+Try `jawm_help()`, in order to get the summary of available parameters, examples and how to use.
 
 ## Examples
 You can find some [basic examples of Process use here](docs/process_examples.md).
@@ -132,7 +132,7 @@ from jawm import jawm_help
 jawm_help("Process", "example_hello_world")
 ```
 
-Try `jawm_help()`, in order to get the summary of available paramters, examples and how to use.
+Try `jawm_help()`, in order to get the summary of available parameters, examples and how to use.
 
 ## Projected Development Timeline
 - 08.05.25 :: First draft for a one Fastqc call
