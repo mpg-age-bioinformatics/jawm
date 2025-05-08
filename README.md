@@ -47,7 +47,11 @@ This Process would run the bash script locally with the default paramters (check
 [2025-05-05 08:47:51] INFO:: [hello_world|5c58] Process hello_world completed with exit code: 0
 ```
 
-Alternatively, with parameter YAML file the Process can be initiated with `Process(name="hello_world", param_file="parameters/example.yaml")`
+Alternatively, with parameter YAML file the Process can be initiated and executed with:
+```python
+process_hw = Process(name="hello_world", param_file="parameters/example.yaml")`
+process_hw.execute()
+```
 
 YAML Example (`parameters/example.yaml`):
 ```yaml
@@ -78,7 +82,11 @@ fastqc -o output/ input/reads.fastq
 
 This Process can be executed with `fastqc_apptainer.execute()`
 
-With a parameter YAML file, the same process can be initiated using `Process(name="fastqc_apptainer", param_file="parameters/fastqc_apptainer.yaml")`.
+With a parameter YAML file, the same process can be initiated and executed with:
+```python
+fastqc_apptainer = Process(name="fastqc_apptainer", param_file="parameters/fastqc_apptainer.yaml")`
+fastqc_apptainer.execute()
+```
 
 YAML Example (`parameters/fastqc_apptainer.yaml`):
 ```yaml
