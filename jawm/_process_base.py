@@ -301,14 +301,55 @@ def _apply_retry_parameters(self, attempt_i):
 
 
 @register
-def get_id(self):
+def _read_log_file(self, filename):
     """
-    Returns the runtime job ID (PID for metal, Job ID for Slurm) if available.
-    Returns None if the job hasn't started or the ID file doesn't exist.
+    Internal helper to read a log file's content, stripping trailing whitespace.
+    Returns None if the file does not exist.
     """
-    id_file_path = os.path.join(self.log_path, f"{self.name}.id")
-    if os.path.exists(id_file_path):
-        with open(id_file_path, "r") as f:
-            job_id = f.read().strip()
-        return job_id
+    file_path = os.path.join(self.log_path, filename)
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
+            return f.read().strip()
     return None
+
+
+@register
+def get_id(self):
+    """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable."""
+    return self._read_log_file(f"{self.name}.id")
+
+
+@register
+def get_output(self):
+    """Return the content of the process .output file, or None if unavailable."""
+    return self._read_log_file(f"{self.name}.output")
+
+
+@register
+def get_error(self):
+    """Return the content of the process .error file, or None if unavailable."""
+    return self._read_log_file(f"{self.name}.error")
+
+
+@register
+def get_exitcode(self):
+    """Return the content of the process .exitcode file, or None if unavailable."""
+    return self._read_log_file(f"{self.name}.exitcode")
+
+
+@register
+def get_command(self):
+    """Return the content of the process .command file, or None if unavailable."""
+    return self._read_log_file(f"{self.name}.command")
+
+
+@register
+def get_script(self):
+    """Return the content of the process .script file, or None if unavailable."""
+    return self._read_log_file(f"{self.name}.script")
+
+
+@register
+def get_slurm(self):
+    """Return the content of the process .slurm file containing slurm commands, or None if unavailable."""
+    return self._read_log_file(f"{self.name}.slurm")
