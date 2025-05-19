@@ -298,3 +298,17 @@ def _apply_retry_parameters(self, attempt_i):
         else:
             # If it's a new attribute, just assign
             setattr(self, key, value)
+
+
+@register
+def get_id(self):
+    """
+    Returns the runtime job ID (PID for metal, Job ID for Slurm) if available.
+    Returns None if the job hasn't started or the ID file doesn't exist.
+    """
+    id_file_path = os.path.join(self.log_path, f"{self.name}.id")
+    if os.path.exists(id_file_path):
+        with open(id_file_path, "r") as f:
+            job_id = f.read().strip()
+        return job_id
+    return None
