@@ -57,7 +57,7 @@ class Process:
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
         
         # Load YAML parameters if provided
-        yaml_params = self.parse_yaml_config(param_file) if param_file else {"global": {}, "process": {}}
+        yaml_params = self._parse_yaml_config(param_file) if param_file else {"global": {}, "process": {}}
 
         # Retrieve configurations: Process-specific first, fallback to global
         process_params = yaml_params["process"].get(name, {})

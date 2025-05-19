@@ -12,7 +12,7 @@ register = register_method(__methods__)
 
 
 @register
-def parse_yaml_config(self, param_file):
+def _parse_yaml_config(self, param_file):
     """
     Parses one or multiple YAML files and merges configurations.
 
