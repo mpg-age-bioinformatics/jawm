@@ -2,8 +2,38 @@ from ._docs_param import PROCESS_PARAM_DOCS
 
 def jawm_help(class_name: str = "Process", param: str = None):
     """
-    Show help for a class or a specific parameter or with examples.
+    Display documentation for JAWM classes, parameters, examples, or usage guides.
+
+    By default, this function shows all available parameters, how-to guides, and
+    usage examples for the Process class.
+
+    Parameters:
+    -----------
+    class_name : str
+        The class to retrieve help for. Default is "Process".
+
+    param : str
+        A specific parameter name, example key, or how-to topic to retrieve detailed
+        documentation for. If not provided, a summary of all available topics will be shown.
+
+    Usage Examples:
+    ---------------
+    >>> from jawm import jawm_help
+
+    # Show all Process documentation categories (parameters, how-tos, examples)
+    >>> jawm_help()
+
+    # Show help for a specific parameter
+    >>> jawm_help("Process", "script")
+
+    # Show a usage example
+    >>> jawm_help("Process", "example_hello_world")
+
+    # Show a how-to guide
+    >>> jawm_help("Process", "howto_set_monitoring")
+
     """
+
     if class_name not in ["Process"]:
         print(f"Help for class '{class_name}' is not available.")
         return
