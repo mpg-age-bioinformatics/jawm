@@ -11,6 +11,36 @@ from . import _process_base, _process_metal, _process_slurm
 
 @add_methods_from(_process_base, _process_metal, _process_slurm)
 class Process:
+    """
+    A JAWM Process represents a step in a workflow with full support for:
+
+    - Script execution of different languages
+    - Local or Slurm execution (with container support)
+    - Dependency management and re-try support
+    - YAML-based or inline configuration
+
+    Quickstart:
+    -----------
+
+    >>> from jawm import Process
+    >>> process_hw = Process(
+    ...     name="hello_world",
+    ...     script=\"\"\"#!/bin/bash
+    echo 'Hello World!'
+    \"\"\"
+    ... )
+    >>> process_hw.execute()
+
+    Class Attributes:
+    -----------------
+    registry (dict):
+        Stores all Process instances, indexed by name and hash.
+
+    stop_future_event (threading.Event):
+        A shared stop flag triggered on process failure to halt future runs if applicable.
+
+    """
+
     # Global registry to map process names to process instances.
     registry = {}
     # A class-level event, shared across all Process instances. Run `Process.stop_future_event.clear()` to prevent preventing
@@ -46,9 +76,36 @@ class Process:
         """
         Initialize the Process object.
 
-        :param name (required): Name of the process.
-        :param param_file: YAML format file(s) that includes different parameters
-        :param kwargs: Additional parameters to configure the process.
+        :param name (str, required): Name of the process.
+        :param param_file (str or list of str): YAML format file(s) that contains different parameters
+        :param kwargs: Additional parameters to configure the process:
+            script (str): Inline script content to be executed
+            script_file (str): Path to external script file
+            script_parameters (dict): Parameters to substitute into the script
+            script_parameters_file (str): File with key=value pairs to use in script placeholder substitution
+            project_directory (str): Base directory for outputs and logs. Default is current dir
+            logs_directory (str): Directory for log files
+            error_summary_file (str): Path to a log file summarizing all the errors with time records
+            monitoring_directory (str): Directory to keep track of Running/Completed processes.
+            asynchronous (bool): Whether the process should run asynchronously. Default is False.
+            manager (str): Execution backend. Options: "metal", "slurm". Default is "metal"
+            env (dict): Environment variables for the process
+            inputs (dict): Custom user-defined inputs
+            outputs (dict): Custom user-defined outputs
+            retries (int): Number of retry attempts. Default is 0
+            retry_overrides (dict[int -> dict]): Retry-specific overrides by attempt number
+            error_strategy (str): What to do on failure: "retry" or "fail". Default is "retry"
+            when (bool or callable): Whether to execute this process. Can be dynamic
+            manager_local (dict): Execution configs for local manager
+            manager_slurm (dict): Execution configs for slurm manager
+            environment (str): "local", "docker", or "apptainer". Default is "local".
+            container (str): Container image path or name.
+            environment_apptainer (dict): Options for running the process inside Apptainer
+            environment_docker (dict): Options for running the process inside Docker
+
+        To view detailed documentation for a specific parameter, run:
+        >>> jawm.jawm_help("Process", "<parameter_name>")
+
         """
         
         # Primary parameters
@@ -160,12 +217,36 @@ class Process:
 
     def execute(self):
         """
-        Asynchronously execute the process, respecting dependencies:
-        1) If 'when' is false, skip immediately.
-        2) Spawn a background thread that:
-            a) Waits for all dependencies' finished_event.
-            b) Calls _execute_metal() or _execute_slurm().
-        3) Return immediately (non-blocking).
+        Launch the process execution, handling dependencies and asynchronous logic.
+
+        This method orchestrates the full execution of the process based on its configuration.
+        It supports conditional execution (`when`), dependency resolution (`depends_on`), and
+        asynchronous execution (`asynchronous`). Depending on the selected execution manager,
+        the process will run either locally or via Slurm, with optional container support.
+
+        Execution Flow:
+        ---------------
+        1. If `when` is False, the process is skipped and marked as finished.
+        2. If `asynchronous` is False:
+            - Waits for all dependency processes to finish.
+            - Runs the process synchronously via the configured manager.
+        3. If `asynchronous` is True:
+            - Spawns a background thread to:
+                a) Wait for all dependencies to complete.
+                b) Execute the process in a non-blocking manner.
+        4. On error:
+            - Logs the error.
+            - Triggers a global stop flag (`Process.stop_future_event`) to prevent further steps (if applicable).
+
+        Notes:
+        ------
+        - Dependencies are resolved using the `depends_on` list, by name or hash.
+        - Execution manager is chosen via the `manager` parameter: "metal" (local) or "slurm".
+        - Errors and outputs are logged to dedicated files in the logs directory.
+
+        Returns:
+            None
+        
         """
         # If the user condition says "skip," mark finished and return.
         if not self.when:
