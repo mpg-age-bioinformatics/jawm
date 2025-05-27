@@ -54,21 +54,6 @@ class Process:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    @classmethod
-    def set_log_level(cls, level_name="INFO"):
-        """
-        Set logging level for all Process loggers, default is INFO.
-        If an invalid level is provided, it will be ignored.
-        """
-        level_name = level_name.upper()
-        if level_name not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"]:
-            return
-        level = getattr(logging, level_name)
-        logging.getLogger().setLevel(level)
-        for proc in cls.registry.values():
-            if hasattr(proc, "logger"):
-                proc.logger.setLevel(level)
-
     """
     A class to define and execute processes with support for multiple managers,
     pre/post scripts, retries, and resource configurations.
@@ -243,7 +228,7 @@ class Process:
         Notes:
         ------
         - Dependencies are resolved using the `depends_on` list, by name or hash.
-        - Execution manager is chosen via the `manager` parameter: "local" or "slurm".
+        - Execution manager is chosen via the `manager` parameter: "local" (local) or "slurm".
         - Errors and outputs are logged to dedicated files in the logs directory.
 
         Returns:
@@ -344,3 +329,74 @@ class Process:
         final_param_file = param_file if param_file is not None else getattr(self, 'param_file', None)
 
         return Process(name=final_name, param_file=final_param_file, **new_params)
+
+
+    # ----------------------------------------------------------
+    #   Class methods with Process Lifecycle and Runtime Control
+    # ----------------------------------------------------------
+
+    @classmethod
+    def set_log_level(cls, level_name="INFO"):
+        """
+        Set logging level for all Process loggers, default is INFO.
+        If an invalid level is provided, it will be ignored.
+        """
+        level_name = level_name.upper()
+        if level_name not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"]:
+            return
+        level = getattr(logging, level_name)
+        logging.getLogger().setLevel(level)
+        for proc in cls.registry.values():
+            if hasattr(proc, "logger"):
+                proc.logger.setLevel(level)
+
+    
+    @classmethod
+    def list_running(cls):
+        seen = set()
+        running = []
+
+        for proc in cls.registry.values():
+            if not isinstance(proc, cls):
+                continue
+            if id(proc) in seen:
+                continue
+            seen.add(id(proc))
+
+            if not proc.finished_event.is_set():
+                running.append({
+                    "name": proc.name,
+                    "hash": proc.hash,
+                    "id": getattr(proc, "_runtime_id", None) or "NA",
+                    "manager": proc.manager,
+                    "environment": proc.environment,
+                    "log_path": proc.log_path,
+                    "started_at": proc.date_time
+                })
+        return running
+
+
+    @classmethod
+    def list_all(cls):
+        seen = set()
+        all_processes = []
+
+        for proc in cls.registry.values():
+            if not isinstance(proc, cls):
+                continue
+            if id(proc) in seen:
+                continue
+            seen.add(id(proc))
+
+            all_processes.append({
+                "name": proc.name,
+                "hash": proc.hash,
+                "id": getattr(proc, "_runtime_id", None) or "NA",
+                "manager": proc.manager,
+                "environment": proc.environment,
+                "log_path": proc.log_path,
+                "started_at": proc.date_time,
+                "finished": proc.finished_event.is_set()
+            })
+
+        return all_processes

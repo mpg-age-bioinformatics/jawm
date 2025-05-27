@@ -82,6 +82,9 @@ def _execute_local(self):
             # Record the PID
             process_id = result.pid
             self.logger.info(f"Process {self.name} started with PID: {process_id}")
+            self._runtime_id = str(process_id)
+            with open(id_path, "w") as id_file:
+                id_file.write(str(process_id))
 
             # Create "Running" file in the monitoring directory
             self._monitoring_running_file(process_id, base_script_path)
@@ -102,8 +105,6 @@ def _execute_local(self):
             # Write out the exit code and ID
             with open(exitcode_path, "w") as exc_file:
                 exc_file.write(str(exit_code))
-            with open(id_path, "w") as id_file:
-                id_file.write(str(process_id))
 
             # Move from Running -> Completed in monitoring
             self._monitoring_completed_file(process_id, base_script_path, exit_code)

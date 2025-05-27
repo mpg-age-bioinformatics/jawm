@@ -118,6 +118,7 @@ def _execute_slurm(self):
             # Parse job_id from sbatch output
             job_id = result.stdout.strip().split()[-1]
             self.logger.info(f"Process {self.name} submitted as Slurm job {job_id}.")
+            self._runtime_id = str(job_id)
             with open(id_path, "w") as id_file:
                 id_file.write(str(job_id))
 
