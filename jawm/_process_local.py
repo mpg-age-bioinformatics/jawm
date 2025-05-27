@@ -2,6 +2,7 @@ import subprocess
 import threading
 import os
 import time
+from datetime import datetime
 
 # Setup method registration for dynamic injection into the main Process class
 from ._method_lib import register_method
@@ -123,6 +124,7 @@ def _execute_local(self):
 
                 # If success, we're done
                 if exit_code == 0:
+                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     return
 
@@ -137,6 +139,7 @@ def _execute_local(self):
                     remaining = total_attempts - attempt_i
                     self.logger.info(f"Retrying process {self.name}, {remaining} retries left.")
                 else:
+                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     self.stop_future_event.set()
                     raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
@@ -152,6 +155,7 @@ def _execute_local(self):
         # If something fails before the monitor thread is even launched,
         # we need to set finished_event so dependent processes won't wait forever.
         self.logger.error(f"[{self.name}] Failed launching process: {str(e)}")
+        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.finished_event.set()
         self.stop_future_event.set()
         raise

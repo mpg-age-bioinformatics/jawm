@@ -187,6 +187,10 @@ class Process:
         # A threading event that signals when this process has finished.
         self.finished_event = threading.Event()
 
+        # Time 
+        self.execution_start_at = None
+        self.execution_end_at = None
+
 
     def _run_manager(self):
         """
@@ -238,6 +242,7 @@ class Process:
         # If the user condition says "skip," mark finished and return.
         if not self.when:
             self.logger.info(f"Process {self.name} skipped because 'when' condition was not fulfilled!")
+            self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
             self.finished_event.set()
             return
 
@@ -265,6 +270,7 @@ class Process:
 
             # Perform synchronous runs
             try:
+                self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self._run_manager()
             except Exception as e:
                 self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
@@ -294,6 +300,7 @@ class Process:
 
                 # Perform asynchronous runs
                 try:
+                    self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self._run_manager()
                 except Exception as e:
                     self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
@@ -371,7 +378,8 @@ class Process:
                     "manager": proc.manager,
                     "environment": proc.environment,
                     "log_path": proc.log_path,
-                    "started_at": proc.date_time
+                    "initiated_at": proc.date_time,
+                    "execution_start": proc.execution_start_at or "NA"
                 })
         return running
 
@@ -395,7 +403,9 @@ class Process:
                 "manager": proc.manager,
                 "environment": proc.environment,
                 "log_path": proc.log_path,
-                "started_at": proc.date_time,
+                "initiated_at": proc.date_time,
+                "execution_start": proc.execution_start_at or "NA",
+                "execution_end": proc.execution_end_at or "NA",
                 "finished": proc.finished_event.is_set()
             })
 

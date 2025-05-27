@@ -2,6 +2,7 @@ import subprocess
 import threading
 import os
 import time
+from datetime import datetime
 
 # Setup method registration for dynamic injection into the main Process class
 from ._method_lib import register_method
@@ -189,6 +190,7 @@ def _execute_slurm(self):
                 exit_code = run_process_once_slurm(attempt_i, total_attempts)
                 if exit_code == 0:
                     # success on this attempt
+                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     return
                 # Else it failed
@@ -198,6 +200,7 @@ def _execute_slurm(self):
                     self.logger.info(f"Retrying process {self.name} in Slurm, {remaining} retries left")
                 else:
                     # Out of attempts
+                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     self.stop_future_event.set()
                     raise RuntimeError(f"Process {self.name} in Slurm failed after {total_attempts} attempts.")
@@ -210,6 +213,7 @@ def _execute_slurm(self):
 
     except Exception as e:
         self.logger.error(f"Failed launching process {self.name} in Slurm: {str(e)}")
+        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.finished_event.set()
         self.stop_future_event.set()
         raise
