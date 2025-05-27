@@ -126,8 +126,8 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "category": "parameter",
         "description": "Specifies which execution manager to use.",
         "type": "str",
-        "default": "metal",
-        "allowed": ["metal", "slurm"],
+        "default": "local",
+        "allowed": ["local", "slurm"],
         "example": 'manager="slurm"',
         "yaml_example": 'manager: "slurm"'
     },

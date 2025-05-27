@@ -3,4 +3,4 @@
   script: |
     #!/bin/bash
     echo "Process C"
-  manager: "metal"
+  manager: "local"

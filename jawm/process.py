@@ -7,10 +7,10 @@ from datetime import datetime
 
 # Extend the Process class with methods from modular backend implementations
 from ._method_lib import add_methods_from
-from . import _process_base, _process_metal, _process_slurm
+from . import _process_base, _process_local, _process_slurm
 
 
-@add_methods_from(_process_base, _process_metal, _process_slurm)
+@add_methods_from(_process_base, _process_local, _process_slurm)
 class Process:
     """
     A JAWM Process represents a step in a workflow with full support for:
@@ -89,7 +89,7 @@ class Process:
             error_summary_file (str): Path to a log file summarizing all the errors with time records
             monitoring_directory (str): Directory to keep track of Running/Completed processes.
             asynchronous (bool): Whether the process should run asynchronously. Default is False.
-            manager (str): Execution backend. Options: "metal", "slurm". Default is "metal"
+            manager (str): Execution backend. Options: "local", "slurm". Default is "local"
             env (dict): Environment variables for the process
             inputs (dict): Custom user-defined inputs
             outputs (dict): Custom user-defined outputs
@@ -160,7 +160,7 @@ class Process:
 
         # Management parameters
         self.asynchronous = self.params.get("asynchronous", False)
-        self.manager = self.params.get("manager", "metal")
+        self.manager = self.params.get("manager", "local")
         # self.source_env = os.environ.copy()
         self.env = self.params.get("env", {})
         self.combined_env = {**os.environ.copy(), **self.env}
@@ -207,8 +207,8 @@ class Process:
         """
         A helper to choose between different manager execution
         """
-        if self.manager == "metal":
-            self._execute_metal()
+        if self.manager == "local":
+            self._execute_local()
         elif self.manager == "slurm":
             self._execute_slurm()
         else:
@@ -243,7 +243,7 @@ class Process:
         Notes:
         ------
         - Dependencies are resolved using the `depends_on` list, by name or hash.
-        - Execution manager is chosen via the `manager` parameter: "metal" (local) or "slurm".
+        - Execution manager is chosen via the `manager` parameter: "local" or "slurm".
         - Errors and outputs are logged to dedicated files in the logs directory.
 
         Returns:

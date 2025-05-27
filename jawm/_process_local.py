@@ -11,7 +11,7 @@ register = register_method(__methods__)
 
 
 @register
-def _execute_metal(self):
+def _execute_local(self):
     """
     Execute the process locally with resource constraints.
     :return: None
@@ -140,7 +140,7 @@ def _execute_metal(self):
                     self.stop_future_event.set()
                     raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
 
-        # Start the background thread so _execute_metal() returns immediately
+        # Start the background thread so _execute_local() returns immediately
         monitor_thread = threading.Thread(target=monitor_process, daemon=False)
         monitor_thread.start()
 

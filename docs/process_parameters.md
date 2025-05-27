@@ -260,8 +260,8 @@ asynchronous: true
 
 - **Category**: `parameter`
 - **Type**: `str`
-- **Default**: `metal`
-- **Allowed Values**: ['metal', 'slurm']
+- **Default**: `local`
+- **Allowed Values**: ['local', 'slurm']
 
 Specifies which execution manager to use.
 
