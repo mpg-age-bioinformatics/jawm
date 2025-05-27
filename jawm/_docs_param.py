@@ -14,7 +14,7 @@ PROCESS_PARAM_DOCS = {
 
     "hash": {
         "category": "parameter",
-        "description": "A generated 4 digit hash. Used to identify and track process executions.",
+        "description": "A generated 7 digit hash. Used to identify and track process executions.",
         "note": "Process hash would be generated automatically when a Process initiated. User doesn't need to provide any value.",
         "type": "str",
     },

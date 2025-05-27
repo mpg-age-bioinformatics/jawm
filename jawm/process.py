@@ -2,6 +2,7 @@ import threading
 import os
 import logging
 import random
+import string
 from datetime import datetime
 
 # Extend the Process class with methods from modular backend implementations
@@ -110,7 +111,7 @@ class Process:
         
         # Primary parameters
         self.name = name
-        self.hash = f"{random.randint(0, 65535):04x}"
+        self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=7))
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
         
         # Load YAML parameters if provided
