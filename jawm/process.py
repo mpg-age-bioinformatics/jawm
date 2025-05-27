@@ -406,7 +406,8 @@ class Process:
                 "initiated_at": proc.date_time,
                 "execution_start": proc.execution_start_at or "NA",
                 "execution_end": proc.execution_end_at or "NA",
-                "finished": proc.finished_event.is_set()
+                "finished": proc.finished_event.is_set(),
+                "success": "NA" if proc.get_exitcode() is None else str(proc.get_exitcode()).startswith("0")
             })
 
         return all_processes
