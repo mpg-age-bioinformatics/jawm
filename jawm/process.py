@@ -113,9 +113,10 @@ class Process:
         self.name = name
         self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=7))
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
+        self.param_file = param_file
         
         # Load YAML parameters if provided
-        yaml_params = self._parse_yaml_config(param_file) if param_file else {"global": {}, "process": {}}
+        yaml_params = self._parse_yaml_config(self.param_file) if self.param_file else {"global": {}, "process": {}}
 
         # Retrieve configurations: Process-specific first, fallback to global
         process_params = yaml_params["process"].get(name, {})
@@ -319,3 +320,27 @@ class Process:
             a_thread = threading.Thread(target=run_in_background, daemon=False)
             a_thread.start()
             return None
+
+    
+    def copy(self, name=None, param_file=None, **overrides):
+        """
+        Clone the current Process instance to create a new one with optional modifications.
+
+        - new_name (str, optional): The name for the cloned process. Defaults to the current process's name.
+        - param_file (str or list, optional): YAML parameter file(s) to load. Defaults to the original's param_file.
+        - **overrides: Any other parameters to override from the original process's configuration.
+
+        Returns: A new Process instance with copied and/or overridden parameters.
+
+        """
+        # Start with a shallow copy of current parameters
+        new_params = self.params.copy()
+
+        # Apply any overrides
+        new_params.update(overrides)
+
+        # Determine name and param_file
+        final_name = name or self.name
+        final_param_file = param_file if param_file is not None else getattr(self, 'param_file', None)
+
+        return Process(name=final_name, param_file=final_param_file, **new_params)
