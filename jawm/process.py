@@ -348,7 +348,9 @@ class Process:
     def set_log_level(cls, level_name="INFO"):
         """
         Set logging level for all Process loggers, default is INFO.
-        If an invalid level is provided, it will be ignored.
+
+        Parameters:
+            level_name (str): One of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', or 'NOTSE
         """
         level_name = level_name.upper()
         if level_name not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"]:
@@ -362,6 +364,12 @@ class Process:
     
     @classmethod
     def list_running(cls):
+        """
+        List all currently running (unfinished) processes.
+
+        Returns:
+            List[dict]: Summary of running processes with name, hash, manager, log path, etc.
+        """
         seen = set()
         running = []
 
@@ -388,6 +396,12 @@ class Process:
 
     @classmethod
     def list_all(cls):
+        """
+        List all registered processes, both running and finished.
+
+        Returns:
+            List[dict]: Detailed process info including status, timestamps, and success.
+        """
         seen = set()
         all_processes = []
 
@@ -417,6 +431,15 @@ class Process:
 
     @classmethod
     def kill(cls, identifier):
+        """
+        Attempt to terminate a running process by hash (preferred) or name.
+
+        Parameters:
+            identifier (str): Process name or hash.
+
+        Returns:
+            bool: True if successfully killed, False otherwise.
+        """
 
         proc = cls.registry.get(identifier)
         if not proc:
@@ -499,6 +522,12 @@ class Process:
 
     @classmethod
     def kill_all(cls):
+        """
+        Kill all currently running processes in the registry.
+
+        Returns:
+            dict: { "killed": [...], "failed": [...] }
+        """
         killed = []
         failed = []
 
