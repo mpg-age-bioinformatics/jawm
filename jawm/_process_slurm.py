@@ -158,11 +158,15 @@ def _execute_slurm(self):
                 output = job_info.stdout.strip()
                 if output:
                     _, state, exit_code = output.split()[:3]
+                    final_states = {"COMPLETED", "FAILED", "CANCELLED", "BOOT_FAIL", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED", "DEADLINE"}
                     if elapsed_time % 180 == 0:
                         self.logger.info(f"Slurm job {job_id} state={state}, exit_code={exit_code}")
-                    if state in {"COMPLETED", "FAILED", "CANCELLED"}:
-                        self.logger.info(f"Slurm job {job_id} completed with exit code: {exit_code}")
-                        final_exit_code = 0 if (exit_code == "0:0") else 1
+                    if any(state.startswith(s) for s in final_states):
+                        if state.startswith("CANCELLED"):
+                            self.logger.warning(f"Slurm job {job_id} was cancelled manually or externally.")
+                        self.logger.info(f"Slurm job {job_id} completed with exit code: {exit_code}, state: {state}")
+                        # final_exit_code = 0 if (exit_code == "0:0") else 1
+                        final_exit_code = 1 if state.startswith("CANCELLED") or exit_code != "0:0" else 0
                         # Write out the exit_code
                         with open(exitcode_path, "w") as exitcode_file:
                             exitcode_file.write(str(exit_code))
