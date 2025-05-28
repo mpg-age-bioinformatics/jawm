@@ -3,6 +3,8 @@ import os
 import logging
 import random
 import string
+import signal
+import subprocess
 from datetime import datetime
 
 # Extend the Process class with methods from modular backend implementations
@@ -411,3 +413,86 @@ class Process:
             })
 
         return all_processes
+
+
+    @classmethod
+    def kill(cls, identifier):
+
+        proc = cls.registry.get(identifier)
+        if not proc:
+            print(f"No process found with identifier: {identifier}")
+            return False
+
+        if proc.finished_event.is_set():
+            print(f"{proc.name}|{proc.hash} :: Process already finished — nothing to kill.")
+            return False
+
+        runtime_id = proc.get_id()
+        if not runtime_id:
+            print(f"{proc.name}|{proc.hash} :: Process has no recorded PID or job ID.")
+            return False
+
+        killed = False
+        error_message = None
+
+        if proc.manager == "local":
+            try:
+                os.kill(int(runtime_id), signal.SIGTERM)
+                killed = True
+            except Exception as e:
+                error_message = f"Failed to kill (manually triggered) local process {runtime_id}: {e}"
+
+        elif proc.manager == "slurm":
+            try:
+                # Only checks for active jobs
+                squeue_check = subprocess.run(
+                    ["squeue", "-j", str(runtime_id)],
+                    capture_output=True, text=True
+                )
+                if str(runtime_id) not in squeue_check.stdout:
+                    error_message = f"Slurm job {runtime_id} is not active — possibly already completed or cancelled."
+                else:
+                    result = subprocess.run(
+                        ["scancel", str(runtime_id)],
+                        capture_output=True, text=True
+                    )
+                    if result.returncode == 0:
+                        killed = True
+                    else:
+                        error_message = f"Failed to cancel Slurm job {runtime_id}: {result.stderr.strip()}"
+            except Exception as e:
+                error_message = f"Failed to verify or cancel Slurm job {runtime_id}: {e}"
+
+
+        else:
+            error_message = f"Unsupported manager '{proc.manager}' for killing."
+
+        if killed:
+            # Write a .killer file
+            if hasattr(proc, "log_path"):
+                try:
+                    killer_path = os.path.join(proc.log_path, f"{proc.name}.killer")
+                    with open(killer_path, "w") as f:
+                        f.write("Process manually terminated.\n")
+                        f.write(f"Name: {proc.name}\n")
+                        f.write(f"Hash: {proc.hash}\n")
+                        f.write(f"Killed At: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"Killed By: Process.kill('{identifier}')\n")
+                        f.write(f"PID/Job ID: {runtime_id}\n")
+                        f.write(f"Manager: {proc.manager}\n")
+                except Exception as file_error:
+                    print(f"Failed to write killer file: {file_error}")
+
+            # Log to error summary
+            if hasattr(proc, "_log_error_summary"):
+                proc._log_error_summary(f"Process was manually terminated via Process.kill('{identifier}')", "Killer")
+
+            print(f"{proc.name}|{proc.hash} :: Process (ID: {runtime_id}) killed successfully.")
+            return True
+
+        else:
+            print(f"{proc.name}|{proc.hash} :: {error_message}")
+            if hasattr(proc, "_log_error_summary"):
+                proc._log_error_summary(error_message, "Killer")
+            return False
+

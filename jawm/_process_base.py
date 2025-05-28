@@ -50,13 +50,15 @@ def _parse_yaml_config(self, param_file):
 
 
 @register
-def _log_error_summary(self, error_message):
+def _log_error_summary(self, error_message, type_text="Error"):
     """
     Log errors to a central error summary file for easy tracking.
     """
+    if not error_message:
+        error_message = "Empty error message, possibly the Process was killed!"
     with open(self.error_summary_file, "a") as error_log:
         error_log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Process: {self.name} (Hash: {self.hash})\n")
-        error_log.write(f"  Error: {error_message}\n")
+        error_log.write(f"  {type_text}: {error_message}\n")
         error_log.write("-" * 80 + "\n")  # Separator for readability
 
 
