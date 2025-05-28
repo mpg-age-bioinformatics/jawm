@@ -496,3 +496,38 @@ class Process:
                 proc._log_error_summary(error_message, "Killer")
             return False
 
+
+    @classmethod
+    def kill_all(cls):
+        killed = []
+        failed = []
+
+        seen = set()
+        for proc in cls.registry.values():
+            if not isinstance(proc, cls):
+                continue
+            if id(proc) in seen:
+                continue
+            seen.add(id(proc))
+
+            if not proc.finished_event.is_set():
+                result = cls.kill(proc.hash)
+                if result:
+                    killed.append(proc.name + "|" + proc.hash)
+                else:
+                    failed.append(proc.name + "|" + proc.hash)
+
+        print(f"\n Killed processes: {len(killed)}")
+        for pid in killed:
+            print(f"  - {pid}")
+        
+        if failed:
+            print(f"\nFailed to kill: {len(failed)}")
+            for pid in failed:
+                print(f"  - {pid}")
+        
+        return {
+            "killed": killed,
+            "failed": failed
+        }
+
