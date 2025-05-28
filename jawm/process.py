@@ -5,7 +5,6 @@ import random
 import string
 import signal
 import subprocess
-import atexit
 import time
 import sys
 from datetime import datetime
@@ -604,6 +603,13 @@ class Process:
 
     @classmethod
     def _init_cleanup_hooks(cls):
+        """
+        Register cleanup behavior for interrupt signals (e.g., Ctrl+C).
+
+        This method sets up a SIGINT (interrupt signal) handler that ensures
+        all currently running JAWM processes are terminated cleanly if the user
+        manually interrupts execution (e.g., via Ctrl+C).
+        """
         if getattr(cls, "_cleanup_hooks_registered", False):
             return
 
@@ -613,22 +619,6 @@ class Process:
             time.sleep(10)
             sys.exit(1)
 
-        # def _on_exit():
-        #     unfinished = [p for p in cls.registry.values() if not p.finished_event.is_set()]
-        #     if unfinished:
-        #         print(f"\nExiting while {len(unfinished)} job(s) are still running — cleaning up...")
-        #         cls.kill_all()
-
-        # def _on_exit():
-        # unfinished = [
-        #     p for p in cls.registry.values()
-        #     if not p.finished_event.is_set() and p.manager != "slurm"
-        # ]
-        # if unfinished:
-        #     print(f"\nExiting while {len(unfinished)} local job(s) are still running — cleaning up...")
-        #     cls.kill_all()
-
         signal.signal(signal.SIGINT, _on_sigint)
-        # atexit.register(_on_exit)
 
         cls._cleanup_hooks_registered = True
