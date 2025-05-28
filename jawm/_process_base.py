@@ -243,7 +243,10 @@ def _monitoring_running_file(self, job_id, script_path):
             with open(running_file_path, "w") as file:
                 file.write(f"Job ID: {job_id}\n")
                 file.write(f"Job Name: {self.name}\n")
-                file.write(f"Path: {script_path}")
+                file.write(f"Job Hash: {self.hash}\n")
+                file.write(f"Path: {script_path}\n")
+                file.write(f"Process Initiated: {self.date_time}\n")
+                file.write(f"Run Start: {getattr(self, 'execution_start_at', 'NA')}")
         except Exception as e:
             self.logger.warning(f"Failed to create running file for {self.name} in Monitoring: {str(e)}")
 
@@ -267,9 +270,12 @@ def _monitoring_completed_file(self, job_id, script_path, exit_code):
             with open(completed_file_path, "w") as file:
                 file.write(f"Job ID: {job_id}\n")
                 file.write(f"Job Name: {self.name}\n")
+                file.write(f"Job Hash: {self.hash}\n")
                 file.write(f"Path: {script_path}\n")
+                file.write(f"Process Initiated: {self.date_time}\n")
+                file.write(f"Run Start: {getattr(self, 'execution_start_at', 'NA')}\n")
+                file.write(f"Run End: {datetime.now().strftime('%Y%m%d_%H%M%S')}\n")
                 file.write(f"Exit Code: {exit_code}")
-
         except Exception as e:
             self.logger.warning(f"Failed to create completed file for {self.name} in Monitoring: {str(e)}")
 
