@@ -145,8 +145,8 @@ def _execute_local(self):
                     raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
 
         # Start the background thread so _execute_local() returns immediately
-        monitor_thread = threading.Thread(target=monitor_process, daemon=False)
-        monitor_thread.start()
+        self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
+        self._monitor_thread.start()
 
         # Return immediately (non-blocking).
         return None

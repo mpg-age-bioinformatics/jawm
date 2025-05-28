@@ -189,6 +189,9 @@ class Process:
         # A threading event that signals when this process has finished.
         self.finished_event = threading.Event()
 
+        # To store/track threads
+        self._monitor_thread = None
+
         # Time 
         self.execution_start_at = None
         self.execution_end_at = None
@@ -559,4 +562,37 @@ class Process:
             "killed": killed,
             "failed": failed
         }
+
+
+    @classmethod
+    def list_monitoring_threads(cls):
+        """
+        List all processes with active background monitoring threads.
+
+        Returns:
+            List[dict]: Detailed process info including status, timestamps, and success.
+        """
+        seen = set()
+        active_monitors = []
+
+        for proc in cls.registry.values():
+            if not isinstance(proc, cls):
+                continue
+            if id(proc) in seen:
+                continue
+            seen.add(id(proc))
+
+            t = getattr(proc, "_monitor_thread", None)
+            if t and t.is_alive():
+                active_monitors.append({
+                    "name": proc.name,
+                    "hash": proc.hash,
+                    "manager": proc.manager,
+                    "asynchronous": proc.asynchronous,
+                    "started_at": proc.execution_start_at,
+                    "finished": proc.finished_event.is_set(),
+                    "thread_alive": True
+                })
+
+        return active_monitors
 

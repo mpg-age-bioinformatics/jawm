@@ -210,8 +210,8 @@ def _execute_slurm(self):
                     raise RuntimeError(f"Process {self.name} in Slurm failed after {total_attempts} attempts.")
 
         # Start a background thread that runs the multi-attempt logic
-        monitor_thread = threading.Thread(target=monitor_process, daemon=False)
-        monitor_thread.start()
+        self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
+        self._monitor_thread.start()
 
         return None
 
