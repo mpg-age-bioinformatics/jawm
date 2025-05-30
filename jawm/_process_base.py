@@ -285,7 +285,7 @@ def _monitoring_completed_file(self, job_id, script_path, exit_code):
 @register
 def _apply_retry_parameters(self, attempt_i):
     """
-    Apply retry-specific parameters before a retry attempt.
+    Apply override parameters defined for a specific retry attempt.
     :param attempt_i: The current attempt index (1-based).
     """
     retry_params = self.retry_overrides.get(attempt_i, {})
@@ -294,17 +294,37 @@ def _apply_retry_parameters(self, attempt_i):
 
     self.logger.info(f"Applying retry parameters for retry attempt {attempt_i}: {retry_params}")
 
-    for key, value in retry_params.items():
-        # Handle existing fields to update
-        if hasattr(self, key):
-            current_val = getattr(self, key)
-            if isinstance(current_val, dict) and isinstance(value, dict):
-                current_val.update(value)
-                setattr(self, key, current_val)
+    def _apply_relative(val, delta):
+        """
+        Nested method to apply a numeric or percentage-based update to a value with an optional unit.
+        Supports formats like "+2","+20%" for relative changes. Falls back to the original value if parsing or update fails.
+        """
+        val = str(val)
+        m = re.match(r"^(\d+(?:\.\d+)?)([a-zA-Z]*)$", val)
+        if not m: return val
+        num, unit = float(m.group(1)), m.group(2)
+
+        try:
+            if isinstance(delta, str) and delta.endswith("%") and delta[:-1].lstrip("+-").replace('.', '', 1).isdigit():
+                new_val = round(num * (1 + float(delta.strip('%')) / 100), 2)
+            elif isinstance(delta, str) and delta.lstrip("+-").replace('.', '', 1).isdigit():
+                new_val = round(num + float(delta), 2)
             else:
-                setattr(self, key, value)
+                return delta
+            return f"{int(new_val) if new_val.is_integer() else new_val}{unit}"
+        except:
+            return val
+
+    for key, value in retry_params.items():
+        if hasattr(self, key):
+            cur = getattr(self, key)
+            if isinstance(cur, dict) and isinstance(value, dict):
+                for k, v in value.items():
+                    cur[k] = _apply_relative(cur[k], v) if k in cur else v
+                setattr(self, key, cur)
+            else:
+                setattr(self, key, _apply_relative(cur, value))
         else:
-            # If it's a new attribute, just assign
             setattr(self, key, value)
 
 
