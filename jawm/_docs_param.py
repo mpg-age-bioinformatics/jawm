@@ -166,21 +166,28 @@ for fruit in ["Apple", "Banana", "Ananas"]:
     "retry_overrides": {
         "category": "parameter",
         "description": "Overrides specific parameters for each retry attempt. Keys represent retry attempt numbers (1-based).",
+        "note": "Supports both fixed values and relative updates (e.g., '+2', '+20%') for numeric fields like memory or time. Decimal values like '3.2G' are allowed, but may be rounded by Slurm depending on system configuration.",
         "type": "dict[int -> dict]",
         "example": """retry_overrides={
-    1: {"manager_slurm": {"partition": "dedicated", "mem": "4GB"}},
-    2: {"manager_slurm": {"partition": "cluster", "mem": "8GB"}}
-}""",
+        1: {"manager_slurm": {"partition": "debug", "mem": "+100%", "time": "+60"}},
+        2: {"manager_slurm": {"mem": "3.2G", "time": "00:05:00"}},
+        3: {"manager_slurm": {"mem": "+1", "time": "+50%"}}
+    }""",
         "yaml_example": """retry_overrides:
     1:
         manager_slurm:
-            partition: "dedicated"
-            mem: "4GB"
+            partition: "debug"
+            mem: "+100%"
+            time: "+60"
     2:
         manager_slurm:
-            partition: "cluster"
-            mem: "8GB"
-"""
+            mem: "3.2G"
+            time: "00:05:00"
+    3:
+        manager_slurm:
+            mem: "+1"
+            time: "+50%"
+    """
     },
     "error_strategy": {
         "category": "parameter",
