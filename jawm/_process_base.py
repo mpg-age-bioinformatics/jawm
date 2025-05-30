@@ -286,6 +286,9 @@ def _monitoring_completed_file(self, job_id, script_path, exit_code):
 def _apply_retry_parameters(self, attempt_i):
     """
     Apply override parameters defined for a specific retry attempt.
+    Supports formats like "+2", "+20%" for resource keys, and auto-adjusts
+    Slurm time strings like "00:01:00" using seconds or percentage.
+    
     :param attempt_i: The current attempt index (1-based).
     """
     retry_params = self.retry_overrides.get(attempt_i, {})
@@ -294,14 +297,36 @@ def _apply_retry_parameters(self, attempt_i):
 
     self.logger.info(f"Applying retry parameters for retry attempt {attempt_i}: {retry_params}")
 
+    def _adjust_time(time_str, delta):
+        """
+        Adjust a time string in HH:MM:SS format using absolute (value as second) or percentage-based delta.
+        """
+        try:
+            h, m, s = map(int, time_str.split(":"))
+            base_seconds = h * 3600 + m * 60 + s
+            if isinstance(delta, str) and delta.endswith("%"):
+                new_seconds = base_seconds * (1 + float(delta.strip('%')) / 100)
+            else:
+                new_seconds = base_seconds + int(delta)
+            hrs, rem = divmod(int(new_seconds), 3600)
+            mins, secs = divmod(rem, 60)
+            return f"{hrs:02}:{mins:02}:{secs:02}"
+        except:
+            return time_str
+
     def _apply_relative(val, delta):
         """
-        Nested method to apply a numeric or percentage-based update to a value with an optional unit.
-        Supports formats like "+2","+20%" for relative changes. Falls back to the original value if parsing or update fails.
+        Adjust numeric or time values with absolute or percentage deltas.
+        Supports formats like "+2", "+20%", and HH:MM:SS time strings.
         """
         val = str(val)
+        
+        if re.match(r"^\d{1,2}:\d{2}:\d{2}$", val):
+            return _adjust_time(val, delta)
+
         m = re.match(r"^(\d+(?:\.\d+)?)([a-zA-Z]*)$", val)
-        if not m: return val
+        if not m:
+            return val
         num, unit = float(m.group(1)), m.group(2)
 
         try:
