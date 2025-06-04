@@ -219,6 +219,7 @@ error_summary_file: "logs/error_summary.log"
 
 - **Category**: `parameter`
 - **Type**: `str`
+- **Default**: `~/.jawm/monitoring`
 
 Directory used for monitoring process status. Completed or Running jobs with basic details can be found in this location.
 

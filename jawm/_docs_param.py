@@ -110,6 +110,7 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "description": "Directory used for monitoring process status. Completed or Running jobs with basic details can be found in this location",
         "note": "Can be set via env var `JAWM_MONITORING_DIRECTORY`.",
         "type": "str",
+        "default": "~/.jawm/monitoring",
         "example": 'monitoring_directory="/jawm/monitoring"',
         "yaml_example": 'monitoring_directory: "/jawm/monitoring"'
     },

@@ -10,7 +10,7 @@ This document provides guidance on using diffeent features and internal behavior
 A global JAWM monitoring directory can be set using the `JAWM_MONITORING_DIRECTORY` environment variable.
 
 **Note:**  
-This directory stores tracking info of different jobs (Job ID, log location, current state, etc.). It is useful for visualization or external job monitoring tools.
+This directory stores tracking info of different jobs (Job ID, log location, current state, etc.). It is useful for visualization or external job monitoring tools. If nothing is set, the default value is `~/.jawm/monitoring`.
 
 **Example:**
 
