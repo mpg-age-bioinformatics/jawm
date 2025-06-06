@@ -62,37 +62,128 @@ class Process:
     A class to define and execute processes with support for multiple managers,
     pre/post scripts, retries, and resource configurations.
     """
-    def __init__(self, name, param_file=None, **kwargs):
+    def __init__(
+        self,
+        name,
+        param_file=None,
+        script=None,
+        script_file=None,
+        script_parameters=None,
+        script_parameters_file=None,
+        project_directory=None,
+        logs_directory=None,
+        error_summary_file=None,
+        monitoring_directory=None,
+        asynchronous=False,
+        manager="local",
+        env=None,
+        inputs=None,
+        outputs=None,
+        retries=0,
+        retry_overrides=None,
+        error_strategy="retry",
+        when=True,
+        manager_local=None,
+        manager_slurm=None,
+        environment="local",
+        container=None,
+        environment_apptainer=None,
+        environment_docker=None,
+        depends_on=None,
+        before_script=None,
+        after_script=None,
+        **kwargs
+    ):
         """
         Initialize the Process object.
 
-        :param name (str, required): Name of the process.
-        :param param_file (str or list of str): YAML format file(s) that contains different parameters
-        :param kwargs: Additional parameters to configure the process:
-            script (str): Inline script content to be executed
-            script_file (str): Path to external script file
-            script_parameters (dict): Parameters to substitute into the script
-            script_parameters_file (str): File with key=value pairs to use in script placeholder substitution
-            project_directory (str): Base directory for outputs and logs. Default is current dir
-            logs_directory (str): Directory for log files
-            error_summary_file (str): Path to a log file summarizing all the errors with time records
-            monitoring_directory (str): Directory to keep track of Running/Completed processes.
-            depends_on (str or list of str): List of process names or hashes that this process depends on.
-            asynchronous (bool): Whether the process should run asynchronously. Default is False.
-            manager (str): Execution backend. Options: "local", "slurm". Default is "local"
-            env (dict): Environment variables for the process
-            inputs (dict): Custom user-defined inputs
-            outputs (dict): Custom user-defined outputs
-            retries (int): Number of retry attempts. Default is 0
-            retry_overrides (dict[int -> dict]): Retry-specific overrides by attempt number
-            error_strategy (str): What to do on failure: "retry" or "fail". Default is "retry"
-            when (bool or callable): Whether to execute this process. Can be dynamic
-            manager_local (dict): Execution configs for local manager
-            manager_slurm (dict): Execution configs for slurm manager
-            environment (str): "local", "docker", or "apptainer". Default is "local".
-            container (str): Container image path or name.
-            environment_apptainer (dict): Options for running the process inside Apptainer
-            environment_docker (dict): Options for running the process inside Docker
+        This constructor supports configuration from YAML files, inline Python arguments,
+        and dynamic overrides via `**kwargs`. Explicit parameters take precedence over
+        YAML and `**kwargs`.
+
+        Parameters
+        ----------
+        name : str
+            Name of the process. Required.
+
+        param_file : str or list of str, optional
+            YAML file(s) defining global and process-specific parameters.
+
+        script : str, optional
+            Inline script content to be executed.
+
+        script_file : str, optional
+            Path to an external script file.
+
+        script_parameters : dict, optional
+            Key-value pairs to substitute into the script as placeholders.
+
+        script_parameters_file : str, optional
+            File with key=value pairs used for placeholder substitution.
+
+        project_directory : str, optional
+            Base directory for outputs and logs. Defaults to current working directory.
+
+        logs_directory : str, optional
+            Directory for log files. Defaults to <project_directory>/logs.
+
+        error_summary_file : str, optional
+            File path for summarizing errors with timestamps.
+
+        monitoring_directory : str, optional
+            Directory to track Running/Completed jobs. Can be set via env var `JAWM_MONITORING_DIRECTORY`.
+
+        depends_on : str or list of str, optional
+            Name(s) or hash(es) of processes this one depends on.
+
+        asynchronous : bool, default=False
+            Whether the process should run asynchronously in a background thread.
+
+        manager : str, default="local"
+            Execution backend. Options: "local", "slurm".
+
+        env : dict, optional
+            Environment variables for the process.
+
+        inputs : dict, optional
+            Custom user-defined input parameters.
+
+        outputs : dict, optional
+            Custom user-defined output parameters.
+
+        retries : int, default=0
+            Number of retry attempts if the process fails.
+
+        retry_overrides : dict[int -> dict], optional
+            Retry-specific parameter overrides by attempt number (1-based index).
+
+        error_strategy : str, default="retry"
+            What to do on failure: "retry" or "fail".
+
+        when : bool or callable, default=True
+            Whether to execute the process. Can be a boolean or a function.
+
+        manager_local : dict, optional
+            Configuration specific to local execution.
+
+        manager_slurm : dict, optional
+            Configuration specific to Slurm execution.
+
+        environment : str, default="local"
+            Execution environment: "local", "docker", or "apptainer".
+
+        container : str, optional
+            Container image to use (e.g., Docker or Apptainer image).
+
+        environment_apptainer : dict, optional
+            Options for running in Apptainer.
+
+        environment_docker : dict, optional
+            Options for running in Docker.
+
+        **kwargs : optional
+            Additional or custom parameters not explicitly listed above. These are merged into the configuration
+            and can override YAML-defined values.
 
         To view detailed documentation for a specific parameter, run:
         >>> jawm.jawm_help("Process", "<parameter_name>")
@@ -106,6 +197,9 @@ class Process:
         self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=7))
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
         self.param_file = param_file
+
+        # Build explicitly provided arguments for merging
+        explicit_args = {k: v for k, v in locals().items() if k not in {"self", "kwargs"} and v is not None} 
         
         # Load YAML parameters if provided
         yaml_params = self._parse_yaml_config(self.param_file) if self.param_file else {"global": {}, "process": {}}
@@ -114,8 +208,8 @@ class Process:
         process_params = yaml_params["process"].get(name, {})
         global_params = yaml_params["global"]
 
-        # Merge in priority order: global < process < kwargs
-        self.params = {**global_params, **process_params, **kwargs}
+        # Merge in priority order: global < process < kwargs < arguments
+        self.params = {**global_params, **process_params, **kwargs, **explicit_args}
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
