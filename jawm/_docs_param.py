@@ -114,6 +114,17 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "example": 'monitoring_directory="/jawm/monitoring"',
         "yaml_example": 'monitoring_directory: "/jawm/monitoring"'
     },
+    "depends_on": {
+        "category": "parameter",
+        "description": "List of process names or hashes that this process depends on.",
+        "note": "`depends_on` enforces execution ordering by making sure this process only starts after all listed dependencies finish successfully. You can use either process names or hashes registered in the same run.",
+        "type": "str or list of str",
+        "example": 'depends_on=["process_A", "process_B"]',
+        "yaml_example": """depends_on:
+    - "process_A"
+    - "process_B"
+    """
+    },
     "asynchronous": {
         "category": "parameter",
         "description": "Whether the process should run asynchronously.",

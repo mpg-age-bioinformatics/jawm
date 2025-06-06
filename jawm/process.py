@@ -77,6 +77,7 @@ class Process:
             logs_directory (str): Directory for log files
             error_summary_file (str): Path to a log file summarizing all the errors with time records
             monitoring_directory (str): Directory to keep track of Running/Completed processes.
+            depends_on (str or list of str): List of process names or hashes that this process depends on.
             asynchronous (bool): Whether the process should run asynchronously. Default is False.
             manager (str): Execution backend. Options: "local", "slurm". Default is "local"
             env (dict): Environment variables for the process

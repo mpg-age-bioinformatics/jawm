@@ -236,6 +236,24 @@ monitoring_directory: "/jawm/monitoring"
 
 ---
 
+### `depends_on`
+
+- **Type**: `str` or `list of str`
+- **Description**: Specifies the processes that must complete before this process starts. Accepts a single process name/hash or a list of them.
+- **Note**: This ensures proper execution order in workflows. All dependencies must exist in the same registry scope.
+- **Example**:
+```python
+depends_on=["step1", "step2"]
+```
+**YAML Example:**
+```yaml
+depends_on:
+  - "step1"
+  - "step2"
+```
+
+---
+
 ### `asynchronous`
 
 - **Category**: `parameter`
