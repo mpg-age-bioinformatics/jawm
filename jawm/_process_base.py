@@ -406,3 +406,9 @@ def get_script(self):
 def get_slurm(self):
     """Return the content of the process .slurm file containing slurm commands, or None if unavailable."""
     return self._read_log_file(f"{self.name}.slurm")
+
+
+@register
+def is_finished(self):
+    """Return True or False based on whether the Process has finished or not"""
+    return self.finished_event.is_set()
