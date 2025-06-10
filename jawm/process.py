@@ -720,3 +720,16 @@ class Process:
         signal.signal(signal.SIGINT, _on_sigint)
 
         cls._cleanup_hooks_registered = True
+
+
+    @classmethod
+    def reset_stop(cls):
+        """
+        Allow processes to run again after a previous stop signal from a failure.
+        This would clear the class-level stop_future_event flag.
+        """
+        cls.stop_future_event.clear()
+
+
+
+
