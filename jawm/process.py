@@ -343,6 +343,9 @@ class Process:
             None
         
         """
+        # Nake the process active by clearing finished_event in case of instance re-use
+        self.finished_event.clear()
+
         # If the user condition says "skip," mark finished and return.
         if not self.when:
             self.logger.info(f"Process {self.name} skipped because 'when' condition was not fulfilled!")
