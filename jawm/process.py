@@ -465,15 +465,15 @@ class Process:
 
     
     @classmethod
-    def list_running(cls):
+    def list_active(cls):
         """
-        List all currently running (unfinished) processes.
+        List all currently active (unfinished) processes.
 
         Returns:
-            List[dict]: Summary of running processes with name, hash, manager, log path, etc.
+            List[dict]: Summary of active processes with name, hash, manager, log path, etc.
         """
         seen = set()
-        running = []
+        active = []
 
         for proc in cls.registry.values():
             if not isinstance(proc, cls):
@@ -483,7 +483,7 @@ class Process:
             seen.add(id(proc))
 
             if not proc.finished_event.is_set():
-                running.append({
+                active.append({
                     "name": proc.name,
                     "hash": proc.hash,
                     "id": getattr(proc, "_runtime_id", None) or "NA",
@@ -493,7 +493,7 @@ class Process:
                     "initiated_at": proc.date_time,
                     "execution_start": proc.execution_start_at or "NA"
                 })
-        return running
+        return active
 
 
     @classmethod
