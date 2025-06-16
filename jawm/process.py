@@ -228,21 +228,21 @@ class Process:
         # self.project_directory = self.params.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
         # self.project_directory = self.params.get("project_directory", os.getcwd())
         self.project_directory = os.path.abspath(self.params.get("project_directory", "."))
-        os.makedirs(self.project_directory, exist_ok=True)
+        # os.makedirs(self.project_directory, exist_ok=True)
         self.logs_directory = os.path.abspath(self.params.get("logs_directory", os.path.join(self.project_directory, "logs")))
-        os.makedirs(self.logs_directory, exist_ok=True)
+        # os.makedirs(self.logs_directory, exist_ok=True)
         self.parameters_directory = self.params.get("parameters_directory", os.path.join(self.project_directory, "parameters"))
         self.error_summary_file = os.path.abspath(self.params.get("error_summary_file", os.path.join(self.logs_directory, "error_summary.log")))
 
         # Setup monitoring directory
         self.monitoring_directory = self.params.get("monitoring_directory", os.environ.get("JAWM_MONITORING_DIRECTORY", os.path.expanduser("~/.jawm/monitoring")))
-        try:
-            os.makedirs(self.monitoring_directory, exist_ok=True) if self.monitoring_directory is not None else None
-            self.running_directory, self.completed_directory = (os.path.join(self.monitoring_directory, 'Running'), os.path.join(self.monitoring_directory, 'Completed')) if self.monitoring_directory else (None, None)
-            if self.monitoring_directory: os.makedirs(self.running_directory, exist_ok=True); os.makedirs(self.completed_directory, exist_ok=True)
-        except Exception as e:
-            self.logger.warning(f"Monitoring directory issue: {str(e)}")
-            self.monitoring_directory = None
+        # try:
+        #     os.makedirs(self.monitoring_directory, exist_ok=True) if self.monitoring_directory is not None else None
+        #     self.running_directory, self.completed_directory = (os.path.join(self.monitoring_directory, 'Running'), os.path.join(self.monitoring_directory, 'Completed')) if self.monitoring_directory else (None, None)
+        #     if self.monitoring_directory: os.makedirs(self.running_directory, exist_ok=True); os.makedirs(self.completed_directory, exist_ok=True)
+        # except Exception as e:
+        #     self.logger.warning(f"Monitoring directory issue: {str(e)}")
+        #     self.monitoring_directory = None
 
         # Management parameters
         self.asynchronous = self.params.get("asynchronous", False)
@@ -276,7 +276,7 @@ class Process:
         # Metadata
         self.date_time = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.log_path = os.path.join(self.logs_directory, f"{self.name}_{self.date_time}_{self.hash}")
-        os.makedirs(self.log_path, exist_ok=True)
+        # os.makedirs(self.log_path, exist_ok=True)
 
         # std path
         self.stdout_path = os.path.join(self.log_path, f"{self.name}.output")
@@ -294,8 +294,24 @@ class Process:
         # Time 
         self.execution_start_at = None
         self.execution_end_at = None
+    
 
+    def _prepare_base_dirs(self):
+        """
+        Prepare/create necessary file and folder, should be called in execution
+        """
+        os.makedirs(self.project_directory, exist_ok=True)
+        os.makedirs(self.logs_directory, exist_ok=True)
+        try:
+            os.makedirs(self.monitoring_directory, exist_ok=True) if self.monitoring_directory is not None else None
+            self.running_directory, self.completed_directory = (os.path.join(self.monitoring_directory, 'Running'), os.path.join(self.monitoring_directory, 'Completed')) if self.monitoring_directory else (None, None)
+            if self.monitoring_directory: os.makedirs(self.running_directory, exist_ok=True); os.makedirs(self.completed_directory, exist_ok=True)
+        except Exception as e:
+            self.logger.warning(f"Monitoring directory issue: {str(e)}")
+            self.monitoring_directory = None
+        os.makedirs(self.log_path, exist_ok=True)
 
+        
     def _run_manager(self):
         """
         A helper to choose between different manager execution
@@ -343,6 +359,9 @@ class Process:
             None
         
         """
+        # Create necessary directories
+        self._prepare_base_dirs()
+
         # Nake the process active by clearing finished_event in case of instance re-use
         self.finished_event.clear()
 
