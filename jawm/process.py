@@ -757,8 +757,8 @@ class Process:
 
         Parameters:
         -----------
-        process_list ("all" | list[str] | list[Process]) : Which processes to wait for.
-        allowed_exit ("all" | int | str | list[int | str]) : Allowed exit codes. If not matched, give warning and return False; True otherwise. 
+        process_list ("all" (default) | list[str] | str) : Which process(es) to wait for.
+        allowed_exit ("all" (default) | int | str | list[int | str]) : Allowed exit codes. If not matched, give warning and return False; True otherwise. 
 
         Returns:
             bool: True if all waited processes completed with allowed exit codes, False otherwise.
@@ -776,6 +776,10 @@ class Process:
             else:
                 print("Process.wait | WARNING :: Unsupported format for allowed_exit, skipping check.")
                 allowed_exit = "all"
+        
+        # Normalize single process to list
+        if process_list != "all" and not isinstance(process_list, list):
+            process_list = [process_list]
 
         if process_list == "all":
             procs = list({id(p): p for p in cls.registry.values() if isinstance(p, cls) and p.execution_start_at is not None}.values())
