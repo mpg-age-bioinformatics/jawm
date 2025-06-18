@@ -758,7 +758,6 @@ class Process:
         Parameters:
         -----------
         process_list ("all" | list[str] | list[Process]) : Which processes to wait for.
-            Which processes to wait for.
         allowed_exit ("all" | list[int]) : Allowed exit codes. If not matched, give warning and return False; True otherwise. 
 
         Returns:
