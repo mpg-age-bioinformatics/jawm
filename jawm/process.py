@@ -758,12 +758,25 @@ class Process:
         Parameters:
         -----------
         process_list ("all" | list[str] | list[Process]) : Which processes to wait for.
-        allowed_exit ("all" | list[int]) : Allowed exit codes. If not matched, give warning and return False; True otherwise. 
+        allowed_exit ("all" | int | str | list[int | str]) : Allowed exit codes. If not matched, give warning and return False; True otherwise. 
 
         Returns:
             bool: True if all waited processes completed with allowed exit codes, False otherwise.
         """
         success = True
+
+        # Normalize allowed_exit
+        if allowed_exit != "all":
+            if isinstance(allowed_exit, int):
+                allowed_exit = [str(allowed_exit)]
+            elif isinstance(allowed_exit, str):
+                allowed_exit = [s.strip() for s in allowed_exit.split(",")]
+            elif isinstance(allowed_exit, list):
+                allowed_exit = [str(code).strip() for code in allowed_exit]
+            else:
+                print("Process.wait | WARNING :: Unsupported format for allowed_exit, skipping check.")
+                allowed_exit = "all"
+
         if process_list == "all":
             procs = list({id(p): p for p in cls.registry.values() if isinstance(p, cls) and p.execution_start_at is not None}.values())
         else:
@@ -794,7 +807,7 @@ class Process:
                         code = int(exit_code.split(":")[0]) if ":" in exit_code else int(exit_code)
                     except:
                         code = None
-                    if code not in allowed_exit:
+                    if str(code) not in allowed_exit:
                         proc.logger.warning(f"Process {proc.name} ({proc.hash}) has completed with disallowed exit code: {exit_code}")
                         if hasattr(proc, "_log_error_summary"):
                             proc._log_error_summary(f"Process has completed with disallowed exit code: {exit_code}", "Wait")
