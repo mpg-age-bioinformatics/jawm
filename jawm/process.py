@@ -750,5 +750,65 @@ class Process:
         cls.stop_future_event.clear()
 
 
+    @classmethod
+    def wait(cls, process_list="all", allowed_exit="all"):
+        """
+        Wait until the given processes are finished, optionally checking their exit codes.
+
+        Parameters:
+        -----------
+        process_list ("all" | list[str] | list[Process]) : Which processes to wait for.
+            Which processes to wait for.
+        allowed_exit ("all" | list[int]) : Allowed exit codes. If not matched, give warning and return False; True otherwise. 
+
+        Returns:
+            bool: True if all waited processes completed with allowed exit codes, False otherwise.
+        """
+        success = True
+        if process_list == "all":
+            procs = list({id(p): p for p in cls.registry.values() if isinstance(p, cls) and p.execution_start_at is not None}.values())
+        else:
+            procs = []
+            for item in process_list:
+                if isinstance(item, cls):
+                    procs.append(item)
+                elif isinstance(item, str):
+                    p = cls.registry.get(item)
+                    if p is None:
+                        print(f"Process.wait | WARNING :: No registered process for: {item}")
+                        success = False
+                    else:
+                        procs.append(p)
+                else:
+                    print(f"Process.wait | WARNING :: Unsupported process reference: {item}")
+                    success = False
+
+        for proc in procs:
+            try:
+                proc.logger.info(f"Waiting for process {proc.name} ({proc.hash}) to complete...(triggered by Process.wait)")
+                proc.finished_event.wait()
+                proc.logger.info(f"Waiting for process {proc.name} ({proc.hash}) has completed (triggered by Process.wait)")
+
+                if allowed_exit != "all":
+                    exit_code = proc.get_exitcode()
+                    try:
+                        code = int(exit_code.split(":")[0]) if ":" in exit_code else int(exit_code)
+                    except:
+                        code = None
+                    if code not in allowed_exit:
+                        proc.logger.warning(f"Process {proc.name} ({proc.hash}) has completed with disallowed exit code: {exit_code}")
+                        if hasattr(proc, "_log_error_summary"):
+                            proc._log_error_summary(f"Process has completed with disallowed exit code: {exit_code}", "Wait")
+                        success = False
+            except Exception as e:
+                if hasattr(proc, "_log_error_summary"):
+                    proc._log_error_summary(f"Error during Process Wait: {str(e)}", "Wait")
+                proc.logger.error(f"Failed while managing {proc.name} ({proc.hash}) for process wait: {str(e)}")
+
+                success = False
+
+        print(f"Process.wait | INFO :: Wait completed for {len(procs)} process(es).")
+        return success
+
 
 
