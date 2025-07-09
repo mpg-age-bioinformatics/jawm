@@ -1,6 +1,7 @@
 import os
 import yaml
 import re
+import fnmatch
 from functools import reduce
 from datetime import datetime
 
@@ -12,7 +13,7 @@ register = register_method(__methods__)
 
 
 @register
-def _parse_yaml_config(self, param_file):
+def _parse_yaml_config(self, param_file, target_process_name=None):
     """
     Parses one or multiple YAML files and merges configurations.
 
@@ -38,13 +39,16 @@ def _parse_yaml_config(self, param_file):
             scope = entry.get("scope")
             name = entry.get("name", None)
 
+            # Merge into global scope
             if scope == "global":
-                yaml_params["global"].update(entry)  # Merge into global scope
-            elif scope == "process" and name:
-                if name not in yaml_params["process"]:
-                    yaml_params["process"][name] = entry
-                else:
-                    yaml_params["process"][name].update(entry)  # Merge process-specific configs
+                yaml_params["global"].update(entry)
+            # Merge Process specific config with wildcard enabled
+            elif scope == "process" and name and target_process_name: 
+                if fnmatch.fnmatch(target_process_name, name):
+                    if target_process_name not in yaml_params["process"]:
+                        yaml_params["process"][target_process_name] = entry.copy()
+                    else:
+                        yaml_params["process"][target_process_name].update(entry)
 
     return yaml_params
 

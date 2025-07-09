@@ -202,7 +202,7 @@ class Process:
         explicit_args = {k: v for k, v in locals().items() if k not in {"self", "kwargs"} and v is not None} 
         
         # Load YAML parameters if provided
-        yaml_params = self._parse_yaml_config(self.param_file) if self.param_file else {"global": {}, "process": {}}
+        yaml_params = self._parse_yaml_config(self.param_file, self.name) if self.param_file else {"global": {}, "process": {}}
 
         # Retrieve configurations: Process-specific first, fallback to global
         process_params = yaml_params["process"].get(name, {})
