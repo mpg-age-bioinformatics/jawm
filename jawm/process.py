@@ -294,6 +294,9 @@ class Process:
         # Time 
         self.execution_start_at = None
         self.execution_end_at = None
+
+        # Internal field, populated after execution
+        self.runtime_id = None  
     
 
     def _prepare_base_dirs(self):
@@ -508,7 +511,7 @@ class Process:
                 active.append({
                     "name": proc.name,
                     "hash": proc.hash,
-                    "id": getattr(proc, "_runtime_id", None) or "NA",
+                    "id": getattr(proc, "runtime_id", None) or "NA",
                     "manager": proc.manager,
                     "environment": proc.environment,
                     "log_path": proc.log_path,
@@ -539,7 +542,7 @@ class Process:
             all_processes.append({
                 "name": proc.name,
                 "hash": proc.hash,
-                "id": getattr(proc, "_runtime_id", None) or "NA",
+                "id": getattr(proc, "runtime_id", None) or "NA",
                 "manager": proc.manager,
                 "environment": proc.environment,
                 "log_path": proc.log_path,
@@ -574,7 +577,7 @@ class Process:
             print(f"{proc.name}|{proc.hash} :: Process already finished — nothing to kill.")
             return False
 
-        runtime_id = proc.get_id()
+        runtime_id = proc.runtime_id
         if not runtime_id:
             print(f"{proc.name}|{proc.hash} :: Process has no recorded PID or job ID.")
             return False

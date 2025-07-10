@@ -1,6 +1,7 @@
 import os
 import yaml
 import re
+import time
 import fnmatch
 from functools import reduce
 from datetime import datetime
@@ -371,9 +372,13 @@ def _read_log_file(self, filename):
 
 
 @register
-def get_id(self):
-    """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable."""
-    return self._read_log_file(f"{self.name}.id")
+def get_id(self, max_wait=3, interval=0.5):
+    """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable (default, retrying up to: max_wait=3, interval=0.5)."""
+    for _ in range(int(max_wait / interval)):
+        if (val := self._read_log_file(f"{self.name}.id")):
+            return val
+        time.sleep(interval)
+    return None
 
 
 @register

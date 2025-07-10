@@ -83,7 +83,7 @@ def _execute_local(self):
             # Record the PID
             process_id = result.pid
             self.logger.info(f"Process {self.name} started with PID: {process_id}")
-            self._runtime_id = str(process_id)
+            self.runtime_id = str(process_id)
             with open(id_path, "w") as id_file:
                 id_file.write(str(process_id))
 
