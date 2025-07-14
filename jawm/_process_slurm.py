@@ -38,7 +38,8 @@ def _generate_slurm_script(self):
         
         # Add SLURM options dynamically
         for key, value in self.manager_slurm.items():
-            slurm_script_file.write(f"#SBATCH {key}={value}\n")
+            if key.startswith("--"):
+                slurm_script_file.write(f"#SBATCH {key}={value}\n")
 
         # Call the executable script
         slurm_script_file.write(f"\n{slurm_script_command}\n")
