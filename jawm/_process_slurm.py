@@ -210,6 +210,8 @@ def _execute_slurm(self):
                     self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     self.stop_future_event.set()
+                    # Fallback error summary logging
+                    self._log_error_summary("Process in Slurm failed — job may have failed silently or without stderr output.")
                     raise RuntimeError(f"Process {self.name} in Slurm failed after {total_attempts} attempts.")
 
         # Start a background thread that runs the multi-attempt logic
