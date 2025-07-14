@@ -45,7 +45,7 @@ def _parse_yaml_config(self, param_file):
         except Exception as e:
             # It may not log in error summary if self.error_summary_file is not yet there
             self._log_error_summary(f"Failed to load YAML file {yaml_file}: {str(e)}")
-            Process.stop_future_event.set()
+            self.__class__.stop_future_event.set()
             raise ValueError(f"Failed to load YAML file {yaml_file}: {str(e)}")
 
         for entry in yaml_data:
