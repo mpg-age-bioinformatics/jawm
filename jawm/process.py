@@ -167,7 +167,7 @@ class Process:
             Configuration specific to local execution.
 
         manager_slurm : dict, optional
-            Configuration specific to Slurm execution.
+            Configuration specific to Slurm execution, to be passed exactly as-is
 
         environment : str, default="local"
             Execution environment: "local", "docker", or "apptainer".
@@ -176,10 +176,10 @@ class Process:
             Container image to use (e.g., Docker or Apptainer image).
 
         environment_apptainer : dict, optional
-            Options for running in Apptainer.
+            Options for running in Apptainer, to be passed exactly as-is
 
         environment_docker : dict, optional
-            Options for running in Docker.
+            Options for running in Docker, to be passed exactly as-is
 
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
