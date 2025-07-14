@@ -382,9 +382,9 @@ _**Note**_: Supports both fixed values and relative updates (e.g., `+2`, `+20%`)
 **Example:**
 ```python
 retry_overrides = {
-    1: {"manager_slurm": {"partition": "debug", "mem": "+100%", "time": "+60"}},
-    2: {"manager_slurm": {"mem": "3.2G", "time": "00:05:00"}},
-    3: {"manager_slurm": {"mem": "+1", "time": "+50%"}}
+    1: {"manager_slurm": {"--partition": "debug", "--mem": "+100%", "--time": "+60"}},
+    2: {"manager_slurm": {"--mem": "3.2G", "--time": "00:05:00"}},
+    3: {"manager_slurm": {"--mem": "+1", "--time": "+50%"}}
 }
 ```
 **YAML Example:**
@@ -392,17 +392,17 @@ retry_overrides = {
 retry_overrides:
   1:
     manager_slurm:
-      partition: "debug"
-      mem: "+100%"
-      time: "+60"
+      --partition: "debug"
+      --mem: "+100%"
+      --time: "+60"
   2:
     manager_slurm:
-      mem: "3.2G"
-      time: "00:05:00"
+      --mem: "3.2G"
+      --time: "00:05:00"
   3:
     manager_slurm:
-      mem: "+1"
-      time: "+50%"
+      --mem: "+1"
+      --time: "+50%"
 ```
 
 ---
@@ -492,11 +492,11 @@ Slurm manager-specific options (e.g., memory, time).
 
 **Example:**
 ```python
-manager_slurm={"mem": "4G", "time": "01:00:00"}
+manager_slurm={"--mem": "4G", "--time": "01:00:00"}
 ```
 **YAML Example:**
 ```yaml
-manager_slurm: {"mem": "4G", "time": "01:00:00"}
+manager_slurm: {"--mem": "4G", "--time": "01:00:00"}
 ```
 
 ---
@@ -548,11 +548,11 @@ Options for running the process inside Apptainer.
 
 **Example:**
 ```python
-environment_apptainer={"bind": ["/data"]}
+environment_apptainer={"--bind": ["/data"]}
 ```
 **YAML Example:**
 ```yaml
-environment_apptainer: {"bind": ["/data"]}
+environment_apptainer: {"--bind": ["/data"]}
 ```
 
 ---
@@ -566,11 +566,11 @@ Options for running the process inside Docker.
 
 **Example:**
 ```python
-environment_docker={"cpus": "2"}
+environment_docker={"--cpus": "2"}
 ```
 **YAML Example:**
 ```yaml
-environment_docker: {"cpus": "2"}
+environment_docker: {"--cpus": "2"}
 ```
 
 ---

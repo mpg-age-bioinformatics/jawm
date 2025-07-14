@@ -181,24 +181,24 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "note": "Supports both fixed values and relative updates (e.g., '+2', '+20%') for numeric fields like memory or time. Decimal values like '3.2G' are allowed, but may be rounded by Slurm depending on system configuration.",
         "type": "dict[int -> dict]",
         "example": """retry_overrides={
-        1: {"manager_slurm": {"partition": "debug", "mem": "+100%", "time": "+60"}},
-        2: {"manager_slurm": {"mem": "3.2G", "time": "00:05:00"}},
-        3: {"manager_slurm": {"mem": "+1", "time": "+50%"}}
+        1: {"manager_slurm": {"--partition": "debug", "--mem": "+100%", "--time": "+60"}},
+        2: {"manager_slurm": {"--mem": "3.2G", "--time": "00:05:00"}},
+        3: {"manager_slurm": {"--mem": "+1", "--time": "+50%"}}
     }""",
         "yaml_example": """retry_overrides:
     1:
         manager_slurm:
-            partition: "debug"
-            mem: "+100%"
-            time: "+60"
+            --partition: "debug"
+            --mem: "+100%"
+            --time: "+60"
     2:
         manager_slurm:
-            mem: "3.2G"
-            time: "00:05:00"
+            --mem: "3.2G"
+            --time: "00:05:00"
     3:
         manager_slurm:
-            mem: "+1"
-            time: "+50%"
+            --mem: "+1"
+            --time: "+50%"
     """
     },
     "error_strategy": {
@@ -236,8 +236,8 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "category": "parameter",
         "description": "Slurm manager-specific options (e.g., memory, time).",
         "type": "dict",
-        "example": 'manager_slurm={"mem": "4G", "time": "01:00:00"}',
-        "yaml_example": 'manager_slurm: {"mem": "4G", "time": "01:00:00"}'
+        "example": 'manager_slurm={"--mem": "4G", "--time": "01:00:00"}',
+        "yaml_example": 'manager_slurm: {"--mem": "4G", "--time": "01:00:00"}'
     },
     "environment": {
         "category": "parameter",
@@ -259,15 +259,15 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "category": "parameter",
         "description": "Options for running the process inside Apptainer.",
         "type": "dict",
-        "example": 'environment_apptainer={"bind": ["/data"]}',
-        "yaml_example": 'environment_apptainer: {"bind": ["/data"]}'
+        "example": 'environment_apptainer={"--bind": ["/data"]}',
+        "yaml_example": 'environment_apptainer: {"--bind": ["/data"]}'
     },
     "environment_docker": {
         "category": "parameter",
         "description": "Options for running the process inside Docker.",
         "type": "dict",
-        "example": 'environment_docker={"cpus": "2"}',
-        "yaml_example": 'environment_docker: {"cpus": "2"}'
+        "example": 'environment_docker={"--cpus": "2"}',
+        "yaml_example": 'environment_docker: {"--cpus": "2"}'
     },
 
     # Examples
@@ -418,7 +418,7 @@ echo 'Hello World from Slurm!' > output.txt
 cat output.txt
 \"\"\",
     manager="slurm",
-    manager_slurm={"partition":"dedicated"},
+    manager_slurm={"--partition":"dedicated"},
     logs_directory="logs_slurm"
 )
 # This Process can be executed with `process_hw_slurm.execute()`
@@ -432,7 +432,7 @@ cat output.txt
         cat output.txt
     manager: "slurm"
     manager_slurm:
-        partition: "dedicated"
+        --partition: "dedicated"
     logs_directory: "logs_slurm"
 """
     },
@@ -454,7 +454,7 @@ echo $MY_VAR
             "ANOTHER_VAR": "ANOTHER_VAR"
         },
         manager="slurm",
-        manager_slurm={"partition": "dedicated", "mem": "4G"},
+        manager_slurm={"--partition": "dedicated", "--mem": "4G"},
         logs_directory="logs_slurm"
     )
     # This process runs via Slurm inside the specified Apptainer container.
@@ -473,8 +473,8 @@ echo $MY_VAR
         ANOTHER_VAR: "ANOTHER_VAR"
     manager: "slurm"
     manager_slurm:
-        partition: "dedicated"
-        mem: "4G"
+        --partition: "dedicated"
+        --mem: "4G"
     logs_directory: "logs_slurm"
     """
     },

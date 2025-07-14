@@ -59,7 +59,7 @@ These values can be overridden by process-specific values or inline arguments in
   monitoring_directory: "monitoring"
   logs_directory: "logs_slurm"
   manager: "slurm"
-  manager_slurm: {"partition": "cluster", "mem": "2GB"}
+  manager_slurm: {"--partition": "cluster", "--mem": "2GB"}
 ```
 
 ---

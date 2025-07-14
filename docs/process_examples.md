@@ -212,7 +212,7 @@ echo 'Hello World from Slurm!' > output.txt
 cat output.txt
 """,
     manager="slurm",
-    manager_slurm={"partition":"dedicated"},
+    manager_slurm={"--partition":"dedicated"},
     logs_directory="logs_slurm"
 )
 # This Process can be executed with `process_hw_slurm.execute()`
@@ -229,7 +229,7 @@ cat output.txt
     cat output.txt
   manager: "slurm"
   manager_slurm:
-    partition: "dedicated"
+    --partition: "dedicated"
   logs_directory: "logs_slurm"
 ```
 
@@ -258,7 +258,7 @@ echo $MY_VAR
         "ANOTHER_VAR": "ANOTHER_VAR"
     },
     manager="slurm",
-    manager_slurm={"partition": "dedicated", "mem": "4G"},
+    manager_slurm={"--partition": "dedicated", "--mem": "4G"},
     logs_directory="logs_slurm"
 )
 # This process runs via Slurm inside the specified Apptainer container.
@@ -280,8 +280,8 @@ echo $MY_VAR
     ANOTHER_VAR: "ANOTHER_VAR"
   manager: "slurm"
   manager_slurm:
-    partition: "dedicated"
-    mem: "4G"
+    --partition: "dedicated"
+    --mem: "4G"
   logs_directory: "logs_slurm"
 ```
 

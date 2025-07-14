@@ -2,7 +2,7 @@
   # retries: 1
   monitoring_directory: "monitoring"
   manager: "slurm"
-  manager_slurm : {"partition":"dedicated"}
+  manager_slurm : {"--partition":"dedicated"}
 
 - scope: process
   name: "process_A"
