@@ -43,6 +43,7 @@ def _parse_yaml_config(self, param_file):
             with open(yaml_file, "r") as file:
                 yaml_data = yaml.safe_load(file) or []
         except Exception as e:
+            # It may not log in error summary if self.error_summary_file is not yet there
             self._log_error_summary(f"Failed to load YAML file {yaml_file}: {str(e)}")
             Process.stop_future_event.set()
             raise ValueError(f"Failed to load YAML file {yaml_file}: {str(e)}")
@@ -70,6 +71,8 @@ def _log_error_summary(self, error_message, type_text="Error"):
     """
     Log errors to a central error summary file for easy tracking.
     """
+    if not getattr(self, "error_summary_file", None):
+        return
     if not error_message:
         error_message = "Empty error message, possibly the Process was killed!"
     with open(self.error_summary_file, "a") as error_log:
