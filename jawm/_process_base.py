@@ -16,16 +16,27 @@ register = register_method(__methods__)
 @register
 def _parse_yaml_config(self, param_file):
     """
-    Parses one or multiple YAML files and merges configurations.
+    Parses one or multiple YAML files or a directory containing YAMLs and merges configurations.
 
-    :param param_file: A string (single file) or a list of YAML file paths.
+    :param param_file: A string (single file or directory) or a list of YAML file paths.
     :return: Dictionary with merged global and process-specific parameters.
     """
     yaml_params = {"global": {}, "process": {}}
 
     # Ensure param_file is a list
     if isinstance(param_file, str):
-        param_file = [param_file]
+        if os.path.isdir(param_file):
+            # Use all .yaml/.yml files in the directory
+            param_file = sorted([
+                os.path.join(param_file, f)
+                for f in os.listdir(param_file)
+                if f.endswith((".yaml", ".yml"))
+            ])
+        else:
+            param_file = [param_file]
+    elif isinstance(param_file, list):
+        # Only expand individual files; directories not allowed in list
+        param_file = [p for p in param_file if os.path.isfile(p)]
 
     for yaml_file in param_file:
         try:
