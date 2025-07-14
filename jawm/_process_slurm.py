@@ -38,7 +38,7 @@ def _generate_slurm_script(self):
         
         # Add SLURM options dynamically
         for key, value in self.manager_slurm.items():
-            slurm_script_file.write(f"#SBATCH --{key}={value}\n")
+            slurm_script_file.write(f"#SBATCH {key}={value}\n")
 
         # Call the executable script
         slurm_script_file.write(f"\n{slurm_script_command}\n")
@@ -56,12 +56,15 @@ def _generate_sbatch_command(self):
 
     # Add user-provided SLURM options dynamically
     for key, value in self.manager_slurm.items():
-        sbatch_command.extend([f"--{key}", str(value)])
+        sbatch_command.extend([key, str(value)])
 
     # Add defaults for output and error only if not provided by the user
-    if "output" not in self.manager_slurm:
+    output_keys = {"--output", "-o"}
+    error_keys = {"--error", "-e"}
+
+    if not any(k in self.manager_slurm for k in output_keys):
         sbatch_command.extend(["--output", self.stdout_path])
-    if "error" not in self.manager_slurm:
+    if not any(k in self.manager_slurm for k in error_keys):
         sbatch_command.extend(["--error", self.stderr_path])
 
     return sbatch_command

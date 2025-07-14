@@ -175,14 +175,14 @@ def _build_apptainer_command(self, script_path):
         if isinstance(value, list):
             # Handle options that require multiple values (e.g., --bind)
             for v in value:
-                apptainer_command.extend([f"--{option}", str(v)])
+                apptainer_command.extend([option, str(v)])
         elif isinstance(value, bool):
             # Handle flags (e.g., --no-home)
             if value:  # Only include the flag if True
-                apptainer_command.append(f"--{option}")
+                apptainer_command.append(option)
         else:
             # Handle regular key-value options
-            apptainer_command.extend([f"--{option}", str(value)])
+            apptainer_command.extend([option, str(value)])
 
     # Add environment variables
     if self.env:
@@ -213,14 +213,14 @@ def _build_docker_command(self, script_path):
         if isinstance(value, list):
             # Handle options that require multiple values (e.g., --volume)
             for v in value:
-                docker_command.extend([f"--{option}", str(v)])
+                docker_command.extend([option, str(v)])
         elif isinstance(value, bool):
             # Handle flags (e.g., --privileged)
             if value:  # Only include the flag if True
-                docker_command.append(f"--{option}")
+                docker_command.append(option)
         else:
             # Handle regular key-value options
-            docker_command.extend([f"--{option}", str(value)])
+            docker_command.extend([option, str(value)])
 
     # Add environment variables
     if self.env:
