@@ -14,7 +14,7 @@ register = register_method(__methods__)
 
 
 @register
-def _parse_yaml_config(self, param_file, target_process_name=None):
+def _parse_yaml_config(self, param_file):
     """
     Parses one or multiple YAML files and merges configurations.
 
@@ -44,12 +44,12 @@ def _parse_yaml_config(self, param_file, target_process_name=None):
             if scope == "global":
                 yaml_params["global"].update(entry)
             # Merge Process specific config with wildcard enabled
-            elif scope == "process" and name and target_process_name: 
-                if fnmatch.fnmatch(target_process_name, name):
-                    if target_process_name not in yaml_params["process"]:
-                        yaml_params["process"][target_process_name] = entry.copy()
+            elif scope == "process" and name and self.name: 
+                if fnmatch.fnmatch(self.name, name):
+                    if self.name not in yaml_params["process"]:
+                        yaml_params["process"][self.name] = entry.copy()
                     else:
-                        yaml_params["process"][target_process_name].update(entry)
+                        yaml_params["process"][self.name].update(entry)
 
     return yaml_params
 
