@@ -97,13 +97,25 @@ def _script_placeholders(self, script_content):
 
     # Load additional parameters from file if provided
     if self.script_variables_file:
-        with open(self.script_variables_file, "r") as param_file:
-            for line in param_file:
-                if line.strip() and "=" in line:
-                    key, value = map(str.strip, line.strip().split("=", 1))
-                    if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
-                        value = value[1:-1]
-                    parameters[key] = value
+        file_ext = os.path.splitext(self.script_variables_file)[1].lower()
+
+        try:
+            with open(self.script_variables_file, "r") as param_file:
+                if file_ext in [".yaml", ".yml"]:
+                    parsed_yaml = yaml.safe_load(param_file)
+                    if isinstance(parsed_yaml, dict):
+                        parameters.update(parsed_yaml)
+                    else:
+                        self.logger.warning(f"{self.script_variables_file} is a YAML file but doesn't contain a dictionary. Ignoring its contents.")
+                else:
+                    for line in param_file:
+                        if line.strip() and "=" in line:
+                            key, value = map(str.strip, line.strip().split("=", 1))
+                            if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
+                                value = value[1:-1]
+                            parameters[key] = value
+        except Exception as e:
+            self.logger.warning(f"Failed to load script_variables_file '{self.script_variables_file}': {e}")
 
     # Resolve nested attribute like JAWM.Process.logs_directory → self.logs_directory
     def resolve_placeholder(key):
