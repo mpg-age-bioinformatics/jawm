@@ -68,8 +68,8 @@ class Process:
         param_file=None,
         script=None,
         script_file=None,
-        script_parameters=None,
-        script_parameters_file=None,
+        script_variables=None,
+        script_variables_file=None,
         project_directory=None,
         logs_directory=None,
         error_summary_file=None,
@@ -115,10 +115,10 @@ class Process:
         script_file : str, optional
             Path to an external script file.
 
-        script_parameters : dict, optional
+        script_variables : dict, optional
             Key-value pairs to substitute into the script as placeholders.
 
-        script_parameters_file : str, optional
+        script_variables_file : str, optional
             File with key=value pairs used for placeholder substitution.
 
         project_directory : str, optional
@@ -221,8 +221,8 @@ class Process:
         self.script = self.params.get("script", "#!/bin/bash")
         self.script_file = self.params.get("script_file", None)
         self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
-        self.script_parameters = self.params.get("script_parameters", None)
-        self.script_parameters_file = self.params.get("script_parameters_file", None)
+        self.script_variables = self.params.get("script_variables", None)
+        self.script_variables_file = self.params.get("script_variables_file", None)
 
         # Directory parameters
         # self.project_directory = self.params.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))

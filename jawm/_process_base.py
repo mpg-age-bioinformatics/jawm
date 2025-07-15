@@ -92,11 +92,11 @@ def _script_placeholders(self, script_content):
     :return: The updated script content with placeholders replaced.
     """
 
-    parameters = self.script_parameters or {}
+    parameters = self.script_variables or {}
 
     # Load additional parameters from file if provided
-    if self.script_parameters_file:
-        with open(self.script_parameters_file, "r") as param_file:
+    if self.script_variables_file:
+        with open(self.script_variables_file, "r") as param_file:
             for line in param_file:
                 if line.strip() and "=" in line:
                     key, value = map(str.strip, line.strip().split("=", 1))

@@ -107,7 +107,7 @@ script_file: "scripts/run.sh"
 
 ---
 
-### `script_parameters`
+### `script_variables`
 
 - **Category**: `parameter`
 - **Type**: `dict`
@@ -118,7 +118,7 @@ _**Note**_: Parameter values will substitute the placeholder(s) in the script. P
 
 **Example:**
 ```python
-script_parameters={
+script_variables={
     "APPNAME": "JAWM",
     "BYEMSG": "GOOD BYE!",
     "FRUITLIST": "['Apple', 'Banana', 'Orange']"
@@ -127,7 +127,7 @@ script_parameters={
 
 **YAML Example:**
 ```yaml
-script_parameters:
+script_variables:
   APPNAME: "JAWM"
   BYEMSG: "GOOD BYE!"
   FRUITLIST: "['Apple', 'Banana', 'Orange']"
@@ -135,7 +135,7 @@ script_parameters:
 
 ---
 
-### `script_parameters_file`
+### `script_variables_file`
 
 - **Category**: `parameter`
 - **Type**: `str`
@@ -144,12 +144,12 @@ File containing key=value pairs to use in script placeholder substitution.
 
 **Example:**
 ```python
-script_parameters_file="params.env"
+script_variables_file="params.env"
 ```
 
 **YAML Example:**
 ```yaml
-script_parameters_file: "params.env"
+script_variables_file: "params.env"
 ```
 
 ---

@@ -97,7 +97,7 @@ logging.basicConfig(level=logging.INFO)
 # process_python = Process(
 #     name="python_file",
 #     script_file="scripts/hello.py",
-#     script_parameters={
+#     script_variables={
 #         "APPNAME": "JAWM",
 #         "BYEMSG": "GOOD BYE!",
 #         "FRUITLIST": "['Apple', 'Banana', 'Orange']"
@@ -115,7 +115,7 @@ logging.basicConfig(level=logging.INFO)
 # process_python = Process(
 #     name="python_file_params",
 #     script_file="scripts/hello.py",
-#     script_parameters_file="scripts/hello.rc",
+#     script_variables_file="scripts/hello.rc",
 #     manager="slurm",
 #     manager_slurm={"partition":"dedicated"}
 # )

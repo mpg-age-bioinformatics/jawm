@@ -111,7 +111,7 @@ _**Note**_: With a parameter YAML file, this process can be initiated using `Pro
 process_file = Process(
     name="python_file",
     script_file="scripts/hello.py",
-    script_parameters={
+    script_variables={
         "APPNAME": "JAWM",
         "BYEMSG": "GOOD BYE!",
         "FRUITLIST": "['Apple', 'Banana', 'Orange']"
@@ -125,7 +125,7 @@ process_file = Process(
 - scope: process
   name: "python_file"
   script_file: "scripts/hello.py"
-  script_parameters:
+  script_variables:
     APPNAME: "JAWM"
     BYEMSG: "GOOD BYE!"
     FRUITLIST: "['Apple', 'Banana', 'Orange']"
@@ -146,7 +146,7 @@ _**Note**_: With a parameter YAML file, this process can be initiated using `Pro
 process_params = Process(
     name="python_file_params",
     script_file="scripts/hello.py",
-    script_parameters_file="scripts/hello.rc"
+    script_variables_file="scripts/hello.rc"
 )
 # This Process can be executed with `process_params.execute()`
 ```
@@ -156,7 +156,7 @@ process_params = Process(
 - scope: process
   name: "python_file_params"
   script_file: "scripts/hello.py"
-  script_parameters_file: "scripts/hello.rc"
+  script_variables_file: "scripts/hello.rc"
 ```
 
 ---
@@ -174,7 +174,7 @@ _**Note**_: The `when` parameter can be a boolean or a function returning a bool
 process_skip = Process(
     name="python_file_params",
     script_file="scripts/hello.py",
-    script_parameters_file="scripts/hello.rc",
+    script_variables_file="scripts/hello.rc",
     when=False
 )
 # This process will be skipped because `when=False`
@@ -188,7 +188,7 @@ process_skip = Process(
 - scope: process
   name: "python_file_params"
   script_file: "scripts/hello.py"
-  script_parameters_file: "scripts/hello.rc"
+  script_variables_file: "scripts/hello.rc"
   when: false
 ```
 
