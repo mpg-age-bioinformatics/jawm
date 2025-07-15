@@ -86,7 +86,8 @@ def _script_placeholders(self, script_content):
     """
     Replace placeholders in the script content with parameters or object attribute values.
     Supports flat {{KEY}} and object attributes like {{JAWM.Process.logs_directory}} → self.logs_directory.
-    If the provided parameter values is not found, then {{VAR}} would replaced by empty string.
+    If the provided parameter values is not found, then {{JAWM.Process.*}} would replaced by empty string.
+    {{VAR}} would stay the same in case of missing placeholder value.
     This can fail a scipt if not used properly. user needs to be cautios with the use of {{VAR}} in the script.
     :param script_content: The content of the script file.
     :return: The updated script content with placeholders replaced.
@@ -117,8 +118,10 @@ def _script_placeholders(self, script_content):
                 value = reduce(getattr, attr_path.split("."), self)
                 return "" if value is None else str(value)
             except AttributeError:
+                self.logger.warning(f"Unresolved JAWM.Process variables in Process script (replaced by empty string): {key}")
                 return ""  # or keep placeholder if preferred: return f"{{{{{key}}}}}"
 
+        self.logger.warning(f"Unresolved placeholder variables in Process script (kept as-is): {key}")
         return f"{{{{{key}}}}}"  # if not matched, return as-is
 
     # Regex pattern to find all {{...}} placeholders
