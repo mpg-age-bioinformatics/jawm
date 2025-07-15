@@ -137,7 +137,7 @@ process_file = Process(
 
 - **Category**: `example`
 
-Run a Python script from file with parameters provided via an external .rc or .env-style file.
+Run a Python script from file with parameters provided via an external .rc or .env-style or yaml file.
 
 _**Note**_: With a parameter YAML file, this process can be initiated using `Process(name="python_file_params", param_file="parameters/example_params.yaml")`.
 

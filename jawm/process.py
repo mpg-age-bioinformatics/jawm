@@ -119,7 +119,7 @@ class Process:
             Key-value pairs to substitute into the script as placeholders.
 
         script_variables_file : str, optional
-            File with key=value pairs used for placeholder substitution.
+            File containing either key=value pairs or a YAML dictionary for script placeholder substitution.
 
         project_directory : str, optional
             Base directory for outputs and logs. Defaults to current working directory.

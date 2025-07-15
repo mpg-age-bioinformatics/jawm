@@ -140,7 +140,7 @@ script_variables:
 - **Category**: `parameter`
 - **Type**: `str`
 
-File containing key=value pairs to use in script placeholder substitution.
+File containing either key=value pairs or a YAML dictionary for script placeholder substitution.
 
 **Example:**
 ```python

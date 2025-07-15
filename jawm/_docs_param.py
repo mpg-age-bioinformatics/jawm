@@ -73,7 +73,7 @@ for fruit in ["Apple", "Banana", "Ananas"]:
 
     "script_variables_file": {
         "category": "parameter",
-        "description": "File containing key = value pairs to use in script placeholder substitution.",
+        "description": "File containing either key=value pairs or a YAML dictionary for script placeholder substitution.",
         "note": "Parameter values will substitute the placeholder(s) in the script. Please be caution as any wrong use of paramters can break the script.",
         "type": "str",
         "example": 'script_variables_file="script/hello.rc"',
@@ -367,7 +367,7 @@ print(2 + 2)
 
     "example_script_file_with_parameters_file": {
         "category": "example",
-        "description": "Run a Python script from file with parameters provided via an external .rc or .env-style file.",
+        "description": "Run a Python script from file with parameters provided via an external .rc or .env-style or yaml file.",
         "note": "With a parameter YAML file, this process can be initiated using `Process(name=\"python_file_params\", param_file=\"parameters/example_params.yaml\")`.",
         "example": """process_params = Process(
     name="python_file_params",
