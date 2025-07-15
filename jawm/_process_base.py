@@ -190,6 +190,22 @@ def _generate_base_script(self):
 
 
 @register
+def _generate_command_wrapper(self, main_command):
+    """
+    Compose full bash command with before_script && main_command && after_script.
+    :param main_command: Base command
+    :return: Comand wrapped with before or after script command
+    """
+    parts = []
+    if self.before_script:
+        parts.append(self.before_script.strip())
+    parts.append(" ".join(main_command))
+    if self.after_script:
+        parts.append(self.after_script.strip())
+    return " && ".join(parts)
+
+
+@register
 def _build_apptainer_command(self, script_path):
     """
     Build the Apptainer command dynamically based on user configurations.

@@ -39,15 +39,18 @@ def _execute_local(self):
 
             # Open stdout/stderr for this attempt
             with open(self.stdout_path, "w") as stdout_file, open(self.stderr_path, "w") as stderr_file:
+                wrapper = self.before_script or self.after_script
+
                 if self.environment == "apptainer":
                     self.logger.info(f"Executing process {self.name} with apptainer container {self.container}")
                     command = self._build_apptainer_command(base_script_path)
+                    wrapped_command = self._generate_command_wrapper(command) if wrapper else " ".join(command)
                     # Log the command
                     with open(command_path, "w") as cmd_file:
-                        cmd_file.write(" ".join(command))
+                        cmd_file.write(wrapped_command)
 
                     result = subprocess.Popen(
-                        command,
+                        ["bash", "-c", wrapped_command] if wrapper else command,
                         stdout=stdout_file,
                         stderr=stderr_file,
                         text=True
@@ -56,12 +59,13 @@ def _execute_local(self):
                 elif self.environment == "docker":
                     self.logger.info(f"Executing process {self.name} with docker container {self.container}")
                     command = self._build_docker_command(base_script_path)
+                    wrapped_command = self._generate_command_wrapper(command) if wrapper else " ".join(command)
                     # Log the command
                     with open(command_path, "w") as cmd_file:
-                        cmd_file.write(" ".join(command))
+                        cmd_file.write(wrapped_command)
 
                     result = subprocess.Popen(
-                        command,
+                        ["bash", "-c", wrapped_command] if wrapper else command,
                         stdout=stdout_file,
                         stderr=stderr_file,
                         text=True
@@ -69,11 +73,13 @@ def _execute_local(self):
 
                 else:
                     # Plain local execution
+                    command = [base_script_path]
+                    wrapped_command = self._generate_command_wrapper(command) if wrapper else base_script_path
                     with open(command_path, "w") as cmd_file:
-                        cmd_file.write(base_script_path)
+                        cmd_file.write(wrapped_command)
 
                     result = subprocess.Popen(
-                        [base_script_path],
+                        ["bash", "-c", wrapped_command] if wrapper else command,
                         env=self.combined_env,
                         stdout=stdout_file,
                         stderr=stderr_file,
