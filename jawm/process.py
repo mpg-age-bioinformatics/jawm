@@ -92,6 +92,8 @@ class Process:
         depends_on=None,
         before_script=None,
         after_script=None,
+        before_script_container=None,
+        after_script_container=None,
         **kwargs
     ):
         """
@@ -187,6 +189,12 @@ class Process:
         after_script : str, optional
             A one-line or chained shell (bash) command to be executed after the main script ends
 
+        before_script_container : str, optional
+            A one-line or chained shell (bash) command to be executed inside container before the main script starts
+        
+        after_script_container : str, optional
+            A one-line or chained shell (bash) command to be executed inside container after the main script ends
+
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
             and can override YAML-defined values.
@@ -265,6 +273,8 @@ class Process:
         self.when = self.params.get("when", True)
         self.before_script = self.params.get("before_script", None)
         self.after_script = self.params.get("after_script", None)
+        self.before_script_container = self.params.get("before_script_container", None)
+        self.after_script_container = self.params.get("after_script_container", None)
 
         # Local execution configurations
         self.manager_local = self.params.get("manager_local", {})
