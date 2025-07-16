@@ -483,6 +483,42 @@ after_script: "echo Done."
 
 ---
 
+### `container_before_script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+A one-line or chained shell (bash) command to be executed inside container before the main script starts.
+
+**Example:**
+```python
+container_before_script="source .vars.rc"
+```
+**YAML Example:**
+```yaml
+container_before_script: "source .vars.rc"
+```
+
+---
+
+### `container_after_script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+A one-line or chained shell (bash) command to be executed inside container after the main script ends.
+
+**Example:**
+```python
+container_after_script="echo Done."
+```
+**YAML Example:**
+```yaml
+container_after_script: "echo Done."
+```
+
+---
+
 ### `manager_slurm`
 
 - **Category**: `parameter`

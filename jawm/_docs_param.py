@@ -232,6 +232,20 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "example": 'after_script="echo Done."',
         "yaml_example": 'after_script: "echo Done."'
     },
+    "container_before_script": {
+        "category": "parameter",
+        "description": "A one-line or chained shell (bash) command to be executed inside container before the main script starts.",
+        "type": "str",
+        "example": 'container_before_script="echo Preparing..."',
+        "yaml_example": 'container_before_script: "echo Preparing..."'
+    },
+    "container_after_script": {
+        "category": "parameter",
+        "description": "A one-line or chained shell (bash) command to be executed inside container after the main script ends.",
+        "type": "str",
+        "example": 'container_after_script="echo Done."',
+        "yaml_example": 'container_after_script: "echo Done."'
+    },
     "manager_slurm": {
         "category": "parameter",
         "description": "Slurm manager-specific options (e.g., memory, time).",
