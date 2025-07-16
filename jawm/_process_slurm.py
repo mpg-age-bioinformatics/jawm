@@ -41,8 +41,16 @@ def _generate_slurm_script(self):
             if key.startswith("--"):
                 slurm_script_file.write(f"#SBATCH {key}={value}\n")
 
+        # Apply before_script if defined
+        if self.before_script:
+            slurm_script_file.write(f"\n{self.before_script.strip()}\n")
+        
         # Call the executable script
         slurm_script_file.write(f"\n{slurm_script_command}\n")
+
+        # Apply after_script if defined
+        if self.after_script:
+            slurm_script_file.write(f"\n{self.after_script.strip()}\n")
 
     return slurm_script_path
 
