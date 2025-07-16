@@ -181,6 +181,12 @@ class Process:
         environment_docker : dict, optional
             Options for running in Docker, to be passed exactly as-is
 
+        before_script : str, optional
+            A one-line or chained shell (bash) command to be executed before the main script starts
+        
+        after_script : str, optional
+            A one-line or chained shell (bash) command to be executed after the main script ends
+
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
             and can override YAML-defined values.

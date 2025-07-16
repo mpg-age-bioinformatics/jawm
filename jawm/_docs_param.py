@@ -220,14 +220,14 @@ for fruit in ["Apple", "Banana", "Ananas"]:
     },
     "before_script": {
         "category": "parameter",
-        "description": "Script to execute before the main script.",
+        "description": "A one-line or chained shell (bash) command to be executed before the main script starts.",
         "type": "str",
         "example": 'before_script="echo Preparing..."',
         "yaml_example": 'before_script: "echo Preparing..."'
     },
     "after_script": {
         "category": "parameter",
-        "description": "Script to execute after the main script completes.",
+        "description": "A one-line or chained shell (bash) command to be executed after the main script ends.",
         "type": "str",
         "example": 'after_script="echo Done."',
         "yaml_example": 'after_script: "echo Done."'

@@ -452,7 +452,7 @@ when: false
 - **Category**: `parameter`
 - **Type**: `str`
 
-Script to execute before the main script.
+A one-line or chained shell (bash) command to be executed before the main script starts.
 
 **Example:**
 ```python
@@ -470,7 +470,7 @@ before_script: "echo Preparing..."
 - **Category**: `parameter`
 - **Type**: `str`
 
-Script to execute after the main script completes.
+A one-line or chained shell (bash) command to be executed after the main script ends.
 
 **Example:**
 ```python
