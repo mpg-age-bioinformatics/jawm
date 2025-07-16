@@ -238,13 +238,13 @@ def _build_apptainer_command(self, script_path):
             apptainer_command.extend(["--env", f'{key}="{val}"' if " " in val else f"{key}={val}"])
 
     # Add container and script
-    if self.before_script_container or self.after_script_container:
+    if self.container_before_script or self.container_after_script:
         command_parts = []
-        if self.before_script_container:
-            command_parts.append(self.before_script_container.strip())
+        if self.container_before_script:
+            command_parts.append(self.container_before_script.strip())
         command_parts.append(script_path)
-        if self.after_script_container:
-            command_parts.append(self.after_script_container.strip())
+        if self.container_after_script:
+            command_parts.append(self.container_after_script.strip())
 
         wrapped_command = shlex.quote(" && ".join(command_parts))
         apptainer_command.extend([self.container, "/bin/bash", "-c", wrapped_command])
@@ -285,13 +285,13 @@ def _build_docker_command(self, script_path):
             docker_command.extend(["-e", f'{key}="{val}"' if " " in val else f"{key}={val}"])
 
     # Add container image and script to execute
-    if self.before_script_container or self.after_script_container:
+    if self.container_before_script or self.container_after_script:
         command_parts = []
-        if self.before_script_container:
-            command_parts.append(self.before_script_container.strip())
+        if self.container_before_script:
+            command_parts.append(self.container_before_script.strip())
         command_parts.append(script_path)
-        if self.after_script_container:
-            command_parts.append(self.after_script_container.strip())
+        if self.container_after_script:
+            command_parts.append(self.container_after_script.strip())
 
         wrapped_command = shlex.quote(" && ".join(command_parts))
         docker_command.extend([self.container, "/bin/bash", "-c", wrapped_command])
