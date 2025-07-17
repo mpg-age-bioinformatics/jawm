@@ -106,8 +106,27 @@ def _script_placeholders(self, script_content):
                     parsed_yaml = yaml.safe_load(param_file)
                     if isinstance(parsed_yaml, dict):
                         parameters.update(parsed_yaml)
+
+                    elif isinstance(parsed_yaml, list):
+                        for entry in parsed_yaml:
+                            if not isinstance(entry, dict):
+                                continue
+
+                            scope = entry.get("scope")
+                            name = entry.get("name", None)
+
+                            if scope == "global" and "script_variables" in entry:
+                                if isinstance(entry["script_variables"], dict):
+                                    parameters.update(entry["script_variables"])
+
+                            elif scope == "process" and name and self.name:
+                                if fnmatch.fnmatch(self.name, name):
+                                    if isinstance(entry.get("script_variables"), dict):
+                                        parameters.update(entry["script_variables"])
+
                     else:
-                        self.logger.warning(f"{self.script_variables_file} is a YAML file but doesn't contain a dictionary. Ignoring its contents.")
+                        self.logger.warning(f"{self.script_variables_file} contains no usable script_variables.")
+
                 else:
                     for line in param_file:
                         if line.strip() and "=" in line:
