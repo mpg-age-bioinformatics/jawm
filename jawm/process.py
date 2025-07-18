@@ -44,12 +44,17 @@ class Process:
     stop_future_event (threading.Event):
         A shared stop flag triggered on process failure to halt future runs if applicable.
 
+    default_param_file (str or list):
+        Class level variable to set fallback param_file for any instance.
+
     """
 
     # Global registry to map process names to process instances.
     registry = {}
     # A class-level event, shared across all Process instances. Run `Process.stop_future_event.clear()` to prevent preventing
     stop_future_event = threading.Event()
+    # Class level variable to set fallback param_file for any instance
+    default_param_file = None
 
     # Configure logging with proper format
     logging.basicConfig(
@@ -109,7 +114,7 @@ class Process:
             Name of the process. Required.
 
         param_file : str or list of str, optional
-            YAML file(s) defining global and process-specific parameters.
+            YAML file(s) or directory containing YAMLs that define global and process-specific parameters.
 
         script : str, optional
             Inline script content to be executed.
@@ -210,7 +215,7 @@ class Process:
         self.name = name
         self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=7))
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
-        self.param_file = param_file
+        self.param_file = param_file if param_file is not None else self.__class__.default_param_file
 
         # Build explicitly provided arguments for merging
         explicit_args = {k: v for k, v in locals().items() if k not in {"self", "kwargs"} and v is not None} 

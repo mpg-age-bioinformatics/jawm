@@ -38,22 +38,37 @@ _**Note**_: Process hash would be generated automatically when a Process initiat
 - **Category**: `parameter`
 - **Type**: `str or list of str`
 
-YAML file or list of YAML files containing all the possible parameters.
+YAML file or list of YAML files or a directory containing YAMLs (on top level), consist of possible parameters.
 
-_**Note**_: Needs to be inputted directly in the Process call. This parameter defines the YAML file(s) that can shape the Process.
+_**Note**_: Needs to be inputted directly in the Process call or defined with class level variable `Procss.default_param_file`. This parameter defines the YAML file(s) that can shape the Process.
 
 **Example:**
 ```python
 param_file="parameters/param1.yaml"
 # or with multiple files
 param_file=["parameters/param1.yaml", "parameters/param2.yaml"]
+# or with directory containing yamls
+param_file="parameters"
 ```
 
-**YAML Example:**
-```yaml
-param_file:
-  - "parameters/param1.yaml"
-  - "parameters/param2.yaml"
+---
+
+### `default_param_file`
+
+- **Category**: `class parameter`
+- **Type**: `str or list of str`
+
+Class level variable to set fallback `param_file` for any instance. YAML file or list of YAML files or a directory containing YAMLs (on top level), consist of possible parameters.
+
+_**Note**_: Needs to be inputted directly in the Process call or defined with class level variable `Procss.default_param_file`. This parameter defines the YAML file(s) that can shape the Process.
+
+**Example:**
+```python
+jawm.Process.default_param_file="parameters/param1.yaml"
+# or with multiple files
+jawm.Process.default_param_file=["parameters/param1.yaml", "parameters/param2.yaml"]
+# or with directory containing yamls
+jawm.Process.default_param_file="parameters/"
 ```
 
 ---

@@ -49,7 +49,13 @@ def _parse_yaml_config(self, param_file):
             self.__class__.stop_future_event.set()
             raise ValueError(f"Failed to load YAML file {yaml_file}: {str(e)}")
 
+        if isinstance(yaml_data, dict):
+            yaml_data = [yaml_data]
+
         for entry in yaml_data:
+            if not isinstance(entry, dict):
+                continue
+
             scope = entry.get("scope")
             name = entry.get("name", None)
 
