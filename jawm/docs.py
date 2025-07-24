@@ -1,6 +1,6 @@
 from ._docs_param import PROCESS_PARAM_DOCS
 
-def jawm_help(class_name: str = "Process", param: str = None):
+def jhelp(class_name: str = "Process", param: str = None):
     """
     Display documentation for JAWM classes, parameters, examples, or usage guides.
 
@@ -18,19 +18,19 @@ def jawm_help(class_name: str = "Process", param: str = None):
 
     Usage Examples:
     ---------------
-    >>> from jawm import jawm_help
+    >>> from jawm import jhelp
 
     # Show all Process documentation categories (parameters, how-tos, examples)
-    >>> jawm_help()
+    >>> jhelp()
 
     # Show help for a specific parameter
-    >>> jawm_help("Process", "script")
+    >>> jhelp("Process", "script")
 
     # Show a usage example
-    >>> jawm_help("Process", "example_hello_world")
+    >>> jhelp("Process", "example_hello_world")
 
     # Show a how-to guide
-    >>> jawm_help("Process", "howto_set_monitoring")
+    >>> jhelp("Process", "howto_set_monitoring")
 
     """
 
@@ -93,4 +93,4 @@ def jawm_help(class_name: str = "Process", param: str = None):
             print("\nAvailable docs for example uses:::")
             for key in (k for k, v in PROCESS_PARAM_DOCS.items() if v.get("category") == "example"):
                 print(f"  - {key}")
-            print("\nUse: jawm_help('Process', 'key/param_name') for more details.")
+            print("\nUse: jhelp('Process', 'key/param_name') for more details.")

@@ -104,35 +104,35 @@ YAML Example (`parameters/fastqc_apptainer.yaml`):
 ## Parameters
 You can find details about the avaliable [Process parameters here](docs/process_parameters.md).
 
-It can be also checked with the `jawm_help` function (e.g. get documentation of `logs_directory` parameter).
+It can be also checked with the `jhelp` function (e.g. get documentation of `logs_directory` parameter).
 ```
-from jawm import jawm_help
-jawm_help("Process", "logs_directory")
+from jawm import jhelp
+jhelp("Process", "logs_directory")
 ```
 
-Try `jawm_help()`, in order to get the summary of available parameters, examples and how to use.
+Try `jhelp()`, in order to get the summary of available parameters, examples and how to use.
 
 ## HowTo
 You can find details about different [Process howto here](docs/process_howto.md).
 
-It can be also checked with the `jawm_help` function (e.g. get documentation of `howto_yaml_global_value`).
+It can be also checked with the `jhelp` function (e.g. get documentation of `howto_yaml_global_value`).
 ```
-from jawm import jawm_help
-jawm_help("Process", "howto_yaml_global_value")
+from jawm import jhelp
+jhelp("Process", "howto_yaml_global_value")
 ```
 
-Try `jawm_help()`, in order to get the summary of available parameters, examples and how to use.
+Try `jhelp()`, in order to get the summary of available parameters, examples and how to use.
 
 ## Examples
 You can find some [basic examples of Process use here](docs/process_examples.md).
 
-It can be also checked with the `jawm_help` function (e.g. get documentation of `example_hello_world`).
+It can be also checked with the `jhelp` function (e.g. get documentation of `example_hello_world`).
 ```
-from jawm import jawm_help
-jawm_help("Process", "example_hello_world")
+from jawm import jhelp
+jhelp("Process", "example_hello_world")
 ```
 
-Try `jawm_help()`, in order to get the summary of available parameters, examples and how to use.
+Try `jhelp()`, in order to get the summary of available parameters, examples and how to use.
 
 ## Projected Development Timeline
 - 08.05.25 :: First draft for a one Fastqc call

@@ -22,7 +22,7 @@ Core Features
 Public Interface
 ----------------
 - `Process`: Define and run a step in your workflow.
-- `jawm_help()`: Get help for any parameter, example, or usage how-to.
+- `jhelp()`: Get help for any parameter, example, or usage how-to.
 
 Quickstart Example (inline script):
 -----------------------------------
@@ -42,11 +42,11 @@ process_hw.execute()
 
 Documentation:
 --------------
-Use `jawm_help()` or visit https://github.com/mpg-age-bioinformatics/JAWM for details.
+Use `jhelp()` or visit https://github.com/mpg-age-bioinformatics/JAWM for details.
 """
 
 from .process import Process
-from .docs import jawm_help
+from .docs import jhelp
 from . import jutils
 
-__all__ = ["Process", "jawm_help", "jutils"]
+__all__ = ["Process", "jhelp", "jutils"]

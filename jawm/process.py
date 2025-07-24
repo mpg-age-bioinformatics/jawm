@@ -205,7 +205,7 @@ class Process:
             and can override YAML-defined values.
 
         To view detailed documentation for a specific parameter, run:
-        >>> jawm.jawm_help("Process", "<parameter_name>")
+        >>> jawm.jhelp("Process", "<parameter_name>")
 
         """
         # Register cleanup hooks on first process creation
