@@ -47,6 +47,6 @@ Use `jawm_help()` or visit https://github.com/mpg-age-bioinformatics/JAWM for de
 
 from .process import Process
 from .docs import jawm_help
-from . import utils
+from . import jutils
 
-__all__ = ["Process", "jawm_help", "utils"]
+__all__ = ["Process", "jawm_help", "jutils"]
