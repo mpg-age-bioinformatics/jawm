@@ -79,7 +79,7 @@ class Process:
         logs_directory=None,
         error_summary_file=None,
         monitoring_directory=None,
-        asynchronous=None,
+        run_in_detached=None,
         manager=None,
         env=None,
         inputs=None,
@@ -143,8 +143,8 @@ class Process:
         depends_on : str or list of str, optional
             Name(s) or hash(es) of processes this one depends on.
 
-        asynchronous : bool, default=False
-            Whether the process should run asynchronously in a background thread.
+        run_in_detached : bool, default=False
+            Whether the process should run in detached in a background thread.
 
         manager : str, default="local"
             Execution backend. Options: "local", "slurm".
@@ -264,7 +264,7 @@ class Process:
         #     self.monitoring_directory = None
 
         # Management parameters
-        self.asynchronous = self.params.get("asynchronous", False)
+        self.run_in_detached = self.params.get("run_in_detached", False)
         self.manager = self.params.get("manager", "local")
         # self.source_env = os.environ.copy()
         self.env = self.params.get("env", {})
@@ -352,36 +352,33 @@ class Process:
 
     def execute(self):
         """
-        Launch the process execution, handling dependencies and asynchronous logic.
+        Launch the process execution, handling dependencies, conditions, and execution environment.
 
-        This method orchestrates the full execution of the process based on its configuration.
-        It supports conditional execution (`when`), dependency resolution (`depends_on`), and
-        asynchronous execution (`asynchronous`). Depending on the selected execution manager,
-        the process will run either locally or via Slurm, with optional container support.
+        This method executes the process based on its configuration. It supports:
+        - Conditional execution via the `when` parameter
+        - Dependency resolution via `depends_on`
+        - Execution using the selected manager (`local`, `slurm`)
+        - Optional container environments (Docker, Apptainer)
 
         Execution Flow:
         ---------------
-        1. If `when` is False, the process is skipped and marked as finished.
-        2. If `asynchronous` is False:
-            - Waits for all dependency processes to finish.
-            - Runs the process synchronously via the configured manager.
-        3. If `asynchronous` is True:
-            - Spawns a background thread to:
-                a) Wait for all dependencies to complete.
-                b) Execute the process in a non-blocking manner.
-        4. On error:
+        1. If `when` is False:
+            - The process is skipped and marked as finished.
+        2. If `when` is True:
+            - Waits for all dependencies to finish (if any).
+            - Executes the process via the configured manager.
+        3. On failure:
             - Logs the error.
-            - Triggers a global stop flag (`Process.stop_future_event`) to prevent further steps (if applicable).
+            - Sets the global stop flag to prevent further downstream executions (if applicable).
 
         Notes:
         ------
-        - Dependencies are resolved using the `depends_on` list, by name or hash.
-        - Execution manager is chosen via the `manager` parameter: "local" (local) or "slurm".
-        - Errors and outputs are logged to dedicated files in the logs directory.
+        - Dependencies are matched by name or hash using the `depends_on` list.
+        - Errors and output are logged to the process-specific log directory.
+        - Retries and overrides can be configured via `retries` and `retry_overrides`.
 
         Returns:
             None
-        
         """
         # Create necessary directories
         self._prepare_base_dirs()
@@ -402,7 +399,7 @@ class Process:
             self.finished_event.set()
             return
 
-        if not self.asynchronous:
+        if not self.run_in_detached:
         # Wait for dependencies *in the main thread*
             for dep in self.depends_on:
                 dep_proc = Process.registry.get(dep)
@@ -431,7 +428,7 @@ class Process:
         else:
             def run_in_background():
                 """
-                This background thread for asynchronous run
+                This background thread for run_in_detached run
                 """
                 # Wait for dependencies to complete (either by name or hash).
                 for dep in self.depends_on:
@@ -448,7 +445,7 @@ class Process:
                     self.finished_event.set()
                     return
 
-                # Perform asynchronous runs
+                # Perform run_in_detached runs
                 try:
                     self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self._run_manager()
@@ -733,7 +730,6 @@ class Process:
                     "name": proc.name,
                     "hash": proc.hash,
                     "manager": proc.manager,
-                    "asynchronous": proc.asynchronous,
                     "started_at": proc.execution_start_at,
                     "finished": proc.finished_event.is_set(),
                     "thread_alive": True

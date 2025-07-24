@@ -269,23 +269,23 @@ depends_on:
 
 ---
 
-### `asynchronous`
+### `run_in_detached`
 
 - **Category**: `parameter`
 - **Type**: `bool`
 - **Default**: `False`
 
-Whether the process should run asynchronously.
+Whether the process should run in detached.
 
-_**Note**_: If asynchronous is True, the process runs in a background thread, allowing the main program to continue without blocking.
+_**Note**_: If run_in_detached is True, the process runs in a background thread, allowing the main program to continue without blocking.
 
 **Example:**
 ```python
-asynchronous=True
+run_in_detached=False
 ```
 **YAML Example:**
 ```yaml
-asynchronous: true
+run_in_detached: False
 ```
 
 ---
