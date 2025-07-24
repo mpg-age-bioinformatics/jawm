@@ -163,7 +163,8 @@ cython_debug/
 
 # Test directories
 exercise/
-test/logs/
-test/monitoring
+test/*_test
+logs_test
+data_test
 notebook
 draft
