@@ -1,8 +1,6 @@
 import os
 import time
 import sys
-
-sys.path.append(os.path.abspath(os.path.join(os.path.abspath(os.getcwd()), '..')))
 from jawm import Process
 
 passed = 0

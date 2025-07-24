@@ -1,0 +1,28 @@
+name: JAWM Smoke Tests for Local Cases
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    name: Python ${{ matrix.python-version }}
+    steps:
+      - name: 🧾 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 📦 Install JAWM as editable package
+        run: |
+          pip install -e .
+
+      - name: 🧪 Run JAWM smoke tests for local cases
+        run: |
+          python test/git_action_local_test.py
