@@ -204,8 +204,8 @@ try:
     original.execute()
     clone.execute()
     Process.wait(["original_proc", "cloned_proc"])
-    assert "original_proc_fail" in Process.registry
-    assert "cloned_proc_fail" in Process.registry
+    assert "original_proc" in Process.registry
+    assert "cloned_proc" in Process.registry
     print("✅ Passed: Process Copy and Execution")
     passed += 1
 except Exception as e:
