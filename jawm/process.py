@@ -465,7 +465,7 @@ class Process:
         """
         Clone the current Process instance to create a new one with optional modifications.
 
-        - new_name (str, optional): The name for the cloned process. Defaults to the current process's name.
+        - name (str, optional): The name for the cloned process. Defaults to the current process's name.
         - param_file (str or list, optional): YAML parameter file(s) to load. Defaults to the original's param_file.
         - **overrides: Any other parameters to override from the original process's configuration.
 
@@ -475,14 +475,16 @@ class Process:
         # Start with a shallow copy of current parameters
         new_params = self.params.copy()
 
-        # Apply any overrides
+        # Avoid duplicate keyword arguments
+        if name is not None:
+            new_params.pop("name", None)
+        if param_file is not None:
+            new_params.pop("param_file", None)
+
+        # Apply any additional overrides
         new_params.update(overrides)
 
-        # Determine name and param_file
-        final_name = name or self.name
-        final_param_file = param_file if param_file is not None else getattr(self, 'param_file', None)
-
-        return Process(name=final_name, param_file=final_param_file, **new_params)
+        return Process(name=name or self.name, param_file=param_file or self.param_file, **new_params)
 
 
     # ----------------------------------------------------------
