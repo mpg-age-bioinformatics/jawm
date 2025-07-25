@@ -330,42 +330,6 @@ env:
 
 ---
 
-### `inputs`
-
-- **Category**: `parameter`
-- **Type**: `dict`
-
-Any extra/custom parameters to use in the Process or Process script can be pushed with inputs.
-
-**Example:**
-```python
-inputs={"input1": "data/input.txt"}
-```
-**YAML Example:**
-```yaml
-inputs: {"input1": "data/input.txt"}
-```
-
----
-
-### `outputs`
-
-- **Category**: `parameter`
-- **Type**: `dict`
-
-Any extra/custom output parameters to use in the Process or Process script can be pushed with outputs.
-
-**Example:**
-```python
-outputs={"output1": "results/output.txt"}
-```
-**YAML Example:**
-```yaml
-outputs: {"output1": "results/output.txt"}
-```
-
----
-
 ### `retries`
 
 - **Category**: `parameter`

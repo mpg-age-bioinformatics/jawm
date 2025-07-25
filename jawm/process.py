@@ -143,9 +143,6 @@ class Process:
         depends_on : str or list of str, optional
             Name(s) or hash(es) of processes this one depends on.
 
-        run_in_detached : bool, default=False
-            Whether the process should run in detached in a background thread.
-
         manager : str, default="local"
             Execution backend. Options: "local", "slurm".
 
