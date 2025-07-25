@@ -153,20 +153,6 @@ for fruit in ["Apple", "Banana", "Ananas"]:
     THREADS: "4"
 """
     },
-    "inputs": {
-        "category": "parameter",
-        "description": "Any extra/custom paramters to use in the Process or Process script can be pushed with inputs.",
-        "type": "dict",
-        "example": 'inputs={"input1": "data/input.txt"}',
-        "yaml_example": 'inputs: {"input1": "data/input.txt"}'
-    },
-    "outputs": {
-        "category": "parameter",
-        "description": "Any extra/custom output paramters to use in the Process or Process script can be pushed with inputs.",
-        "type": "dict",
-        "example": 'outputs={"output1": "results/output.txt"}',
-        "yaml_example": 'outputs: {"output1": "results/output.txt"}'
-    },
     "retries": {
         "category": "parameter",
         "description": "Number of times to retry the process if it fails.",
