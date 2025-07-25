@@ -47,7 +47,8 @@ def _parse_yaml_config(self, param_file):
             # It may not log in error summary if self.error_summary_file is not yet there
             self._log_error_summary(f"Failed to load YAML file {yaml_file}: {str(e)}")
             self.__class__.stop_future_event.set()
-            raise ValueError(f"Failed to load YAML file {yaml_file}:\n\n{str(e)}")
+            ter_err = f"Failed to load YAML file {yaml_file}:\n\n{str(e)}"
+            raise ValueError(ter_err)
 
         if isinstance(yaml_data, dict):
             yaml_data = [yaml_data]
