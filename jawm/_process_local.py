@@ -148,7 +148,7 @@ def _execute_local(self):
                     self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     self.stop_future_event.set()
-                    raise RuntimeError(f"Process {self.name} failed with error: {error_message}")
+                    raise RuntimeError(f"Process {self.name} failed with error:\n\n{error_message}")
 
         # Start the background thread so _execute_local() returns immediately
         self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
