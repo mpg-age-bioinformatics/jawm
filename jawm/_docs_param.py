@@ -125,15 +125,6 @@ for fruit in ["Apple", "Banana", "Ananas"]:
     - "process_B"
     """
     },
-    "run_in_detached": {
-        "category": "parameter",
-        "description": "Whether the process should run in detached.",
-        "note": "If run_in_detached is True, the process runs in a background thread, allowing the main program to continue without blocking.",
-        "type": "bool",
-        "default": "False",
-        "example": 'run_in_detached=True',
-        "yaml_example": 'run_in_detached: true'
-    },
     "manager": {
         "category": "parameter",
         "description": "Specifies which execution manager to use.",

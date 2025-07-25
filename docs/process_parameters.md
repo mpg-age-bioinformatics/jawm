@@ -269,27 +269,6 @@ depends_on:
 
 ---
 
-### `run_in_detached`
-
-- **Category**: `parameter`
-- **Type**: `bool`
-- **Default**: `False`
-
-Whether the process should run in detached.
-
-_**Note**_: If run_in_detached is True, the process runs in a background thread, allowing the main program to continue without blocking.
-
-**Example:**
-```python
-run_in_detached=False
-```
-**YAML Example:**
-```yaml
-run_in_detached: False
-```
-
----
-
 ### `manager`
 
 - **Category**: `parameter`
