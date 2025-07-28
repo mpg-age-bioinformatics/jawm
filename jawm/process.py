@@ -44,8 +44,8 @@ class Process:
     stop_future_event (threading.Event):
         A shared stop flag triggered on process failure to halt future runs if applicable.
 
-    default_param_file (str or list):
-        Class level variable to set fallback param_file for any instance.
+    default_parameters (dict):
+        Class-level fallback parameters with the lowest priority.
 
     """
 
@@ -53,8 +53,8 @@ class Process:
     registry = {}
     # A class-level event, shared across all Process instances. Run `Process.stop_future_event.clear()` to prevent preventing
     stop_future_event = threading.Event()
-    # Class level variable to set fallback param_file for any instance
-    default_param_file = None
+    # Class-level fallback parameters with the lowest priority
+    default_parameters = {}
 
     # Configure logging with proper format
     logging.basicConfig(
@@ -212,7 +212,7 @@ class Process:
         self.name = name
         self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=7))
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
-        self.param_file = param_file if param_file is not None else self.__class__.default_param_file
+        self.param_file = param_file if param_file is not None else self.__class__.default_parameters.get("param_file")
 
         # Build explicitly provided arguments for merging
         explicit_args = {k: v for k, v in locals().items() if k not in {"self", "kwargs"} and v is not None} 
@@ -224,8 +224,8 @@ class Process:
         process_params = yaml_params["process"].get(name, {})
         global_params = yaml_params["global"]
 
-        # Merge in priority order: global < process < kwargs < arguments
-        self.params = {**global_params, **process_params, **kwargs, **explicit_args}
+        # Merge in priority order: default_parameters < global < process < kwargs < explicit arguments
+        self.params = {**self.__class__.default_parameters, **global_params, **process_params, **kwargs, **explicit_args}
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
@@ -488,6 +488,19 @@ class Process:
     #   Class methods with Process Lifecycle and Runtime Control
     # ----------------------------------------------------------
 
+    @classmethod
+    def set_default(cls, **kwargs):
+        """
+        Set one or more default values at the class level for all Process instances.
+
+        These defaults are applied with the **lowest priority** — overridden by YAML, kwargs, or explicit arguments.
+
+        Example:
+            Process.set_default(manager="local", retries=2)
+        """
+        cls.default_parameters.update(kwargs)
+
+    
     @classmethod
     def set_log_level(cls, level_name="INFO"):
         """
