@@ -213,6 +213,60 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 10: Class-Level Defaults with `set_default()`")
+time.sleep(0.5)
+try:
+    Process.set_default(retries=3, logs_directory="logs_test_default")
+
+    proc10 = Process(
+        name="default_param_proc",
+        script="""#!/bin/bash
+    echo 'Check default retries'
+    """
+    )
+    assert proc10.params.get("retries") == 3, "❌ Default parameter (retries) not applied"
+    assert "logs_test_default" in proc10.logs_directory, "❌ logs_directory default not applied"
+    print("✅ Passed: Class-Level Default Parameters")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+Process.default_parameters.clear()
+
+
+print("\n>>> Test 11: Parameter Resolution from YAML (Global and Process)")
+time.sleep(0.5)
+try:
+    with open("data_test/test_params.yaml", "w") as f:
+        f.write("""
+- scope: global
+  retries: 1
+  logs_directory: "logs_from_yaml_global"
+
+- scope: process
+  name: "yaml_specific_proc"
+  retries: 5
+  logs_directory: "logs_from_yaml_process"
+""")
+
+    proc11 = Process(
+        name="yaml_specific_proc",
+        script="""#!/bin/bash
+    echo 'YAML parameter test'
+    """,
+        param_file="data_test/test_params.yaml"
+    )
+
+    assert proc11.params.get("retries") == 5, "❌ Process-specific value not applied"
+    assert "logs_from_yaml_process" in proc11.logs_directory, "❌ logs_directory not from process scope"
+    print("✅ Passed: YAML Parameter Resolution")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
 print("\n===== TEST SUMMARY =====")
 print(f"✅ Passed: {passed}")
 print(f"❌ Failed: {failed}")
