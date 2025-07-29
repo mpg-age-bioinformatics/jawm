@@ -86,7 +86,8 @@ class Process:
         "after_script": str,
         "container_before_script": str,
         "container_after_script": str,
-        "run_in_detached": bool
+        "run_in_detached": bool,
+        "validation": (bool, str)
     }
     # Set of internal/reserved keys
     reserved_keys = {
@@ -139,6 +140,7 @@ class Process:
         after_script=None,
         container_before_script=None,
         container_after_script=None,
+        validation=None,
         **kwargs
     ):
         """
@@ -236,6 +238,9 @@ class Process:
         
         container_after_script : str, optional
             A one-line or chained shell (bash) command to be executed inside container after the main script ends
+
+        validation : bool or str, default=False
+            Whether to check if the Process instance is valid on initiation. Skip the process if a strict validation fails
 
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
@@ -354,7 +359,18 @@ class Process:
         self.execution_end_at = None
 
         # Internal field, populated after execution
-        self.runtime_id = None  
+        self.runtime_id = None
+
+        # Check for validation
+        self.validation = self.params.get("validation", False)
+        if self.validation:
+            if self.validation == "strict":
+                is_valid = self.is_valid("strict")
+                if not is_valid:
+                    self.logger.warning(f"Strict validation failed — process {self.name} will be skipped with when False")
+                    self.when = False
+            else:
+                self.is_valid("basic")
     
 
     def _prepare_base_dirs(self):
