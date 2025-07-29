@@ -424,7 +424,8 @@ class Process:
         self.finished_event.clear()
 
         # If the user condition says "skip," mark finished and return.
-        if not self.when:
+        run_condition = self.when() if callable(self.when) else self.when
+        if not run_condition:
             self.logger.info(f"Process {self.name} skipped because 'when' condition was not fulfilled!")
             self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
             self.finished_event.set()
