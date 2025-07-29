@@ -11,7 +11,6 @@ import os
 import yaml
 import fnmatch
 import inspect
-from .process import Process
 
 
 def read_variables(file_or_list_or_dir, process_name=None, output_type="var", namespace=None):
@@ -169,6 +168,8 @@ def batch_process_file(
     ... )
 
     """
+    from .process import Process
+
     if not os.path.isdir(directory):
         raise ValueError(f"Invalid directory: {directory}")
 

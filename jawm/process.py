@@ -7,6 +7,7 @@ import signal
 import subprocess
 import time
 import sys
+import re
 from datetime import datetime
 
 # Extend the Process class with methods from modular backend implementations
@@ -611,6 +612,39 @@ class Process:
                             errors.append(shebang_error)
                 except Exception as e:
                     errors.append(f"Could not read script_file to check shebang: {e}")
+
+        # --- Validate unresolved placeholders ---
+        from .jutils import read_variables
+        placeholder_pattern = re.compile(r"\{\{([^}]+)\}\}")
+        combined_vars = self.script_variables.copy() if isinstance(self.script_variables, dict) else {}
+
+        if self.script_variables_file:
+            try:
+                vars_from_file = read_variables(
+                    self.script_variables_file,
+                    process_name=self.name,
+                    output_type="dict"
+                )
+                combined_vars.update(vars_from_file)
+            except Exception as e:
+                warnings.append(f"Failed to load script_variables_file via read_variables()")
+
+        script_source = self.script if self.script else ""
+        if not script_source and self.script_file and os.path.isfile(self.script_file):
+            try:
+                with open(self.script_file, "r") as f:
+                    script_source = f.read()
+            except Exception as e:
+                errors.append(f"Could not read script_file to check placeholders: {e}")
+
+        found_keys = set(placeholder_pattern.findall(script_source))
+
+        for key in found_keys:
+            if key.startswith("JAWM.Process."):
+                continue
+            if key not in combined_vars:
+                warnings.append(f"Unresolved placeholder variables in Process script: {key}")
+
 
         # --- Report Results ---
         for e in errors:
