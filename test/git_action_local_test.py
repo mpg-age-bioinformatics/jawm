@@ -267,6 +267,62 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 12: Validation Logic (Basic vs. Strict)")
+time.sleep(0.5)
+try:
+    # Valid process with minor warning (unknown key) → should pass in basic mode
+    proc12a = Process(
+        name="valid_proc_basic",
+        script="""#!/bin/bash\necho 'Basic test'""",
+        unknown_param="foo",  # not defined
+        validation=True
+    )
+    assert proc12a.is_valid("basic"), "❌ Basic validation failed when it should have passed"
+
+    # Valid process with same unknown param → should still pass in strict mode (logs warning only)
+    proc12b = Process(
+        name="valid_proc_strict",
+        script="""#!/bin/bash\necho 'Strict test'""",
+        unknown_param="foo",
+        validation="strict"
+    )
+    assert not proc12b.is_valid("strict"), "❌ Strict validation incorrectly failed on warning-only input"
+
+    # Invalid process (missing shebang) → should fail in both modes
+    proc12c = Process(
+        name="invalid_proc_strict",
+        script="""echo 'Missing shebang!'""",
+        validation="strict"
+    )
+    assert not proc12c.is_valid("strict"), "❌ Strict validation passed despite missing shebang"
+    assert not proc12c.is_valid("basic"), "❌ Basic validation passed despite missing shebang"
+
+
+    # Callable test → `when` as function is allowed
+    proc12d = Process(
+        name="proc_callable_when",
+        script="#!/bin/bash\necho 'Callable test'",
+        when=lambda: True
+    )
+    assert proc12d.is_valid("strict"), "❌ Callable 'when' incorrectly failed validation"
+
+    # Callable where not allowed (e.g., retries) → should trigger a warning in strict
+    proc12e = Process(
+        name="proc_callable_retries",
+        script="#!/bin/bash\necho 'Invalid callable'",
+        retries=lambda: 3,
+        validation="strict"
+    )
+    assert not proc12e.is_valid("strict"), "❌ Callable retries should not be allowed in strict mode"
+
+    print("✅ Passed: Validation Logic (Basic & Strict Modes)")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+Process.reset_stop()
+
 print("\n===== TEST SUMMARY =====")
 print(f"✅ Passed: {passed}")
 print(f"❌ Failed: {failed}")

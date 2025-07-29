@@ -240,7 +240,7 @@ class Process:
             A one-line or chained shell (bash) command to be executed inside container after the main script ends
 
         validation : bool or str, default=False
-            Whether to check if the Process instance is valid on initiation. Skip the process if a strict validation fails
+            Whether to check if the Process instance is valid on initiation. Skip the process if a `strict` validation fails
 
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
