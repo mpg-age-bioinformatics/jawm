@@ -55,6 +55,46 @@ class Process:
     stop_future_event = threading.Event()
     # Class-level fallback parameters with the lowest priority
     default_parameters = {}
+    # Dictionary of expected parameter types
+    parameter_types = {
+        "name": str,
+        "param_file": (str, list),
+        "script": str,
+        "script_file": str,
+        "script_variables": dict,
+        "script_variables_file": str,
+        "project_directory": str,
+        "logs_directory": str,
+        "error_summary_file": str,
+        "monitoring_directory": str,
+        "depends_on": (str, list),
+        "manager": str,
+        "env": dict,
+        "inputs": dict,
+        "outputs": dict,
+        "retries": int,
+        "retry_overrides": dict,
+        "error_strategy": str,
+        "when": bool,
+        "manager_local": dict,
+        "manager_slurm": dict,
+        "environment": str,
+        "container": str,
+        "environment_apptainer": dict,
+        "environment_docker": dict,
+        "before_script": str,
+        "after_script": str,
+        "container_before_script": str,
+        "container_after_script": str,
+        "run_in_detached": bool
+    }
+    # Set of internal/reserved keys
+    reserved_keys = {
+        "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
+        "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
+        "parameters_directory", "logger"
+    }
+
 
     # Configure logging with proper format
     logging.basicConfig(
@@ -482,6 +522,89 @@ class Process:
         new_params.update(overrides)
 
         return Process(name=name or self.name, param_file=param_file or self.param_file, **new_params)
+
+
+    def is_valid(self, mode="strict"):
+        """
+        Validate the Process configuration.
+
+        - mode (str): basic (fails on errors only) or  strict (fails on both error and warning). Defaults to strict.
+
+        Returns: True if process passes validation, False otherwise.
+        """
+        mode = mode.lower()
+        if mode not in {"basic", "strict"}:
+            self.logger.error(f"is_valid | Unsupported mode: {mode}")
+            return False
+
+        errors = []
+        warnings = []
+
+        # --- Basic required fields ---
+        if not self.name or not isinstance(self.name, str):
+            errors.append("Missing or invalid 'name'")
+
+        if not (self.script and isinstance(self.script, str)) and not (self.script_file and isinstance(self.script_file, str)):
+            errors.append("Either 'script' or 'script_file' must be provided.")
+
+        # --- Check for unknown kwargs ---
+        unknown_keys = set(self.params) - set(self.__init__.__code__.co_varnames) - self.reserved_keys
+
+        if unknown_keys:
+            warnings.append(f"Unrecognized parameters in kwargs: {', '.join(sorted(unknown_keys))}")
+
+        # --- Check for invalid parameter values ---
+        for key, expected in self.parameter_types.items():
+            if key not in self.params:
+                continue
+
+            value = self.params[key]
+
+            # Skip validation for callables
+            if key in {"when"} and callable(value):
+                continue
+
+            expected_types = expected if isinstance(expected, tuple) else (expected,)
+
+            if not isinstance(value, expected_types):
+                type_names = ", ".join(t.__name__ for t in expected_types)
+                warnings.append(f"Parameter '{key}' expected type {type_names}, got {type(value).__name__}")
+
+        # --- Runtime requirements ---
+        if self.manager not in {"local", "slurm"}:
+            errors.append(f"Unsupported manager: {self.manager}")
+
+        if self.script_file and not os.path.isfile(self.script_file):
+            errors.append(f"Script file not found: {self.script_file}")
+
+        # --- Shebang line validation ---
+        shebang_error = "Missing or invalid shebang line (must start with #!) in script or script_file."
+
+        if self.script and isinstance(self.script, str):
+            first_line = self.script.strip().splitlines()[0] if self.script.strip() else ""
+            if not first_line.startswith("#!"):
+                errors.append(shebang_error)
+
+        elif self.script_file and isinstance(self.script_file, str):
+            if os.path.isfile(self.script_file):
+                try:
+                    with open(self.script_file, "r") as f:
+                        first_line = f.readline().strip()
+                        if not first_line.startswith("#!"):
+                            errors.append(shebang_error)
+                except Exception as e:
+                    errors.append(f"Could not read script_file to check shebang: {e}")
+
+        # --- Report Results ---
+        for e in errors:
+            self.logger.error(f"Validation Error: {e}")
+        for w in warnings:
+            self.logger.warning(f"Validation Warning: {w}")
+
+        if errors or (mode == "strict" and warnings):
+            return False
+
+        return True
 
 
     # ----------------------------------------------------------
