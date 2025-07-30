@@ -315,6 +315,25 @@ try:
     )
     assert not proc12e.is_valid("strict"), "❌ Callable retries should not be allowed in strict mode"
 
+    # Placeholder validation: missing {{PLACEHOLDER}} → should warn/fail in strict
+    proc12f = Process(
+        name="proc_placeholder_missing",
+        script="""#!/bin/bash\necho "{{UNDEFINED_VAR}}"\n""",
+        validation="strict"
+    )
+    assert not proc12f.is_valid("strict"), "❌ Strict validation passed despite missing placeholder variable"
+    assert proc12f.is_valid("basic"), "❌ Basic validation failed on missing placeholder (should allow)"
+
+    # Placeholder defined → should pass
+    proc12g = Process(
+        name="proc_placeholder_ok",
+        script="""#!/bin/bash\necho "{{MESSAGE}}"\n""",
+        script_variables={"MESSAGE": "Hello"},
+        validation="strict"
+    )
+    assert proc12g.is_valid("strict"), "❌ Placeholder defined but still failed strict validation"
+
+
     print("✅ Passed: Validation Logic (Basic & Strict Modes)")
     passed += 1
 except Exception as e:

@@ -614,7 +614,7 @@ class Process:
                     errors.append(f"Could not read script_file to check shebang: {e}")
 
         # --- Validate unresolved placeholders ---
-        from .jutils import read_variables
+        from ._utils import read_variables
         placeholder_pattern = re.compile(r"\{\{([^}]+)\}\}")
         combined_vars = self.script_variables.copy() if isinstance(self.script_variables, dict) else {}
 
