@@ -372,6 +372,11 @@ class Process:
                     self.when = False
             else:
                 self.is_valid("basic")
+
+        # Enforce consistency between error_strategy and retries
+        if self.error_strategy == "fail" and self.retries != 0:
+            self.retries = 0
+            self.params["retries"] = 0
     
 
     def _prepare_base_dirs(self):
