@@ -6,5 +6,10 @@ setup(
     packages=find_packages(),
     install_requires=[
         "PyYAML>=5.4.1",
-    ],   
+    ],
+    entry_points={
+        'console_scripts': [
+            'jawm = jawm.cli:main',
+        ],
+    },   
 )
