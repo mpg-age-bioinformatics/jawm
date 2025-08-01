@@ -458,14 +458,14 @@ time.sleep(0.5)
 try:
     # Step 1: Run the original process
     proc15a = Process(
-        name="resume_test_proc1",
+        name="resume_test_proc",
         script="""#!/bin/bash\necho 'Resumable process'""",
         logs_directory="logs_resume_test",
         manager="local",
         resume=True
     )
     proc15a.execute()
-    proc15a.finished_event.wait(timeout=10)
+    Process.wait(proc15a.hash)
 
     assert proc15a.get_exitcode() == "0", "❌ First run did not finish successfully"
 
@@ -473,7 +473,7 @@ try:
     proc15b = proc15a.copy()
     proc15b.execute()
 
-    Process.wait()
+    Process.wait(proc15b.hash)
 
     # Step 3: Confirm resume behavior
     assert proc15b.log_path == proc15a.log_path, "❌ Resume did not use existing log folder"
@@ -486,7 +486,7 @@ try:
 except Exception as e:
     print(f"❌ Failed: {e}")
     failed += 1
-    
+
 
 
 print("\n===== TEST SUMMARY =====")
