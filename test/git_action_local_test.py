@@ -453,6 +453,40 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 15: Resume Skips Execution if Previous Run Succeeded")
+time.sleep(0.5)
+try:
+    # Step 1: Run the original process
+    proc15a = Process(
+        name="resume_test_proc1",
+        script="""#!/bin/bash\necho 'Resumable process'""",
+        logs_directory="logs_resume_test",
+        manager="local",
+        resume=True
+    )
+    proc15a.execute()
+    proc15a.finished_event.wait(timeout=10)
+
+    assert proc15a.get_exitcode() == "0", "❌ First run did not finish successfully"
+
+    # Step 2: Clone the process
+    proc15b = proc15a.copy()
+    proc15b.execute()
+
+    Process.wait()
+
+    # Step 3: Confirm resume behavior
+    assert proc15b.log_path == proc15a.log_path, "❌ Resume did not use existing log folder"
+    assert proc15b.get_exitcode() == "0", "❌ Resume did not resolve to a successful result"
+    assert proc15b.finished_event.is_set(), "❌ Resume process did not mark itself as finished"
+    assert proc15b.execution_end_at is not None, "❌ Resume process was not marked as completed"
+
+    print(f"✅ Passed: Resume correctly skipped execution and reused logs from {os.path.basename(proc15b.log_path)}")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+    
 
 
 print("\n===== TEST SUMMARY =====")
