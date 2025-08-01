@@ -8,6 +8,7 @@ import subprocess
 import time
 import sys
 import re
+import hashlib
 from datetime import datetime
 
 # Extend the Process class with methods from modular backend implementations
@@ -256,8 +257,6 @@ class Process:
         
         # Primary parameters
         self.name = name
-        self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=7))
-        self.logger = logging.getLogger(f"{self.name}|{self.hash}")
         self.param_file = param_file if param_file is not None else self.__class__.default_parameters.get("param_file")
 
         # Build explicitly provided arguments for merging
@@ -272,6 +271,16 @@ class Process:
 
         # Merge in priority order: default_parameters < global < process < kwargs < explicit arguments
         self.params = {**self.__class__.default_parameters, **global_params, **process_params, **kwargs, **explicit_args}
+
+        # Set up the hash (with 6 characters params based and 4 characters suffix) and logger
+        # If there is a callable in the instance, hash_params would produce diffeent hash every time
+        try:
+            hash_params = hashlib.sha256(repr(sorted(self.params.items())).encode()).hexdigest()[:6]
+            hash_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            self.hash = f"{hash_params}{hash_suffix}"
+        except:
+            self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+        self.logger = logging.getLogger(f"{self.name}|{self.hash}")
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
