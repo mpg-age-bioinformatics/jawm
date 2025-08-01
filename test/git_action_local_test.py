@@ -1,6 +1,7 @@
 import os
 import time
 import sys
+import subprocess
 from jawm import Process
 
 passed = 0
@@ -342,8 +343,6 @@ except Exception as e:
 
 Process.reset_stop()
 
-import subprocess
-import shutil
 
 print("\n>>> Test 13: JAWM CLI Integration (workflow execution, -p, -v, fallback, error handling)")
 time.sleep(0.5)
