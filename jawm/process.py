@@ -454,18 +454,19 @@ class Process:
         Returns:
             None
         """
-        # # Create necessary directories
-        # self._prepare_base_dirs()
 
-        # Nake the process active by clearing finished_event in case of instance re-use
+        # Make the process active by clearing finished_event in case of instance re-use
         self.finished_event.clear()
 
         # Skip execution if resume is enabled and a matching successful process already exists
-        if self.resume and self._check_resume_success():
-            self.logger.info(f"Process {self.name} skipped with resume enabled — already completed successfully.")
-            self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-            self.finished_event.set()
-            return
+        if self.resume:
+            matched_path = self._check_resume_success()
+            if matched_path:
+                self.log_path = matched_path  
+                self.logger.info(f"Process {self.name} skipped with resume enabled — already completed successfully.")
+                self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                self.finished_event.set()
+                return
 
         # If the user condition says "skip," mark finished and return.
         run_condition = self.when() if callable(self.when) else self.when

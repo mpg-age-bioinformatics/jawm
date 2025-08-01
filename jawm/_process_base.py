@@ -463,7 +463,7 @@ def _read_log_file(self, filename):
 def _check_resume_success(self):
     """
     Check if a process with the same first 6-digit hash already completed successfully.
-    If found, skip execution.
+    If found, return the successful log path, False otherwise.
     """
     prefix = self.hash[:6]
     if not os.path.isdir(self.logs_directory):
@@ -484,7 +484,7 @@ def _check_resume_success(self):
                     code = f.read().strip()
                     if code == "0" or code.startswith("0:"):
                         self.logger.info(f"Matched process with hash prefix '{prefix}' already finished successfully — logs in ({entry})")
-                        return True
+                        return candidate_path
             except Exception as e:
                 self.logger.warning(f"Resume check failed for {entry}: {e}")
     return False
