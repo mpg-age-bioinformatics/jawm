@@ -545,10 +545,8 @@ class Process:
         new_params = self.params.copy()
 
         # Avoid duplicate keyword arguments
-        if name is not None:
-            new_params.pop("name", None)
-        if param_file is not None:
-            new_params.pop("param_file", None)
+        new_params.pop("name", None)
+        new_params.pop("param_file", None)
 
         # Apply any additional overrides
         new_params.update(overrides)
