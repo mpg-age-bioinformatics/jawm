@@ -1036,9 +1036,12 @@ class Process:
 
         for proc in procs:
             try:
-                proc.logger.info(f"Waiting for process {proc.name} ({proc.hash}) to complete...(triggered by Process.wait)")
-                proc.finished_event.wait()
-                proc.logger.info(f"Waiting for process {proc.name} ({proc.hash}) has completed (triggered by Process.wait)")
+                if proc.finished_event.is_set():
+                    proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] already completed")
+                else:
+                    proc.logger.info(f"Process.wait → Waiting for {proc.name} [{proc.hash}] to complete...")
+                    proc.finished_event.wait()
+                    proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] has completed")
 
                 if allowed_exit != "all":
                     exit_code = proc.get_exitcode()
