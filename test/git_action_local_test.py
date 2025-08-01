@@ -342,6 +342,86 @@ except Exception as e:
 
 Process.reset_stop()
 
+import subprocess
+import shutil
+
+print("\n>>> Test 13: JAWM CLI Integration (workflow execution, -p, -v, fallback, error handling)")
+time.sleep(0.5)
+
+try:
+    # --- Setup test_scripts directory ---
+    os.makedirs("test_scripts", exist_ok=True)
+
+    # 1. Basic script execution with -v
+    with open("test_scripts/main.py", "w") as f:
+        f.write("""#!/usr/bin/env python3
+print("HELLO_FROM_CLI")
+""")
+    with open("test_scripts/test_vars.yaml", "w") as f:
+        f.write("GREETING: 'Hello from variables'")
+
+    result1 = subprocess.run(
+        ["jawm", "test_scripts", "-v", "test_scripts"],
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+    assert result1.returncode == 0, "❌ CLI exited with non-zero status (basic -v)"
+    assert "HELLO_FROM_CLI" in result1.stdout, "❌ Output missing (basic -v)"
+    assert "Injected 1 variable" in result1.stdout or result1.stderr, "❌ Variable injection not logged"
+
+    # 2. Script execution with -p
+    with open("test_scripts/test_params.yaml", "w") as f:
+        f.write("""
+- scope: global
+  logs_directory: test_logs_from_params
+""")
+    result2 = subprocess.run(
+        ["jawm", "test_scripts", "-p", "test_scripts/test_params.yaml"],
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+    assert result2.returncode == 0, "❌ CLI exited with non-zero status (-p)"
+    assert "test_params.yaml" in result2.stdout or result2.stderr, "❌ Parameter file usage not logged"
+
+    # 3. Fallback to current directory (no workflow argument)
+    os.makedirs("test_scripts_current", exist_ok=True)
+    with open("test_scripts_current/main.py", "w") as f:
+        f.write("""#!/usr/bin/env python3
+print("DEFAULT_DIR_TEST")
+""")
+    current_dir = os.getcwd()
+    os.chdir("test_scripts_current")
+    result3 = subprocess.run(
+        ["jawm"],
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+    os.chdir(current_dir)
+    assert result3.returncode == 0, "❌ CLI failed to execute from default dir"
+    assert "DEFAULT_DIR_TEST" in result3.stdout, "❌ Default dir script output missing"
+
+    # 4. Invalid directory should fail cleanly
+    result4 = subprocess.run(
+        ["jawm", "non_existing_folder_123"],
+        capture_output=True,
+        text=True,
+        timeout=10
+    )
+    assert result4.returncode != 0, "❌ CLI should fail on invalid path"
+    assert "Invalid workflow path" in result4.stderr or result4.stdout, "❌ Missing error message on invalid path"
+
+    print("✅ Passed: CLI invocation, variable injection, param loading, fallback, and error handling")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+Process.reset_stop()
+
 print("\n===== TEST SUMMARY =====")
 print(f"✅ Passed: {passed}")
 print(f"❌ Failed: {failed}")
