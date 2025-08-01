@@ -421,6 +421,40 @@ except Exception as e:
 
 Process.reset_stop()
 
+
+print("\n>>> Test 14: Hash Prefix Consistency for Identical Parameters")
+time.sleep(0.5)
+try:
+    proc14a = Process(
+        name="hash_test",
+        script="#!/bin/bash\necho Hello",
+        manager="local",
+        logs_directory="logs_test_hash"
+    )
+
+    proc14b = Process(
+        name="hash_test",
+        script="#!/bin/bash\necho Hello",
+        manager="local",
+        logs_directory="logs_test_hash"
+    )
+
+    prefix_a = proc14a.hash[:6]
+    prefix_b = proc14b.hash[:6]
+
+    assert prefix_a == prefix_b, f"❌ Expected matching hash prefixes, got {prefix_a} and {prefix_b}"
+    assert proc14a.hash != proc14b.hash, f"❌ Full hashes should differ due to random suffix: {proc14a.hash}"
+    assert len(proc14a.hash) == 10 and len(proc14b.hash) == 10, "❌ Hash length should be 10 characters"
+
+    print(f"✅ Passed: Hash prefix match → {prefix_a}")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
+
+
 print("\n===== TEST SUMMARY =====")
 print(f"✅ Passed: {passed}")
 print(f"❌ Failed: {failed}")
