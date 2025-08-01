@@ -89,7 +89,8 @@ class Process:
         "container_before_script": str,
         "container_after_script": str,
         "run_in_detached": bool,
-        "validation": (bool, str)
+        "validation": (bool, str),
+        "resume": bool
     }
     # Set of internal/reserved keys
     reserved_keys = {
@@ -143,6 +144,7 @@ class Process:
         container_before_script=None,
         container_after_script=None,
         validation=None,
+        resume=None,
         **kwargs
     ):
         """
@@ -244,6 +246,9 @@ class Process:
         validation : bool or str, default=False
             Whether to check if the Process instance is valid on initiation. Skip the process if a `strict` validation fails
 
+        resume : bool, default=False  
+            Whether to skip execution if a matching process with the same parameter hash has already completed successfully.
+
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
             and can override YAML-defined values.
@@ -332,6 +337,7 @@ class Process:
         self.after_script = self.params.get("after_script", None)
         self.container_before_script = self.params.get("container_before_script", None)
         self.container_after_script = self.params.get("container_after_script", None)
+        self.resume = self.params.get("resume", False)
 
         # Local execution configurations
         self.manager_local = self.params.get("manager_local", {})
@@ -448,11 +454,18 @@ class Process:
         Returns:
             None
         """
-        # Create necessary directories
-        self._prepare_base_dirs()
+        # # Create necessary directories
+        # self._prepare_base_dirs()
 
         # Nake the process active by clearing finished_event in case of instance re-use
         self.finished_event.clear()
+
+        # Skip execution if resume is enabled and a matching successful process already exists
+        if self.resume and self._check_resume_success():
+            self.logger.info(f"Process {self.name} skipped with resume enabled — already completed successfully.")
+            self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+            self.finished_event.set()
+            return
 
         # If the user condition says "skip," mark finished and return.
         run_condition = self.when() if callable(self.when) else self.when
@@ -461,6 +474,9 @@ class Process:
             self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
             self.finished_event.set()
             return
+
+        # Create necessary directories
+        self._prepare_base_dirs()
 
         # Check if another process has already failed
         if Process.stop_future_event.is_set():

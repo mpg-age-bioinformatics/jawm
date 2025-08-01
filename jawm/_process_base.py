@@ -460,6 +460,37 @@ def _read_log_file(self, filename):
 
 
 @register
+def _check_resume_success(self):
+    """
+    Check if a process with the same first 6-digit hash already completed successfully.
+    If found, skip execution.
+    """
+    prefix = self.hash[:6]
+    if not os.path.isdir(self.logs_directory):
+        return False
+
+    for entry in os.listdir(self.logs_directory):
+        if not entry.startswith(self.name + "_"):
+            continue
+        if prefix not in entry:
+            continue
+
+        candidate_path = os.path.join(self.logs_directory, entry)
+        exitcode_file = os.path.join(candidate_path, f"{self.name}.exitcode")
+
+        if os.path.isfile(exitcode_file):
+            try:
+                with open(exitcode_file, "r") as f:
+                    code = f.read().strip()
+                    if code == "0" or code.startswith("0:"):
+                        self.logger.info(f"Matched process with hash prefix '{prefix}' already finished successfully — logs in ({entry})")
+                        return True
+            except Exception as e:
+                self.logger.warning(f"Resume check failed for {entry}: {e}")
+    return False
+
+
+@register
 def get_id(self, max_wait=3, interval=0.5):
     """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable (default, retrying up to: max_wait=3, interval=0.5)."""
     for _ in range(int(max_wait / interval)):
