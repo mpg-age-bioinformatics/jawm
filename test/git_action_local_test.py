@@ -512,7 +512,7 @@ try:
     )
 
     assert proc16.params.get("retries") == 5, "❌ Override parameter (retries) not applied"
-    assert "logs_override_test" in procX.logs_directory, "❌ logs_directory override not applied"
+    assert "logs_override_test" in proc16.logs_directory, "❌ logs_directory override not applied"
 
     print("✅ Passed: Class-Level Override Parameters")
     passed += 1
