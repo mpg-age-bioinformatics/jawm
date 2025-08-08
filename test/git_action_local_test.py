@@ -344,75 +344,174 @@ except Exception as e:
 Process.reset_stop()
 
 
-print("\n>>> Test 13: JAWM CLI Integration (workflow execution, -p, -v, fallback, error handling)")
+print("\n>>> Test 13: JAWM CLI Integration ")
 time.sleep(0.5)
 
 try:
-    # --- Setup test_scripts directory ---
-    os.makedirs("test_scripts", exist_ok=True)
+    import shutil, sys, tempfile
+    from glob import glob
+    from shutil import which
 
-    # 1. Basic script execution with -v
-    with open("test_scripts/main.py", "w") as f:
-        f.write("""#!/usr/bin/env python3
-print("HELLO_FROM_CLI")
-""")
-    with open("test_scripts/test_vars.yaml", "w") as f:
-        f.write("GREETING: 'Hello from variables'")
+    # Pick how to invoke the CLI: prefer console script, else module
+    def cli_cmd(args):
+        if which("jawm"):
+            return ["jawm", *args]
+        # Fallback to python -m jawm.cli (works without pip-installing console_script)
+        return [sys.executable, "-m", "jawm.cli", *args]
 
-    result1 = subprocess.run(
-        ["jawm", "test_scripts", "-v", "test_scripts"],
-        capture_output=True,
-        text=True,
-        timeout=10
-    )
-    assert result1.returncode == 0, "❌ CLI exited with non-zero status (basic -v)"
-    assert "HELLO_FROM_CLI" in result1.stdout, "❌ Output missing (basic -v)"
-    assert "Injected 1 variable" in result1.stdout or result1.stderr, "❌ Variable injection not logged"
+    def run_cli(args, timeout=60):
+        r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout)
+        both = (r.stdout or "") + (r.stderr or "")
+        return r.returncode, r.stdout, r.stderr, both
 
-    # 2. Script execution with -p
-    with open("test_scripts/test_params.yaml", "w") as f:
-        f.write("""
-- scope: global
-  logs_directory: test_logs_from_params
-""")
-    result2 = subprocess.run(
-        ["jawm", "test_scripts", "-p", "test_scripts/test_params.yaml"],
-        capture_output=True,
-        text=True,
-        timeout=10
-    )
-    assert result2.returncode == 0, "❌ CLI exited with non-zero status (-p)"
-    assert "test_params.yaml" in result2.stdout or result2.stderr, "❌ Parameter file usage not logged"
+    # Use a temporary working directory to avoid collisions on CI
+    with tempfile.TemporaryDirectory(prefix="cli_it_") as root:
 
-    # 3. Fallback to current directory (no workflow argument)
-    os.makedirs("test_scripts_current", exist_ok=True)
-    with open("test_scripts_current/main.py", "w") as f:
-        f.write("""#!/usr/bin/env python3
-print("DEFAULT_DIR_TEST")
-""")
-    current_dir = os.getcwd()
-    os.chdir("test_scripts_current")
-    result3 = subprocess.run(
-        ["jawm"],
-        capture_output=True,
-        text=True,
-        timeout=10
-    )
-    os.chdir(current_dir)
-    assert result3.returncode == 0, "❌ CLI failed to execute from default dir"
-    assert "DEFAULT_DIR_TEST" in result3.stdout, "❌ Default dir script output missing"
+        # -------------------------
+        # A) -v: variables from YAML FILE
+        # -------------------------
+        a_dir = os.path.join(root, "vars_yaml_file")
+        os.makedirs(a_dir, exist_ok=True)
+        with open(os.path.join(a_dir, "main.py"), "w") as f:
+            f.write("print('GREETING=', GREETING); print('X=', X)\n")
+        with open(os.path.join(a_dir, "vars.yaml"), "w") as f:
+            f.write("GREETING: 'HiFromYAML'\nX: 42\n")
+        rc, out, err, both = run_cli([a_dir, "-v", os.path.join(a_dir, "vars.yaml")])
+        assert rc == 0, "❌ CLI failed for -v YAML file"
+        assert "GREETING= HiFromYAML" in both and "X= 42" in both, "❌ YAML variables not injected"
 
-    # 4. Invalid directory should fail cleanly
-    result4 = subprocess.run(
-        ["jawm", "non_existing_folder_123"],
-        capture_output=True,
-        text=True,
-        timeout=10
-    )
-    assert result4.returncode != 0, "❌ CLI should fail on invalid path"
-    assert "Invalid workflow path" in result4.stderr or result4.stdout, "❌ Missing error message on invalid path"
+        # -------------------------
+        # B) -v: variables from YAML DIRECTORY (merges multiple files)
+        # -------------------------
+        b_dir = os.path.join(root, "vars_yaml_dir")
+        os.makedirs(b_dir, exist_ok=True)
+        with open(os.path.join(b_dir, "main.py"), "w") as f:
+            f.write("print('A=', A); print('B=', B)\n")
+        with open(os.path.join(b_dir, "one.yaml"), "w") as f:
+            f.write("A: 'from_dir_1'\n")
+        with open(os.path.join(b_dir, "two.yml"), "w") as f:
+            f.write("B: 'from_dir_2'\n")
+        rc, out, err, both = run_cli([b_dir, "-v", b_dir])
+        assert rc == 0, "❌ CLI failed for -v YAML directory"
+        assert "A= from_dir_1" in both and "B= from_dir_2" in both, "❌ YAML directory variables not injected"
 
-    print("✅ Passed: CLI invocation, variable injection, param loading, fallback, and error handling")
+        # -------------------------
+        # C) -v: variables from .rc FILE
+        # -------------------------
+        c_dir = os.path.join(root, "vars_rc")
+        os.makedirs(c_dir, exist_ok=True)
+        with open(os.path.join(c_dir, "main.py"), "w") as f:
+            f.write("print('HELLO=', HELLO); print('NUM=', NUM)\n")
+        with open(os.path.join(c_dir, "vars.rc"), "w") as f:
+            f.write('HELLO="rc_hello"\nNUM=7\n')
+        rc, out, err, both = run_cli([c_dir, "-v", os.path.join(c_dir, "vars.rc")])
+        assert rc == 0, "❌ CLI failed for -v .rc file"
+        assert "HELLO= rc_hello" in both and "NUM= 7" in both, "❌ .rc variables not injected"
+
+        # -------------------------
+        # D) -p: parameter file affects Process config (e.g., logs_directory)
+        # -------------------------
+        d_dir = os.path.join(root, "params_file")
+        os.makedirs(d_dir, exist_ok=True)
+        with open(os.path.join(d_dir, "main.py"), "w") as f:
+            f.write(
+                "from jawm import Process\n"
+                "p = Process(name='cli_p_test', script='#!/bin/bash\\necho hi')\n"
+                "print('PROC_LOG_DIR=', p.logs_directory)\n"
+            )
+        with open(os.path.join(d_dir, "params.yaml"), "w") as f:
+            f.write(
+                "- scope: global\n"
+                "  logs_directory: test_logs_from_params_cli\n"
+            )
+        rc, out, err, both = run_cli([d_dir, "-p", os.path.join(d_dir, "params.yaml")])
+        assert rc == 0, "❌ CLI failed for -p"
+        assert "PROC_LOG_DIR=" in both and "test_logs_from_params_cli" in both, "❌ -p did not influence Process.logs_directory"
+
+        # -------------------------
+        # E) --logs_directory: creates CLI run log under <dir>/jawm_cli_runs/
+        # -------------------------
+        e_dir = os.path.join(root, "logs_dir_check")
+        os.makedirs(e_dir, exist_ok=True)
+        with open(os.path.join(e_dir, "main.py"), "w") as f:
+            f.write("print('JUST_RUN')\n")
+        custom_logs = os.path.join(root, "custom_cli_logs")
+        rc, out, err, both = run_cli([e_dir, "-l", custom_logs])
+        assert rc == 0, "❌ CLI failed with --logs_directory"
+        runs_dir = os.path.join(custom_logs, "jawm_cli_runs")
+        assert os.path.isdir(runs_dir), "❌ CLI did not create <logs_directory>/jawm_cli_runs"
+        log_files = glob(os.path.join(runs_dir, "*.log"))
+        assert log_files, "❌ No CLI run log file created in logs directory"
+
+        # -------------------------
+        # F) -r / --resume: accepted and doesn’t crash (don’t assert on wording)
+        # -------------------------
+        f_dir = os.path.join(root, "resume_flag")
+        os.makedirs(f_dir, exist_ok=True)
+        with open(os.path.join(f_dir, "main.py"), "w") as f:
+            f.write("print('RESUME_TEST_RUN')\n")
+        rc, out, err, both = run_cli([f_dir, "-r"])
+        assert rc == 0 and "RESUME_TEST_RUN" in both, "❌ CLI failed with -r"
+
+        # Also accept no-override flag spelling & short form (-n)
+        rc, out, err, both = run_cli([f_dir, "-r", "--no-override"])
+        assert rc == 0, "❌ CLI failed with --no-override"
+        rc, out, err, both = run_cli([f_dir, "-r", "-n", "resume"])
+        assert rc == 0, "❌ CLI failed with -n resume"
+
+        # -------------------------
+        # G) Path resolution: jawm.py preferred over main.py
+        # -------------------------
+        g_dir = os.path.join(root, "prefer_jawm_py")
+        os.makedirs(g_dir, exist_ok=True)
+        with open(os.path.join(g_dir, "main.py"), "w") as f:
+            f.write("print('RUN_MAIN')\n")
+        with open(os.path.join(g_dir, "jawm.py"), "w") as f:
+            f.write("print('RUN_JAWM')\n")
+        rc, out, err, both = run_cli([g_dir])
+        assert rc == 0 and "RUN_JAWM" in both and "RUN_MAIN" not in both, "❌ Did not prefer jawm.py over main.py"
+
+        # -------------------------
+        # H) Path resolution: directory with single .py (not main/jawm)
+        # -------------------------
+        h_dir = os.path.join(root, "single_py")
+        os.makedirs(h_dir, exist_ok=True)
+        with open(os.path.join(h_dir, "only.py"), "w") as f:
+            f.write("print('RUN_ONLY')\n")
+        rc, out, err, both = run_cli([h_dir])
+        assert rc == 0 and "RUN_ONLY" in both, "❌ Did not execute single .py in directory"
+
+        # -------------------------
+        # I) Path resolution: multiple .py without main/jawm → should error
+        # -------------------------
+        i_dir = os.path.join(root, "multiple_py_error")
+        os.makedirs(i_dir, exist_ok=True)
+        with open(os.path.join(i_dir, "a.py"), "w") as f:
+            f.write("print('A')\n")
+        with open(os.path.join(i_dir, "b.py"), "w") as f:
+            f.write("print('B')\n")
+        rc, out, err, both = run_cli([i_dir])
+        assert rc != 0, "❌ CLI should fail for directory with multiple .py and no main/jawm"
+
+        # -------------------------
+        # J) Direct .py path works
+        # -------------------------
+        j_dir = os.path.join(root, "direct_py")
+        os.makedirs(j_dir, exist_ok=True)
+        target_py = os.path.join(j_dir, "script.py")
+        with open(target_py, "w") as f:
+            f.write("print('RUN_DIRECT')\n")
+        rc, out, err, both = run_cli([target_py])
+        assert rc == 0 and "RUN_DIRECT" in both, "❌ Did not execute direct .py path"
+
+        # -------------------------
+        # K) Invalid path → clean error (don’t rely on exact wording)
+        # -------------------------
+        missing = os.path.join(root, "definitely_not_here_12345")
+        rc, out, err, both = run_cli([missing])
+        assert rc != 0, "❌ CLI should fail on invalid path"
+
+    print("✅ Passed: CLI options & path resolution")
     passed += 1
 
 except Exception as e:
