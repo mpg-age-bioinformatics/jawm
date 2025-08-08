@@ -488,6 +488,44 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 16: Class-Level Overrides with `set_override()`")
+time.sleep(0.5)
+try:
+    # Clear any defaults/overrides first
+    Process.default_parameters.clear()
+    Process.override_parameters.clear()
+
+    # Set a default first
+    Process.set_default(retries=1, logs_directory="logs_default_override")
+
+    # Now set an override that should win over defaults and instance args
+    Process.set_override(retries=5, logs_directory="logs_override_test")
+
+    # Even if we pass retries=2 in constructor, override should still win
+    proc16 = Process(
+        name="override_param_proc",
+        script="""#!/bin/bash
+    echo 'Check override retries'
+    """,
+        retries=2,
+        logs_directory="logs_should_be_overridden"
+    )
+
+    assert proc16.params.get("retries") == 5, "❌ Override parameter (retries) not applied"
+    assert "logs_override_test" in procX.logs_directory, "❌ logs_directory override not applied"
+
+    print("✅ Passed: Class-Level Override Parameters")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    # Cleanup overrides for other tests
+    Process.override_parameters.clear()
+    Process.default_parameters.clear()
+
+
+
 
 print("\n===== TEST SUMMARY =====")
 print(f"✅ Passed: {passed}")
