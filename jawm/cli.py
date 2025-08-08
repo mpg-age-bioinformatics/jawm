@@ -15,6 +15,7 @@ def main():
     parser.add_argument("-v", "--variables", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the workflow script.")
     parser.add_argument("-l", "--logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_cli_runs (default: ./logs/jawm_cli_runs).")
     parser.add_argument("-r", "--resume", default=None, help="Resume mode: skip executing already successfully completed processes.")
+    parser.add_argument("--no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
 
     args = parser.parse_args()
 
@@ -49,17 +50,29 @@ def main():
     logger.info("Initiating JAWM workflow script from jawm command")
     logger.info(f"Logging terminal output to: {cli_log_file}")
 
-    # --- Import Process and set defaults ---
+    # --- Import Process and set defaults or overrides ---
     from jawm import Process
+
+    no_override_params = (
+        ["ALL"] if args.no_override and args.no_override.strip().upper() == "ALL"
+        else [p.strip() for p in args.no_override.split(",") if p.strip()] if args.no_override else []
+    )
+
+    def _apply_param(key, value):
+        """Helper to decide whether to use set_default or set_override."""
+        if "ALL" in no_override_params or key in no_override_params:
+            Process.set_default(**{key: value})
+            logger.info(f"Default {key} set to: {value}")
+        else:
+            Process.set_override(**{key: value})
+            logger.info(f"Override {key} set to: {value}")
+
     if args.parameters:
-        Process.set_default(param_file=args.parameters)
-        logger.info(f"Default param_file set to: {args.parameters}")
+        _apply_param("param_file", args.parameters)
     if args.logs_directory:
-        Process.set_default(logs_directory=args.logs_directory)
-        logger.info(f"Default logs_directory set to: {args.logs_directory}")
+        _apply_param("logs_directory", args.logs_directory)
     if args.resume:
-        Process.set_default(resume=True)
-        logger.info("Default resume set to: True")
+        _apply_param("resume", True)
 
     # --- Load and inject variables into script namespace ---
     exec_namespace = {}
