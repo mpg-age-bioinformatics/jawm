@@ -938,9 +938,10 @@ class Process:
             print(f"  - {pid}")
         
         if failed:
-            print(f"\nFailed to kill: {len(failed)}")
+            print(f"\nFailed to kill (may not executed yet): {len(failed)}")
             for pid in failed:
                 print(f"  - {pid}")
+            print("\n")
         
         return {
             "killed": killed,
