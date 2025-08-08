@@ -49,6 +49,9 @@ class Process:
     default_parameters (dict):
         Class-level fallback parameters with the lowest priority.
 
+    override_parameters (dict):
+        Class-level parameters with the highest priority that overrides other values.
+
     """
 
     # Global registry to map process names to process instances.
@@ -57,6 +60,8 @@ class Process:
     stop_future_event = threading.Event()
     # Class-level fallback parameters with the lowest priority
     default_parameters = {}
+    # Class-level parameters with the highest priority that overrides other values
+    override_parameters = {}
     # Dictionary of expected parameter types
     parameter_types = {
         "name": str,
@@ -262,7 +267,7 @@ class Process:
         
         # Primary parameters
         self.name = name
-        self.param_file = param_file if param_file is not None else self.__class__.default_parameters.get("param_file")
+        self.param_file = self.__class__.override_parameters.get("param_file") or param_file or self.__class__.default_parameters.get("param_file")
 
         # Build explicitly provided arguments for merging
         explicit_args = {k: v for k, v in locals().items() if k not in {"self", "kwargs"} and v is not None} 
@@ -274,8 +279,8 @@ class Process:
         process_params = yaml_params["process"].get(name, {})
         global_params = yaml_params["global"]
 
-        # Merge in priority order: default_parameters < global < process < kwargs < explicit arguments
-        self.params = {**self.__class__.default_parameters, **global_params, **process_params, **kwargs, **explicit_args}
+        # Merge in priority order: default_parameters < global < process < kwargs < explicit arguments < override_parameters
+        self.params = {**self.__class__.default_parameters, **global_params, **process_params, **kwargs, **explicit_args, **self.__class__.override_parameters}
 
         # Set up the hash (with 6 characters params based and 4 characters suffix) and logger
         # If there is a callable in the instance, hash_params would produce diffeent hash every time
@@ -701,7 +706,29 @@ class Process:
         Example:
             Process.set_default(manager="local", retries=2)
         """
-        cls.default_parameters.update(kwargs)
+        filtered_kwargs = {
+            k: v for k, v in kwargs.items()
+            if k != "name" and k not in cls.reserved_keys
+        }
+        cls.default_parameters.update(filtered_kwargs)
+
+
+    @classmethod
+    def set_override(cls, **kwargs):
+        """
+        Set one or more overrides at the class level that win over everything else for all Process instances.
+
+        These overrides are applied with the **highest priority**.
+
+        Example:
+            Process.set_override(manager="local", retries=2)
+        """
+        filtered_kwargs = {
+            k: v for k, v in kwargs.items()
+            if k != "name" and k not in cls.reserved_keys
+        }
+        cls.override_parameters.update(filtered_kwargs)
+
 
     
     @classmethod
