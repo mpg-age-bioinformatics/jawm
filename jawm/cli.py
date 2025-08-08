@@ -14,8 +14,8 @@ def main():
     parser.add_argument("-p", "--parameters", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
     parser.add_argument("-v", "--variables", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the workflow script.")
     parser.add_argument("-l", "--logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_cli_runs (default: ./logs/jawm_cli_runs).")
-    parser.add_argument("-r", "--resume", default=None, help="Resume mode: skip executing already successfully completed processes.")
-    parser.add_argument("--no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
+    parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
+    parser.add_argument("-n", "--no-override", "--no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
 
     args = parser.parse_args()
 
@@ -71,7 +71,7 @@ def main():
         _apply_param("param_file", args.parameters)
     if args.logs_directory:
         _apply_param("logs_directory", args.logs_directory)
-    if args.resume:
+    if args.resume is not None:
         _apply_param("resume", True)
 
     # --- Load and inject variables into script namespace ---
