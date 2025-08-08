@@ -4,7 +4,58 @@ import sys
 import os
 import logging
 import datetime
-import contextlib
+import io
+import atexit
+import threading
+
+def _start_global_tee(path, mode="a"):
+    """
+    Mirror everything written to sys.stdout and sys.stderr to the given file,
+    while still showing it on the real terminal. Lives until process exit.
+    """
+    f = open(path, mode, buffering=1, encoding="utf-8")  # line-buffered
+
+    class _Tee(io.TextIOBase):
+        def __init__(self, stream, file_obj, lock=None):
+            self.stream = stream
+            self.file = file_obj
+            self.lock = lock or threading.Lock()
+        def write(self, data):
+            # write to both console and file atomically to preserve ordering
+            with self.lock:
+                self.stream.write(data)
+                self.stream.flush()
+                self.file.write(data)
+                self.file.flush()
+            return len(data)
+        def flush(self):
+            with self.lock:
+                self.stream.flush()
+                self.file.flush()
+        def isatty(self):
+            # preserve TTY semantics for libraries that check this
+            return getattr(self.stream, "isatty", lambda: False)()
+
+    lock = threading.Lock()
+    # Redirect program-visible stdio to Tee that writes to the real console and the file
+    sys.stdout = _Tee(sys.__stdout__, f, lock)
+    sys.stderr = _Tee(sys.__stderr__, f, lock)
+
+    # Make sure unhandled exceptions in threads are printed to stderr (captured by tee)
+    def _thread_excepthook(args):
+        import traceback
+        traceback.print_exception(args.exc_type, args.exc_value, args.exc_traceback)
+    threading.excepthook = _thread_excepthook
+
+    @atexit.register
+    def _cleanup():
+        # flush & restore real stdio so other atexit handlers behave
+        try:
+            sys.stdout.flush(); sys.stderr.flush()
+        finally:
+            sys.stdout = sys.__stdout__
+            sys.stderr = sys.__stderr__
+            f.close()
 
 
 def main():
@@ -29,23 +80,22 @@ def main():
     os.makedirs(run_logs_dir, exist_ok=True)
     cli_log_file = os.path.join(run_logs_dir, f"{workflow_label}_{timestamp}.log")
 
-    # --- Setup logging to terminal and file ---
-    log_formatter = logging.Formatter("[%(asctime)s] - %(levelname)s - %(name)s :: %(message)s", "%Y-%m-%d %H:%M:%S")
+    # --- Start global tee BEFORE any prints/logging so we catch everything ---
+    _start_global_tee(cli_log_file, mode="w")
+
+    # --- Configure logging: stream ONLY (to sys.stdout which is tee'd), no FileHandler needed ---
+    log_formatter = logging.Formatter(
+        "[%(asctime)s] - %(levelname)s - %(name)s :: %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    )
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
     root_logger.handlers.clear()
 
-    # Terminal output
-    console_handler = logging.StreamHandler(sys.__stdout__)
+    console_handler = logging.StreamHandler(sys.stdout)  # goes through tee
     console_handler.setFormatter(log_formatter)
     root_logger.addHandler(console_handler)
 
-    # Log file output
-    file_handler = logging.FileHandler(cli_log_file, mode="w")
-    file_handler.setFormatter(log_formatter)
-    root_logger.addHandler(file_handler)
-
-    # CLI logger
     logger = logging.getLogger(f"jawm.cli|{workflow_label}")
     logger.info("Initiating JAWM workflow script from jawm command")
     logger.info(f"Logging terminal output to: {cli_log_file}")
@@ -112,6 +162,5 @@ def main():
     except Exception as e:
         logger.error(f"Failed to execute workflow script:\n{e}")
         sys.exit(1)
-
-    logger.info("Ending JAWM workflow script from jawm command")
-
+    finally:
+        logger.info("Ending JAWM workflow script from jawm command")
