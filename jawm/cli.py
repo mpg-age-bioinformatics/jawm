@@ -134,7 +134,7 @@ def main():
             logger.info(f"Injected {len(injected_vars)} variable(s) from: {args.variables}")
         except Exception as e:
             logger.error(f"Failed to load variables from {args.variables} — {e}")
-            sys.exit(1)
+            sys.exit(2)
 
     # --- Resolve workflow path ---
     source_path = os.path.abspath(args.workflow)
@@ -150,10 +150,10 @@ def main():
             workflow_path = os.path.join(source_path, py_files[0])
         else:
             logger.error(f"Directory {source_path} must contain only one .py file or a main.py")
-            sys.exit(1)
+            sys.exit(2)
     else:
         logger.error(f"Invalid workflow path: {source_path}")
-        sys.exit(1)
+        sys.exit(2)
 
     # --- Run the workflow script ---
     try:
