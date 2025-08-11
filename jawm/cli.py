@@ -8,6 +8,21 @@ import io
 import atexit
 import threading
 
+
+# --- Version detection (module scope) ---
+try:
+    from importlib import metadata as md  # py>=3.8
+except Exception:
+    import importlib_metadata as md
+
+_PKG_NAME = (__package__ or "jawm").split(".")[0]
+
+try:
+    _VERSION = md.version(_PKG_NAME)
+except md.PackageNotFoundError:
+    _VERSION = "dev"  
+
+
 def _start_global_tee(path, mode="a"):
     """
     Mirror everything written to sys.stdout and sys.stderr to the given file,
@@ -35,6 +50,17 @@ def _start_global_tee(path, mode="a"):
         def isatty(self):
             # preserve TTY semantics for libraries that check this
             return getattr(self.stream, "isatty", lambda: False)()
+
+        def writable(self):
+            return True
+
+        def fileno(self):
+            # some libs probe fileno(); prefer the real stream,
+            # fall back to the logfile if needed
+            try:
+                return self.stream.fileno()
+            except Exception:
+                return self.file.fileno()
 
     lock = threading.Lock()
     # Redirect program-visible stdio to Tee that writes to the real console and the file
@@ -64,9 +90,10 @@ def main():
     parser.add_argument("workflow", nargs="?", default=".", help="Path to a jawm Python script or directory containing the jawm workflow script with single .py or main.py (default: current directory)")
     parser.add_argument("-p", "--parameters", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
     parser.add_argument("-v", "--variables", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the workflow script.")
-    parser.add_argument("-l", "--logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_cli_runs (default: ./logs/jawm_cli_runs).")
+    parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_cli_runs (default: ./logs/jawm_cli_runs).")
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
-    parser.add_argument("-n", "--no-override", "--no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
+    parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
+    parser.add_argument("-V", "--version", action="version", version=f"JAWM {_VERSION}")
 
     args = parser.parse_args()
 
@@ -159,8 +186,8 @@ def main():
     try:
         logger.info(f"Running workflow: {workflow_path}")
         runpy.run_path(workflow_path, run_name="__main__", init_globals=exec_namespace)
-    except Exception as e:
-        logger.error(f"Failed to execute workflow script:\n{e}")
+    except Exception:
+        logger.exception("Failed to execute workflow script")
         sys.exit(1)
     finally:
         logger.info("Ending JAWM workflow script from jawm command")
