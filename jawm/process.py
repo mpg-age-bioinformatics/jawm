@@ -397,37 +397,12 @@ class Process:
         if self.error_strategy == "fail" and self.retries != 0:
             self.retries = 0
             self.params["retries"] = 0
+
+
+    # ----------------------------------------------------------
+    #   Process instance specific publicly useable methods
+    # ----------------------------------------------------------
     
-
-    def _prepare_base_dirs(self):
-        """
-        Prepare/create necessary file and folder, should be called in execution
-        """
-        os.makedirs(self.project_directory, exist_ok=True)
-        os.makedirs(self.logs_directory, exist_ok=True)
-        try:
-            os.makedirs(self.monitoring_directory, exist_ok=True) if self.monitoring_directory is not None else None
-            self.running_directory, self.completed_directory = (os.path.join(self.monitoring_directory, 'Running'), os.path.join(self.monitoring_directory, 'Completed')) if self.monitoring_directory else (None, None)
-            if self.monitoring_directory: os.makedirs(self.running_directory, exist_ok=True); os.makedirs(self.completed_directory, exist_ok=True)
-        except Exception as e:
-            self.logger.warning(f"Monitoring directory issue: {str(e)}")
-            self.monitoring_directory = None
-        os.makedirs(self.log_path, exist_ok=True)
-
-        
-    def _run_manager(self):
-        """
-        A helper to choose between different manager execution
-        """
-        if self.manager == "local":
-            self._execute_local()
-        elif self.manager == "slurm":
-            self._execute_slurm()
-        else:
-            self._log_error_summary(f"Unsupported manager: {self.manager}")
-            Process.stop_future_event.set()
-            raise ValueError(f"Unsupported manager: {self.manager}")
-
 
     def execute(self):
         """
@@ -690,6 +665,50 @@ class Process:
             return False
 
         return True
+
+    
+    def get_id(self, max_wait=3, interval=0.5):
+        """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable (default, retrying up to: max_wait=3, interval=0.5)."""
+        for _ in range(int(max_wait / interval)):
+            if (val := self._read_log_file(f"{self.name}.id")):
+                return val
+            time.sleep(interval)
+        return None
+
+
+    def get_output(self):
+        """Return the content of the process .output file, or None if unavailable."""
+        return self._read_log_file(f"{self.name}.output")
+
+
+    def get_error(self):
+        """Return the content of the process .error file, or None if unavailable."""
+        return self._read_log_file(f"{self.name}.error")
+
+
+    def get_exitcode(self):
+        """Return the content of the process .exitcode file, or None if unavailable."""
+        return self._read_log_file(f"{self.name}.exitcode")
+
+
+    def get_command(self):
+        """Return the content of the process .command file, or None if unavailable."""
+        return self._read_log_file(f"{self.name}.command")
+
+
+    def get_script(self):
+        """Return the content of the process .script file, or None if unavailable."""
+        return self._read_log_file(f"{self.name}.script")
+
+
+    def get_slurm(self):
+        """Return the content of the process .slurm file containing slurm commands, or None if unavailable."""
+        return self._read_log_file(f"{self.name}.slurm")
+
+
+    def is_finished(self):
+        """Return True or False based on whether the Process has finished or not"""
+        return self.finished_event.is_set()
 
 
     # ----------------------------------------------------------
