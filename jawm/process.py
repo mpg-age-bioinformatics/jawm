@@ -996,8 +996,8 @@ class Process:
         def _on_sigint(sig, frame):
             print("\nCtrl+C detected — terminating running JAWM jobs...")
             cls.kill_all()
-            time.sleep(10)
-            sys.exit(1)
+            time.sleep(3)
+            sys.exit(130)
 
         signal.signal(signal.SIGINT, _on_sigint)
 
