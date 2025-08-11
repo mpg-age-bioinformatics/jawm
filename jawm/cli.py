@@ -7,6 +7,7 @@ import datetime
 import io
 import atexit
 import threading
+import time
 
 
 # --- Version detection (module scope) ---
@@ -186,6 +187,15 @@ def main():
     try:
         logger.info(f"Running workflow: {workflow_path}")
         runpy.run_path(workflow_path, run_name="__main__", init_globals=exec_namespace)
+        # Wait for process to fully end and cleaned up
+        deadline = time.time() + 120
+        while Process.list_monitoring_threads():
+            if time.time() >= deadline:
+                logger.warning("Timed out after 2 minutes waiting for processes to finish/clean up; CLOSING ANYWAY!")
+                break
+            time.sleep(1)
+    except SystemExit:
+        raise
     except Exception:
         logger.exception("Failed to execute workflow script")
         sys.exit(1)
