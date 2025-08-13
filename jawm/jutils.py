@@ -11,11 +11,16 @@ import os
 import yaml
 import fnmatch
 import inspect
+from pathlib import Path
 from ._utils import read_variables
 
 
-__all__ = ["read_variables", "batch_process_file"]
+__all__ = ["read_variables", "batch_process_file", "script_to_yaml"]
 
+
+# ------------------------------------------------------------
+#   Create (and/or execute) a Process per file in a directory
+# ------------------------------------------------------------
 
 def batch_process_file(
     directory,
@@ -130,3 +135,155 @@ def batch_process_file(
             proc.execute()
 
     return processes
+
+
+# ------------------------------------------------------------
+#   Convert a script into a JAWM parameter YAML entry
+# ------------------------------------------------------------
+
+def script_to_yaml(
+    script_path=None,
+    *,
+    script_text=None,
+    name=None,
+    output_file=None,
+    inline=True,
+    shebang=True,
+    language=None,
+    scope="process",
+    **kwargs
+):
+    """
+    Convert a Python/R/Shell script into a JAWM parameter YAML entry.
+
+    By default, the script is embedded inline as a literal block (script: | …)
+    with proper indentation so you can use the result directly as a param_file.
+
+    Args:
+        script_path: Path to a script file (.py, .R, .sh, .bash, .zsh, …).
+        script_text: Raw script text (use when you don't have a file).
+        name: Process name to use; defaults to the file's basename without extension,
+              or "script_process" if only script_text is provided.
+        output_file: If set, write the YAML to this path and return the path.
+        inline: If True (default), embed the script under `script: |`.
+                If False, use `script_file: <path>` (requires script_path).
+        shebang: If True (default) ensure/insert a shebang inferred from file
+                 extension or `language`. If a string (e.g. "#!/usr/bin/env python3"
+                 or "python3"), use it as the shebang (override or insert).
+                 If False, do nothing.
+        language: Infer the shebang if extension is ambiguous or shebang is not provided.
+        scope: YAML scope, default "process".
+        **kwargs: Can pass any other jawm Process parameters as well (e.g. manager="local")
+
+    Returns:
+        The YAML string (unless output_file is set, in which case the output path).
+
+    Examples:
+        >>> # Inline YAML from a file
+        >>> yaml_text = jutils.script_to_yaml("scripts/hello.py")
+
+        >>> # Write YAML to a file
+        >>> jutils.script_to_yaml("scripts/run.sh", output_file="params/run.yaml")
+
+        >>> # Reference script_file instead of embedding the script
+        >>> jutils.script_to_yaml("scripts/run.sh", inline=False)
+
+        >>> # From raw text (force python shebang)
+        >>> jutils.script_to_yaml(script_text="print('hi')\\n", name="hello_py", language="python")
+    """
+
+    # --- ensure literal block style '|' for script ---------------------------
+    class _LiteralString(str):
+        pass
+
+    def _literal_representer(dumper, data):
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+
+    yaml.add_representer(_LiteralString, _literal_representer)
+
+    if not (script_path or script_text):
+        raise ValueError("Provide either script_path or script_text")
+
+    ext = None
+    if script_path:
+        p = Path(script_path)
+        if not p.exists():
+            raise FileNotFoundError(f"Script not found: {script_path}")
+        if name is None:
+            name = p.stem
+        script_text = p.read_text()
+        ext = p.suffix.lower()
+    else:
+        if name is None:
+            name = "script_process"
+
+    def _apply_shebang(text, ext, lang, shebang):
+        if shebang is False or not text:
+            return text
+        # If a custom shebang string is provided, normalize it.
+        if isinstance(shebang, str) and shebang.strip():
+            sb = shebang.strip()
+            if not sb.startswith("#!"):
+                if "/" in sb or sb.startswith(("usr", "bin", "env ")):
+                    sb = ("#!" if sb.startswith("/") else "#!/") + sb
+                else:
+                    sb = "#!/usr/bin/env " + sb
+        else:
+            # shebang=True -> infer from extension/language
+            lang = (lang or "").lower()
+            if lang in ("python", "python3", "py") or ext == ".py":
+                sb = "#!/usr/bin/env python3"
+            elif lang in ("r", "rscript") or ext in (".r",):
+                sb = "#!/usr/bin/env Rscript"
+            elif lang in ("zsh",) or ext == ".zsh":
+                sb = "#!/usr/bin/env zsh"
+            elif lang in ("bash",) or ext in (".sh", ".bash"):
+                sb = "#!/bin/bash"
+            else:
+                sb = "#!/bin/bash"
+        lines = text.split("\n")
+        if lines and lines[0].startswith("#!"):
+            lines[0] = sb
+        else:
+            lines.insert(0, sb)
+        return "\n".join(lines)
+
+    # normalize newlines and ensure shebang if requested
+    script_text = (script_text or "").replace("\r\n", "\n").replace("\r", "\n")
+    script_text = _apply_shebang(script_text, ext, language, shebang)
+
+    entry = {"scope": scope, "name": name}
+    # merge arbitrary user params like logs_directory="logsd", manager="local", etc.
+    if kwargs:
+        forbidden = {"script", "script_file"}
+        bad = forbidden.intersection(kwargs)
+        if bad:
+            raise ValueError(f"These keys are reserved and cannot be set: {sorted(bad)}")
+        entry.update(kwargs)
+
+    if inline:
+        # ensure trailing newline inside the block for cleaner diffs
+        entry["script"] = _LiteralString(script_text.rstrip("\n") + "\n")
+    else:
+        if not script_path:
+            raise ValueError("inline=False requires script_path (to set script_file)")
+        entry["script_file"] = str(Path(script_path))
+
+    yaml_obj = [entry]
+    yaml_str = yaml.dump(
+        yaml_obj,
+        sort_keys=False,
+        default_flow_style=False,
+        indent=2,
+        width=4096,
+        allow_unicode=True,
+    )
+
+    if output_file:
+        outp = Path(output_file)
+        outp.parent.mkdir(parents=True, exist_ok=True)
+        outp.write_text(yaml_str)
+        return str(outp)
+
+    return yaml_str
+
