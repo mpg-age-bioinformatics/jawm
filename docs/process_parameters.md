@@ -1,5 +1,9 @@
 # Process Parameters Reference
 
+
+> This reference reflects the current JAWM `Process` parameters and defaults. Values are merged in this order (lowest → highest): class `default_parameters` < YAML `global` < YAML process block < `**kwargs` < explicit args < class `override_parameters`.
+
+
 ### `name`
 
 - **Category**: `parameter`
@@ -24,51 +28,26 @@ name: "my_process"
 ### `hash`
 
 - **Category**: `parameter`
-- **Type**: `str`
+- **Type**: `str` (read-only)
 
-A generated 7 digit hash. Used to identify and track process executions.
-
-_**Note**_: Process hash would be generated automatically when a Process initiated. User doesn't need to provide any value.
-
+A generated **10-character** identifier used to track executions: the first **6** characters come from a SHA-256 of the current parameters; the last **4** are random (lowercase letters/digits) to avoid collisions. Generated at init; not user-supplied.
 
 ---
 
 ### `param_file`
 
 - **Category**: `parameter`
-- **Type**: `str or list of str`
+- **Type**: `str` or `list[str]`
 
-YAML file or list of YAML files or a directory containing YAMLs (on top level), consist of possible parameters.
-
-_**Note**_: Needs to be inputted directly in the Process call or defined with class level variable `Procss.default_param_file`. This parameter defines the YAML file(s) that can shape the Process.
+YAML file(s) or a directory of YAMLs that define global and process-scoped parameters. Process-specific blocks override global ones.
 
 **Example:**
 ```python
-param_file="parameters/param1.yaml"
-# or with multiple files
-param_file=["parameters/param1.yaml", "parameters/param2.yaml"]
-# or with directory containing yamls
+param_file="parameters/params.yaml"
+# multiple files:
+param_file=["parameters/base.yaml", "parameters/override.yaml"]
+# directory containing yamls:
 param_file="parameters"
-```
-
----
-
-### `default_param_file`
-
-- **Category**: `class parameter`
-- **Type**: `str or list of str`
-
-Class level variable to set fallback `param_file` for any instance. YAML file or list of YAML files or a directory containing YAMLs (on top level), consist of possible parameters.
-
-_**Note**_: Needs to be inputted directly in the Process call or defined with class level variable `Procss.default_param_file`. This parameter defines the YAML file(s) that can shape the Process.
-
-**Example:**
-```python
-jawm.Process.default_param_file="parameters/param1.yaml"
-# or with multiple files
-jawm.Process.default_param_file=["parameters/param1.yaml", "parameters/param2.yaml"]
-# or with directory containing yamls
-jawm.Process.default_param_file="parameters/"
 ```
 
 ---
@@ -106,15 +85,12 @@ script: |
 - **Category**: `parameter`
 - **Type**: `str`
 
-Path to an external script file to execute.
-
-_**Note**_: Script file requires to have a shebang initiation as the first line, such as `#!/bin/bash` or `#!/usr/bin/env python3`.
+Path to an external script file to execute. File must start with a shebang.
 
 **Example:**
 ```python
 script_file="scripts/run.sh"
 ```
-
 **YAML Example:**
 ```yaml
 script_file: "scripts/run.sh"
@@ -127,16 +103,13 @@ script_file: "scripts/run.sh"
 - **Category**: `parameter`
 - **Type**: `dict`
 
-Dictionary of parameters to substitute into the script.
-
-_**Note**_: Parameter values will substitute the placeholder(s) in the script. Please be cautious as any wrong use of parameters can break the script.
+Key–value pairs to substitute into `{{PLACEHOLDER}}` occurrences in the script. Unresolved placeholders trigger warnings under validation.
 
 **Example:**
 ```python
 script_variables={
-    "APPNAME": "JAWM",
-    "BYEMSG": "GOOD BYE!",
-    "FRUITLIST": "['Apple', 'Banana', 'Orange']"
+  "APPNAME": "JAWM",
+  "THREADS": "4"
 }
 ```
 
@@ -144,8 +117,7 @@ script_variables={
 ```yaml
 script_variables:
   APPNAME: "JAWM"
-  BYEMSG: "GOOD BYE!"
-  FRUITLIST: "['Apple', 'Banana', 'Orange']"
+  THREADS: "4"
 ```
 
 ---
@@ -155,16 +127,15 @@ script_variables:
 - **Category**: `parameter`
 - **Type**: `str`
 
-File containing either key=value pairs or a YAML dictionary for script placeholder substitution.
+Path to a YAML or `key=value` file providing placeholders for substitution. Merged with `script_variables` (file values can be overridden by inline ones).
 
 **Example:**
 ```python
-script_variables_file="params.env"
+script_variables_file="script/vars.yaml"
 ```
-
 **YAML Example:**
 ```yaml
-script_variables_file: "params.env"
+script_variables_file: "script/vars.yaml"
 ```
 
 ---
@@ -175,12 +146,7 @@ script_variables_file: "params.env"
 - **Type**: `str`
 - **Default**: `.`
 
-Directory for logs, parameters, and outputs.
-
-**Example:**
-```python
-project_directory="/data/project1"
-```
+Base directory for outputs and logs. Resolved to an absolute path.
 
 **YAML Example:**
 ```yaml
@@ -193,9 +159,9 @@ project_directory: "/data/project1"
 
 - **Category**: `parameter`
 - **Type**: `str`
-- **Default**: `./logs`
+- **Default**: `<project_directory>/logs`
 
-Directory to store logs for the process.
+Directory where per-run logs are written (absolute path).
 
 **Example:**
 ```python
@@ -215,7 +181,7 @@ logs_directory: "/data/logs"
 - **Type**: `str`
 - **Default**: `<logs_directory>/error_summary.log`
 
-Path to a log file summarizing all the errors with time records.
+Central log that collects summarized errors across runs.
 
 _**Note**_: This should be the go-to file while checking for error logs.
 
@@ -234,9 +200,9 @@ error_summary_file: "logs/error_summary.log"
 
 - **Category**: `parameter`
 - **Type**: `str`
-- **Default**: `~/.jawm/monitoring`
+- **Default**: `~/.jawm/monitoring` or `JAWM_MONITORING_DIRECTORY`
 
-Directory used for monitoring process status. Completed or Running jobs with basic details can be found in this location.
+Directory used for state tracking (e.g., Running/Completed).
 
 _**Note**_: Can be set via env var `JAWM_MONITORING_DIRECTORY`.
 
@@ -253,10 +219,14 @@ monitoring_directory: "/jawm/monitoring"
 
 ### `depends_on`
 
-- **Type**: `str` or `list of str`
-- **Description**: Specifies the processes that must complete before this process starts. Accepts a single process name/hash or a list of them.
-- **Note**: This ensures proper execution order in workflows. All dependencies must exist in the same registry scope.
-- **Example**:
+- **Category**: `parameter`
+- **Type**: `str` or `list[str]`
+
+Processes (by `name` or `hash`) that must finish successfully before this process can run. Accepts a single item or a list.
+
+_**Note**_: This ensures proper execution order in workflows. All dependencies must exist in the same registry scope.
+
+**Example**:
 ```python
 depends_on=["step1", "step2"]
 ```
@@ -274,9 +244,9 @@ depends_on:
 - **Category**: `parameter`
 - **Type**: `str`
 - **Default**: `local`
-- **Allowed Values**: ['local', 'slurm']
+- **Allowed**: `local`, `slurm`
 
-Specifies which execution manager to use.
+Selects the execution backend. Validation fails for unsupported values.
 
 **Example:**
 ```python
@@ -294,7 +264,7 @@ manager: "slurm"
 - **Category**: `parameter`
 - **Type**: `dict`
 
-Environment variables to set for the process.
+Environment variables to merge into the process environment.
 
 **Example:**
 ```python
@@ -309,13 +279,35 @@ env:
 
 ---
 
+### `inputs`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Optional metadata to describe inputs. Not interpreted by JAWM at runtime (for readability or external tooling).
+
+_**Note**_: Can be used in script with `{{JAWM.Process.inputs}}`
+
+---
+
+### `outputs`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Optional metadata to describe outputs. Not interpreted by JAWM at runtime.
+
+_**Note**_: Can be used in script with `{{JAWM.Process.outputs}}`
+
+---
+
 ### `retries`
 
 - **Category**: `parameter`
 - **Type**: `int`
 - **Default**: `0`
 
-Number of times to retry the process if it fails.
+How many times to retry after the initial attempt fails. Total attempts = `1 + retries`.
 
 **Example:**
 ```python
@@ -370,8 +362,9 @@ retry_overrides:
 - **Category**: `parameter`
 - **Type**: `str`
 - **Default**: `retry`
+- **Allowed**: `retry`, `fail`
 
-Strategy to follow when an error occurs.
+What to do on failure. If set to `fail`, any non-zero exit stops immediately and JAWM forces `retries=0`.
 
 **Example:**
 ```python
@@ -387,7 +380,7 @@ error_strategy: "fail"
 ### `when`
 
 - **Category**: `parameter`
-- **Type**: `bool`
+- **Type**: `bool` or `callable`
 - **Default**: `True`
 
 Conditional expression or boolean that determines whether to run the process.
@@ -401,6 +394,100 @@ when=False
 **YAML Example:**
 ```yaml
 when: false
+```
+
+---
+
+### `manager_slurm`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Slurm manager-specific options (e.g., memory, time).
+
+**Example:**
+```python
+manager_slurm={"--mem": "4G", "--time": "01:00:00"}
+```
+**YAML Example:**
+```yaml
+manager_slurm: {"--mem": "4G", "--time": "01:00:00"}
+```
+
+---
+
+### `environment`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `local`
+- **Allowed**: `local`, `docker`, `apptainer`
+
+Selects the runtime environment.
+
+_**Note:**_ If no `container` is provided, the environment is forced to `local` at runtime.
+
+**Example:**
+```python
+environment="docker"
+```
+**YAML Example:**
+```yaml
+environment: "docker"
+```
+
+---
+
+### `container`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Container image reference (e.g., `ubuntu:22.04` for Docker, or `/path/tool.sif` for Apptainer). Required when using a non-`local` environment.
+
+**Example:**
+```python
+container="ubuntu:20.04"
+```
+**YAML Example:**
+```yaml
+container: "ubuntu:20.04"
+```
+
+---
+
+### `environment_apptainer`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Extra flags for Apptainer (passed as-is), e.g., `{"--bind": ["/data"]}`.
+
+**Example:**
+```python
+environment_apptainer={"--bind": ["/data"]}
+```
+**YAML Example:**
+```yaml
+environment_apptainer: {"--bind": ["/data"]}
+```
+
+---
+
+### `environment_docker`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Extra flags for Docker (passed as-is), e.g., `{"--cpus": "2"}`.
+
+**Example:**
+```python
+environment_docker={"--cpus": "2"}
+```
+**YAML Example:**
+```yaml
+environment_docker: {"--cpus": "2"}
 ```
 
 ---
@@ -477,94 +564,43 @@ container_after_script: "echo Done."
 
 ---
 
-### `manager_slurm`
+### `validation`
 
 - **Category**: `parameter`
-- **Type**: `dict`
+- **Type**: `bool` or `str` (`"basic"`/`"strict"`)
+- **Default**: `False`
 
-Slurm manager-specific options (e.g., memory, time).
+Enable pre-run checks. `basic` logs errors; `strict` also treats warnings as fatal and sets `when=False` so the process is skipped.
+
+_**Note:**_ If `validation` is True it would do the basic validation
 
 **Example:**
 ```python
-manager_slurm={"--mem": "4G", "--time": "01:00:00"}
+validation=True
 ```
 **YAML Example:**
 ```yaml
-manager_slurm: {"--mem": "4G", "--time": "01:00:00"}
+validation: true
 ```
 
 ---
 
-### `environment`
+### `resume`
 
 - **Category**: `parameter`
-- **Type**: `str`
-- **Default**: `local`
-- **Allowed Values**: ["local", "docker", "apptainer"]
+- **Type**: `bool`
+- **Default**: `False`
 
-Execution environment type.
+If `True`, skip execution when a previous run with the same parameter hash has already completed successfully.
 
 **Example:**
 ```python
-environment="docker"
+resume=True
 ```
 **YAML Example:**
 ```yaml
-environment: "docker"
+resume: true
 ```
 
 ---
 
-### `container`
-
-- **Category**: `parameter`
-- **Type**: `str`
-
-Container image to use for execution.
-
-**Example:**
-```python
-container="ubuntu:20.04"
-```
-**YAML Example:**
-```yaml
-container: "ubuntu:20.04"
-```
-
----
-
-### `environment_apptainer`
-
-- **Category**: `parameter`
-- **Type**: `dict`
-
-Options for running the process inside Apptainer.
-
-**Example:**
-```python
-environment_apptainer={"--bind": ["/data"]}
-```
-**YAML Example:**
-```yaml
-environment_apptainer: {"--bind": ["/data"]}
-```
-
----
-
-### `environment_docker`
-
-- **Category**: `parameter`
-- **Type**: `dict`
-
-Options for running the process inside Docker.
-
-**Example:**
-```python
-environment_docker={"--cpus": "2"}
-```
-**YAML Example:**
-```yaml
-environment_docker: {"--cpus": "2"}
-```
-
----
