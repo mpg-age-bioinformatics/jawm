@@ -3,7 +3,7 @@ JAWM Utility Functions
 ======================
 
 This module provides utility functions to support common operations in JAWM workflows.
-Can be called with `jawm.jutils.method_name()`.
+Can be called with `jawm.utils.method_name()`.
 
 """
 
