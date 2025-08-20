@@ -131,7 +131,7 @@ def batch_process_file(
 
         params = dict(process_template or {})
         params["name"] = proc_name
-        params.setdefault("script_variables", {})["INPUT_FILE"] = full_path
+        params.setdefault("var", {})["INPUT_FILE"] = full_path
 
         proc = Process(**params)
         processes.append(proc)
@@ -291,33 +291,6 @@ def script_to_yaml(
         return str(outp)
 
     return yaml_str
-
-## for jawm.utils
-
-def build_mounts(paths,env="docker"):
-    """
-    Build container mount arguments for Docker or Apptainer.
-
-    Args:
-        paths (list[str] | list[Path]): A list of filesystem paths to mount.
-        env (str, optional): Target container environment, either "docker" 
-            (default, uses `-v`) or "apptainer" (uses `-B`).
-
-    Returns:
-        list[str]: A list of mount argument strings, where each path is mounted
-        to the same absolute location inside the container.
-
-    Example:
-        >>> build_mounts(["/data", "/tmp"], env="docker")
-        ['-v /data:/data', '-v /tmp:/tmp']
-    """
-    paths=[ Path(p).resolve() for p in paths ]
-    if env == "docker" :
-        mounts_arg="-v"
-    elif env == "apptainer" :
-        mounts_arg="-B"
-    mounts=[ f"{mounts_arg} {p}:{p}" for p in paths ]
-    return mounts
 
 def hash_content(paths, hash_func=hashlib.sha256, 
                  exclude_dirs=None, exclude_files=None):

@@ -54,30 +54,30 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "yaml_example": 'script_file: "scripts/run.sh"'
     },
 
-    "script_variables": {
+    "var": {
         "category": "parameter",
         "description": "Dictionary of parameters to substitute into the script.",
         "note": "Parameter values will substitute the placeholder(s) in the script. Please be caution as any wrong use of paramters can break the script.",
         "type": "dict",
-        "example": """script_variables={
+        "example": """var={
     "APPNAME": "JAWM",
     "BYEMSG": "GOOD BYE!",
     "FRUITLIST": "['Apple', 'Banana', 'Orange']"
 }""",
-        "yaml_example": """script_variables:
+        "yaml_example": """var:
     APPNAME: "JAWM"
     BYEMSG: "GOOD BYE!"
     FRUITLIST: "['Apple', 'Banana', 'Orange']"
 """
     },
 
-    "script_variables_file": {
+    "var_file": {
         "category": "parameter",
         "description": "File containing either key=value pairs or a YAML dictionary for script placeholder substitution.",
         "note": "Parameter values will substitute the placeholder(s) in the script. Please be caution as any wrong use of paramters can break the script.",
         "type": "str",
-        "example": 'script_variables_file="script/hello.rc"',
-        "yaml_example": 'script_variables_file: "script/hello.rc"'
+        "example": 'var_file="script/hello.rc"',
+        "yaml_example": 'var_file: "script/hello.rc"'
     },
     "project_directory": {
         "category": "parameter",
@@ -338,7 +338,7 @@ print(2 + 2)
         "example": """process_file = Process(
     name="python_file",
     script_file="scripts/hello.py",
-    script_variables={
+    var={
         "APPNAME": "JAWM",
         "BYEMSG": "GOOD BYE!",
         "FRUITLIST": "['Apple', 'Banana', 'Orange']"
@@ -349,7 +349,7 @@ print(2 + 2)
         "yaml_example": """- scope: process
     name: "python_file"
     script_file: "scripts/hello.py"
-    script_variables:
+    var:
         APPNAME: "JAWM"
         BYEMSG: "GOOD BYE!"
         FRUITLIST: "['Apple', 'Banana', 'Orange']"
@@ -363,14 +363,14 @@ print(2 + 2)
         "example": """process_params = Process(
     name="python_file_params",
     script_file="scripts/hello.py",
-    script_variables_file="scripts/hello.rc"
+    var_file="scripts/hello.rc"
 )
 # This Process can be executed with `process_params.execute()`
 """,
         "yaml_example": """- scope: process
     name: "python_file_params"
     script_file: "scripts/hello.py"
-    script_variables_file: "scripts/hello.rc"
+    var_file: "scripts/hello.rc"
     """
     },
 
@@ -381,7 +381,7 @@ print(2 + 2)
         "example": """process_skip = Process(
     name="python_file_params",
     script_file="scripts/hello.py",
-    script_variables_file="scripts/hello.rc",
+    var_file="scripts/hello.rc",
     when=False
 )
 # This process will be skipped because `when=False`
@@ -392,7 +392,7 @@ print(2 + 2)
         "yaml_example": """- scope: process
     name: "python_file_params"
     script_file: "scripts/hello.py"
-    script_variables_file: "scripts/hello.rc"
+    var_file: "scripts/hello.rc"
     when: false
     """
     },

@@ -68,8 +68,8 @@ class Process:
         "param_file": (str, list),
         "script": str,
         "script_file": str,
-        "script_variables": dict,
-        "script_variables_file": str,
+        "var": dict,
+        "var_file": str,
         "project_directory": str,
         "logs_directory": str,
         "error_summary_file": str,
@@ -122,8 +122,8 @@ class Process:
         param_file=None,
         script=None,
         script_file=None,
-        script_variables=None,
-        script_variables_file=None,
+        var=None,
+        var_file=None,
         project_directory=None,
         logs_directory=None,
         error_summary_file=None,
@@ -173,10 +173,10 @@ class Process:
         script_file : str, optional
             Path to an external script file.
 
-        script_variables : dict, optional
+        var : dict, optional
             Key-value pairs to substitute into the script as placeholders.
 
-        script_variables_file : str, optional
+        var_file : str, optional
             File containing either key=value pairs or a YAML dictionary for script placeholder substitution.
 
         project_directory : str, optional
@@ -302,8 +302,8 @@ class Process:
         self.script = self.params.get("script", "#!/bin/bash")
         self.script_file = self.params.get("script_file", None)
         self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
-        self.script_variables = self.params.get("script_variables", None)
-        self.script_variables_file = self.params.get("script_variables_file", None)
+        self.var = self.params.get("var", None)
+        self.var_file = self.params.get("var_file", None)
 
         # Directory parameters
         # self.project_directory = self.params.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
@@ -625,18 +625,18 @@ class Process:
         # --- Validate unresolved placeholders ---
         from ._utils import read_variables
         placeholder_pattern = re.compile(r"\{\{([^}]+)\}\}")
-        combined_vars = self.script_variables.copy() if isinstance(self.script_variables, dict) else {}
+        combined_vars = self.var.copy() if isinstance(self.var, dict) else {}
 
-        if self.script_variables_file:
+        if self.var_file:
             try:
                 vars_from_file = read_variables(
-                    self.script_variables_file,
+                    self.var_file,
                     process_name=self.name,
                     output_type="dict"
                 )
                 combined_vars.update(vars_from_file)
             except Exception as e:
-                warnings.append(f"Failed to load script_variables_file via read_variables()")
+                warnings.append(f"Failed to load var_file via read_variables()")
 
         script_source = self.script if self.script else ""
         if not script_source and self.script_file and os.path.isfile(self.script_file):

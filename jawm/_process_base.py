@@ -132,14 +132,14 @@ def _script_placeholders(self, script_content):
     :return: The updated script content with placeholders replaced.
     """
 
-    parameters = self.script_variables or {}
+    parameters = self.var or {}
 
     # Load additional parameters from file if provided
-    if self.script_variables_file:
-        file_ext = os.path.splitext(self.script_variables_file)[1].lower()
+    if self.var_file:
+        file_ext = os.path.splitext(self.var_file)[1].lower()
 
         try:
-            with open(self.script_variables_file, "r") as param_file:
+            with open(self.var_file, "r") as param_file:
                 if file_ext in [".yaml", ".yml"]:
                     parsed_yaml = yaml.safe_load(param_file)
                     if isinstance(parsed_yaml, dict):
@@ -153,17 +153,17 @@ def _script_placeholders(self, script_content):
                             scope = entry.get("scope")
                             name = entry.get("name", None)
 
-                            if scope == "global" and "script_variables" in entry:
-                                if isinstance(entry["script_variables"], dict):
-                                    parameters.update(entry["script_variables"])
+                            if scope == "global" and "var" in entry:
+                                if isinstance(entry["var"], dict):
+                                    parameters.update(entry["var"])
 
                             elif scope == "process" and name and self.name:
                                 if fnmatch.fnmatch(self.name, name):
-                                    if isinstance(entry.get("script_variables"), dict):
-                                        parameters.update(entry["script_variables"])
+                                    if isinstance(entry.get("var"), dict):
+                                        parameters.update(entry["var"])
 
                     else:
-                        self.logger.warning(f"{self.script_variables_file} contains no usable script_variables.")
+                        self.logger.warning(f"{self.var_file} contains no usable var.")
 
                 else:
                     for line in param_file:
@@ -173,7 +173,7 @@ def _script_placeholders(self, script_content):
                                 value = value[1:-1]
                             parameters[key] = value
         except Exception as e:
-            self.logger.warning(f"Failed to load script_variables_file '{self.script_variables_file}': {e}")
+            self.logger.warning(f"Failed to load var_file '{self.var_file}': {e}")
 
     # Resolve nested attribute like JAWM.Process.logs_directory → self.logs_directory
     def resolve_placeholder(key):

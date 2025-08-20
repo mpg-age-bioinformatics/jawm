@@ -16,7 +16,7 @@ import inspect
 
 def read_variables(file_or_list_or_dir, process_name=None, output_type="var", namespace=None):
     """
-    Load script_variables from YAML(s), .rc, or directory containing YAMLs and optionally inject them as Python variables.
+    Load var from YAML(s), .rc, or directory containing YAMLs and optionally inject them as Python variables.
 
     Parameters
     ----------
@@ -24,7 +24,7 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
         Path to YAML(s), RC file, or directory containing YAMLs.
 
     process_name : str, optional
-        If set, includes matching process-scoped script_variables. Wildcards supported.
+        If set, includes matching process-scoped var. Wildcards supported.
 
     output_type : str, default="var"
         "var" → inject as Python variables (into globals or passed namespace).
@@ -36,7 +36,7 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
     Returns
     -------
     dict
-        Merged script_variables (always returned).
+        Merged var (always returned).
     """
 
     def load_single_file(path, process_name=None):
@@ -54,11 +54,11 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
                             continue
                         scope = entry.get("scope")
                         name = entry.get("name", "")
-                        if scope == "global" and "script_variables" in entry:
-                            vars_dict.update(entry["script_variables"])
-                        elif scope == "process" and process_name and "script_variables" in entry:
+                        if scope == "global" and "var" in entry:
+                            vars_dict.update(entry["var"])
+                        elif scope == "process" and process_name and "var" in entry:
                             if name and fnmatch.fnmatch(name, process_name):
-                                vars_dict.update(entry["script_variables"])
+                                vars_dict.update(entry["var"])
             else:
                 for line in f:
                     if line.strip() and "=" in line:
