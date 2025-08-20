@@ -13,6 +13,11 @@ import fnmatch
 import inspect
 from pathlib import Path
 from ._utils import read_variables
+import subprocess
+from pathlib import Path
+import hashlib
+import os
+import fnmatch
 
 
 __all__ = ["read_variables", "batch_process_file", "script_to_yaml"]
@@ -286,4 +291,158 @@ def script_to_yaml(
         return str(outp)
 
     return yaml_str
+
+## for jawm.utils
+
+def build_mounts(paths,env="docker"):
+    """
+    Build container mount arguments for Docker or Apptainer.
+
+    Args:
+        paths (list[str] | list[Path]): A list of filesystem paths to mount.
+        env (str, optional): Target container environment, either "docker" 
+            (default, uses `-v`) or "apptainer" (uses `-B`).
+
+    Returns:
+        list[str]: A list of mount argument strings, where each path is mounted
+        to the same absolute location inside the container.
+
+    Example:
+        >>> build_mounts(["/data", "/tmp"], env="docker")
+        ['-v /data:/data', '-v /tmp:/tmp']
+    """
+    paths=[ Path(p).resolve() for p in paths ]
+    if env == "docker" :
+        mounts_arg="-v"
+    elif env == "apptainer" :
+        mounts_arg="-B"
+    mounts=[ f"{mounts_arg} {p}:{p}" for p in paths ]
+    return mounts
+
+def hash_folder(path, hash_func=hashlib.sha256, 
+                exclude_dirs=None, exclude_files=None):
+    """
+    Return a hash digest for a folder (files + structure),
+    excluding specified dirs/files.
+    """
+    if exclude_dirs is None:
+        exclude_dirs = []
+    if exclude_files is None:
+        exclude_files = []
+
+    h = hash_func()
+    path = os.path.abspath(path)
+
+    for root, dirs, files in os.walk(path):
+        # Filter directories in-place
+        dirs[:] = [d for d in dirs 
+                   if not any(fnmatch.fnmatch(d, pat) for pat in exclude_dirs)]
+
+        for fname in sorted(files):
+            # Skip excluded files
+            if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
+                continue
+
+            fpath = os.path.join(root, fname)
+            relpath = os.path.relpath(fpath, path)
+
+            # include relative path
+            h.update(relpath.encode())
+
+            # include file content
+            with open(fpath, "rb") as f:
+                while chunk := f.read(8192):
+                    h.update(chunk)
+
+    return h.hexdigest()
+
+def docker_available(v=False):
+    """
+    Check whether Docker is available on the system.
+
+    This function attempts to run `docker --version` to verify that the Docker
+    command-line tool is installed and accessible.
+
+    Args:
+        v (bool, optional): If True, prints diagnostic messages about Docker's
+            availability and version. Defaults to False.
+
+    Returns:
+        bool: True if Docker is installed and responds successfully to
+        `docker --version`, otherwise False.
+
+    Example:
+        >>> docker_available()
+        True
+        >>> docker_available(v=True)
+        Docker found: Docker version 24.0.2, build cb74dfc
+        True
+    """
+    try:
+        # Run "docker --version" to check availability
+        result = subprocess.run(
+            ["docker", "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        if v:
+            print("Docker found:", result.stdout.strip())
+        return True
+    except FileNotFoundError:
+        # "docker" command not found
+        if v:
+            print("Docker is not installed or not in PATH.")
+        return False
+    except subprocess.CalledProcessError as e:
+        # Docker exists but returned an error
+        print("Docker command failed:", e.stderr.strip())
+        return False
+
+
+def apptainer_available(v=False):
+    """
+    Check whether Apptainer is available on the system.
+
+    This function attempts to run `apptainer --version` to verify that the
+    Apptainer command-line tool is installed and accessible.
+
+    Args:
+        v (bool, optional): If True, prints diagnostic messages about
+            Apptainer's availability and version. Defaults to False.
+
+    Returns:
+        bool: True if Apptainer is installed and responds successfully to
+        `apptainer --version`, otherwise False.
+
+    Example:
+        >>> apptainer_available()
+        True
+        >>> apptainer_available(v=True)
+        Apptainer found: apptainer version 1.2.3
+        True
+    """
+    try:
+        # Run "apptainer --version" to check availability
+        result = subprocess.run(
+            ["apptainer", "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        if v:
+            print("Apptainer found:", result.stdout.strip())
+        return True
+    except FileNotFoundError:
+        # "apptainer" command not found
+        if v:
+            print("Apptainer is not installed or not in PATH.")
+        return False
+    except subprocess.CalledProcessError as e:
+        # apptainer exists but returned an error
+        print("Apptainer command failed:", e.stderr.strip())
+        return False
+
 
