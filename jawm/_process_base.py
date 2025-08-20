@@ -274,22 +274,18 @@ def _build_apptainer_command(self, script_path):
     apptainer_command = ["apptainer", "exec"]
 
     # Apply user-defined Apptainer options dynamically
-    if type(self.environment_apptainer) == list :
-        # If environment_apptainer is a list, treat it as positional arguments
-        apptainer_command.extend(self.environment_apptainer)
-    elif isinstance(self.environment_apptainer, dict):
-        for option, value in self.environment_apptainer.items():
-            if isinstance(value, list):
-                # Handle options that require multiple values (e.g., --bind)
-                for v in value:
-                    apptainer_command.extend([option, str(v)])
-            elif isinstance(value, bool):
-                # Handle flags (e.g., --no-home)
-                if value:  # Only include the flag if True
-                    apptainer_command.append(option)
-            else:
-                # Handle regular key-value options
-                apptainer_command.extend([option, str(value)])
+    for option, value in self.environment_apptainer.items():
+        if isinstance(value, list):
+            # Handle options that require multiple values (e.g., --bind)
+            for v in value:
+                apptainer_command.extend([option, str(v)])
+        elif isinstance(value, bool):
+            # Handle flags (e.g., --no-home)
+            if value:  # Only include the flag if True
+                apptainer_command.append(option)
+        else:
+            # Handle regular key-value options
+            apptainer_command.extend([option, str(value)])
 
     # Add environment variables
     if self.env:
@@ -327,22 +323,18 @@ def _build_docker_command(self, script_path):
     docker_command = ["docker", "run", "--rm"]
 
     # Apply user-defined Docker options dynamically
-    if type(self.environment_docker) == list :
-        # If environment_docker is a list, treat it as positional arguments
-        docker_command.extend(self.environment_docker)
-    elif isinstance(self.environment_docker, dict):
-        for option, value in self.environment_docker.items():
-            if isinstance(value, list):
-                # Handle options that require multiple values (e.g., --volume)
-                for v in value:
-                    docker_command.extend([option, str(v)])
-            elif isinstance(value, bool):
-                # Handle flags (e.g., --privileged)
-                if value:  # Only include the flag if True
-                    docker_command.append(option)
-            else:
-                # Handle regular key-value options
-                docker_command.extend([option, str(value)])
+    for option, value in self.environment_docker.items():
+        if isinstance(value, list):
+            # Handle options that require multiple values (e.g., --volume)
+            for v in value:
+                docker_command.extend([option, str(v)])
+        elif isinstance(value, bool):
+            # Handle flags (e.g., --privileged)
+            if value:  # Only include the flag if True
+                docker_command.append(option)
+        else:
+            # Handle regular key-value options
+            docker_command.extend([option, str(value)])
 
     # Add environment variables
     if self.env:
