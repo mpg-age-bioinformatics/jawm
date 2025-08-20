@@ -319,42 +319,79 @@ def build_mounts(paths,env="docker"):
     mounts=[ f"{mounts_arg} {p}:{p}" for p in paths ]
     return mounts
 
-def hash_folder(path, hash_func=hashlib.sha256, 
-                exclude_dirs=None, exclude_files=None):
+def hash_content(paths, hash_func=hashlib.sha256, 
+                 exclude_dirs=None, exclude_files=None):
     """
-    Return a hash digest for a folder (files + structure),
-    excluding specified dirs/files.
+    Return a combined hash digest for multiple files and/or folders,
+    including their contents and structure, excluding specified directories
+    and files.
+
+    Args:
+        paths (str or Path or list[str | Path]): A single file/folder path or 
+            a list of paths to include in the hash.
+        hash_func (callable, optional): Hash function from hashlib (default: sha256).
+        exclude_dirs (list[str], optional): List of directory name patterns to exclude.
+        exclude_files (list[str], optional): List of file name patterns to exclude.
+
+    Returns:
+        str: Hex digest representing the combined hash of all provided files
+            and folder contents/structure.
+
+    Example:
+        >>> hash_content(["/data/folder1", "/data/file.txt"])
+        '5d41402abc4b2a76b9719d911017c592'
     """
     if exclude_dirs is None:
         exclude_dirs = []
     if exclude_files is None:
         exclude_files = []
 
+    if isinstance(paths, (str, Path)):
+        paths = [paths]
+
     h = hash_func()
-    path = os.path.abspath(path)
 
-    for root, dirs, files in os.walk(path):
-        # Filter directories in-place
-        dirs[:] = [d for d in dirs 
-                   if not any(fnmatch.fnmatch(d, pat) for pat in exclude_dirs)]
+    for path in paths:
+        path = os.path.abspath(path)
 
-        for fname in sorted(files):
-            # Skip excluded files
+        if os.path.isfile(path):
+            # Handle individual file
+            fname = os.path.basename(path)
             if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
                 continue
-
-            fpath = os.path.join(root, fname)
-            relpath = os.path.relpath(fpath, path)
-
-            # include relative path
-            h.update(relpath.encode())
-
-            # include file content
-            with open(fpath, "rb") as f:
+            h.update(fname.encode())
+            with open(path, "rb") as f:
                 while chunk := f.read(8192):
                     h.update(chunk)
 
+        elif os.path.isdir(path):
+            # Handle folder
+            for root, dirs, files in os.walk(path):
+                # Filter directories in-place
+                dirs[:] = [d for d in dirs 
+                           if not any(fnmatch.fnmatch(d, pat) for pat in exclude_dirs)]
+
+                for fname in sorted(files):
+                    # Skip excluded files
+                    if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
+                        continue
+
+                    fpath = os.path.join(root, fname)
+                    relpath = os.path.relpath(fpath, path)
+
+                    # Include relative path
+                    h.update(relpath.encode())
+
+                    # Include file content
+                    with open(fpath, "rb") as f:
+                        while chunk := f.read(8192):
+                            h.update(chunk)
+        else:
+            # Skip non-existent paths
+            continue
+
     return h.hexdigest()
+
 
 def docker_available(v=False):
     """
@@ -445,4 +482,38 @@ def apptainer_available(v=False):
         print("Apptainer command failed:", e.stderr.strip())
         return False
 
+def write_hash_file(paths, hash_file, hash_func=hashlib.sha256, 
+                    exclude_dirs=None, exclude_files=None):
+    """
+    Compute the combined hash of files/folders and write it to a file.
+    If the file already exists, check if the stored hash matches the current hash
+    and report the result.
 
+    Args:
+        paths (str | Path | list[str | Path]): File(s) and/or folder(s) to hash.
+        hash_file (str | Path): Path to the file where the hash should be written.
+        hash_func (callable, optional): Hash function to use (default: hashlib.sha256).
+        exclude_dirs (list[str], optional): Directory patterns to exclude.
+        exclude_files (list[str], optional): File patterns to exclude.
+
+    Returns:
+        bool: True if the hash was written or matched the existing hash, 
+              False if the existing hash differs.
+    """
+    current_hash = hash_content(paths, hash_func=hash_func, 
+                                exclude_dirs=exclude_dirs, 
+                                exclude_files=exclude_files)
+    hash_file = Path(hash_file)
+
+    if hash_file.exists():
+        stored_hash = hash_file.read_text().strip()
+        if stored_hash == current_hash:
+            print(f"Hash matches existing file: {hash_file}")
+            return True
+        else:
+            print(f"Hash differs from existing file: {hash_file}")
+            return False
+    else:
+        hash_file.write_text(current_hash)
+        print(f"Hash written to: {hash_file}")
+        return True
