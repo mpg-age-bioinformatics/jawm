@@ -47,6 +47,6 @@ Use `jhelp()` or visit https://github.com/mpg-age-bioinformatics/JAWM for detail
 
 from .process import Process
 from .docs import jhelp
-from . import jutils
+from . import utils
 
-__all__ = ["Process", "jhelp", "jutils"]
+__all__ = ["Process", "jhelp", "utils"]
