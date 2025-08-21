@@ -355,6 +355,8 @@ class Process:
         self.container = self.params.get("container", None)
         self.environment_apptainer = self.params.get("environment_apptainer", {})
         self.environment_docker = self.params.get("environment_docker", {})
+        if self.container is None and self.environment != "local":
+            self.logger.warning(f"Requested environment '{self.environment}' ignored because no container was provided. Falling back to 'local'")
         self.environment = {"apptainer": "apptainer", "singularity": "apptainer", "docker": "docker"}.get(self.environment, "local") if self.container is not None else "local"
 
         # Metadata
