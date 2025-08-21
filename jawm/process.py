@@ -666,6 +666,40 @@ class Process:
 
         return True
 
+
+    def update_params(self, param_file):
+        """
+        Update the Process instance's parameters from new YAML file(s) or directory.
+        Merges new values into params, keeping existing ones unless overridden.
+
+        :param param_file: A string (single file or directory) or a list of YAML file paths.
+        """
+        yaml_params = self._parse_yaml_config(param_file)
+
+        # Merge global + process-specific configs
+        process_params = yaml_params["process"].get(self.name, {})
+        global_params = yaml_params["global"]
+
+        # Update self.params in-place
+        self.params.update({**global_params, **process_params})
+
+        # Reapply updated params as attributes (skip reserved keys)
+        for k, v in self.params.items():
+            if k not in self.reserved_keys:
+                setattr(self, k, v)
+
+        # Track param_file(s) as list
+        if self.param_file is None:
+            self.param_file = param_file
+        elif isinstance(self.param_file, list):
+            self.param_file.append(param_file)
+        else:
+            self.param_file = [self.param_file, param_file]
+        
+        self.params["param_file"] = self.param_file
+
+        self.logger.info(f"Process {self.name} updated parameters from {param_file}")
+
     
     def get_id(self, max_wait=3, interval=0.5):
         """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable (default, retrying up to: max_wait=3, interval=0.5)."""
