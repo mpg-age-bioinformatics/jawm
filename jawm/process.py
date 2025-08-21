@@ -690,7 +690,7 @@ class Process:
 
         if not param_file:
             self.logger.warning("No param_file nor var_file provided for update_params, skipping.")
-            return
+            return None
 
         yaml_params = self._parse_yaml_config(param_file)
 
