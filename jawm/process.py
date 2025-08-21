@@ -669,30 +669,16 @@ class Process:
         return True
 
 
-    def update_params(self, param_file):
+    def update_params(self, param_file=None):
         """
         Update the Process instance's parameters from new YAML file(s) or directory.
         Merges new values into params, keeping existing ones unless overridden.
 
-        :param param_file: A string (single file or directory) or a list of YAML file paths. If None, it will used process.param_file and process.var_file.
+        :param param_file: A string (single file or directory) or a list of YAML file paths.
         """
-        # if not param_file:
-        #     param_file=[]
-        #     if self.param_file:
-        #         if isinstance(self.param_file, list):
-        #             param_file.extend(self.param_file)
-        #         elif isinstance(self.param_file, str):
-        #             param_file.append(self.param_file)
-
-        #     if self.var_file:
-        #         if isinstance(self.var_file, list):
-        #             param_file.extend(self.var_file)
-        #         elif isinstance(self.var_file, str):
-        #             param_file.append(self.var_file)
-
-        # if not param_file:
-        #     self.logger.warning("No param_file nor var_file provided for update_params, skipping.")
-        #     return None
+        if not param_file:
+            self.logger.warning("No param_file provided for update_params, skipping.")
+            return
 
         yaml_params = self._parse_yaml_config(param_file)
 
