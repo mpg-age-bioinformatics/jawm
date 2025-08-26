@@ -706,6 +706,68 @@ class Process:
 
         self.logger.info(f"Process {self.name} updated parameters from {param_file}")
 
+
+    def update_vars(self, var_file):
+        """
+        Update the Process instance's variable placeholders from file(s) or directory.
+
+        - Merges new variables into self.var (new values take precedence).
+        - Stores/extends self.var_file reference for traceability.
+        - Resets base script with updated placeholders.
+
+        :param var_file: str or list[str] or path to directory of YAMLs
+        :return: dict of the merged variables after update
+        """
+        if not var_file:
+            self.logger.warning("No var_file provided for update_vars, skipping.")
+            return
+
+        try:
+            from ._utils import read_variables
+
+            loaded = read_variables(
+                var_file,
+                process_name=self.name,
+                output_type="dict"
+            ) or {}
+
+            # Merge into self.var (new values win)
+            current = self.var.copy() if isinstance(self.var, dict) else {}
+            current.update(loaded)
+            self.var = current
+
+            # Track var_file(s)
+            if self.var_file is None:
+                self.var_file = var_file
+            elif isinstance(self.var_file, list):
+                # Append without duplicating identical entries
+                if isinstance(var_file, list):
+                    for v in var_file:
+                        if v not in self.var_file:
+                            self.var_file.append(v)
+                else:
+                    if var_file not in self.var_file:
+                        self.var_file.append(var_file)
+            else:
+                # Convert to list form to remember previous and new
+                self.var_file = [self.var_file] + (var_file if isinstance(var_file, list) else [var_file])
+
+            # Reflect updates in params for transparency
+            self.params["var"] = self.var
+            self.params["var_file"] = self.var_file
+
+            # Force regeneration of the base script on the next execution so new vars apply
+            self.base_script_path = None
+
+            self.logger.info(
+                f"Process {self.name} var updated from {str(var_file)} "
+                f"({len(loaded)} loaded; {len(self.var)} total after merge)"
+            )
+
+        except Exception as e:
+            self.logger.error(f"update_vars failed for {self.name}: {e}")
+            if hasattr(self, "_log_error_summary"):
+                self._log_error_summary(f"update_vars failed: {e}", "VarUpdate")
     
     def get_id(self, max_wait=3, interval=0.5):
         """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable (default, retrying up to: max_wait=3, interval=0.5)."""
