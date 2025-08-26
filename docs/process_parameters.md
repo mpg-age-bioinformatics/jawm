@@ -98,7 +98,7 @@ script_file: "scripts/run.sh"
 
 ---
 
-### `script_variables`
+### `var`
 
 - **Category**: `parameter`
 - **Type**: `dict`
@@ -107,7 +107,7 @@ Key–value pairs to substitute into `{{PLACEHOLDER}}` occurrences in the script
 
 **Example:**
 ```python
-script_variables={
+var={
   "APPNAME": "JAWM",
   "THREADS": "4"
 }
@@ -115,27 +115,27 @@ script_variables={
 
 **YAML Example:**
 ```yaml
-script_variables:
+var:
   APPNAME: "JAWM"
   THREADS: "4"
 ```
 
 ---
 
-### `script_variables_file`
+### `var_file`
 
 - **Category**: `parameter`
 - **Type**: `str`
 
-Path to a YAML or `key=value` file providing placeholders for substitution. Merged with `script_variables` (file values can be overridden by inline ones).
+Path to a YAML or `key=value` file providing placeholders for substitution. Merged with `var` (file values can be overridden by inline ones).
 
 **Example:**
 ```python
-script_variables_file="script/vars.yaml"
+var_file="script/vars.yaml"
 ```
 **YAML Example:**
 ```yaml
-script_variables_file: "script/vars.yaml"
+var_file: "script/vars.yaml"
 ```
 
 ---

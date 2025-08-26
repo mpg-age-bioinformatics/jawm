@@ -123,13 +123,13 @@ try:
         script="""#!/bin/bash
     echo "Job name is {{APPNAME}}"
     """,
-        script_variables={"APPNAME": "JAWM-Test"},
+        var={"APPNAME": "JAWM-Test"},
         logs_directory="logs_test"
     )
     proc6.execute()
     Process.wait(proc6.hash)
     out6 = proc6.get_output()
-    assert "JAWM-Test" in out6, "❌ script_variables not substituted correctly"
+    assert "JAWM-Test" in out6, "❌ var not substituted correctly"
     print("✅ Passed: Script Variable Substitution")
     passed += 1
 except Exception as e:
@@ -152,13 +152,13 @@ try:
         script="""#!/bin/bash
     echo "{{GREETING}}"
     """,
-        script_variables_file="data_test/vars.rc",
+        var_file="data_test/vars.rc",
         logs_directory="logs_test"
     )
     proc7.execute()
     Process.wait(proc7.hash)
     out7 = proc7.get_output()
-    assert "Hello from file" in out7, "❌ script_variables_file substitution failed"
+    assert "Hello from file" in out7, "❌ var_file substitution failed"
     print("✅ Passed: Script Variable File Substitution")
     passed += 1
 except Exception as e:
@@ -329,7 +329,7 @@ try:
     proc12g = Process(
         name="proc_placeholder_ok",
         script="""#!/bin/bash\necho "{{MESSAGE}}"\n""",
-        script_variables={"MESSAGE": "Hello"},
+        var={"MESSAGE": "Hello"},
         validation="strict"
     )
     assert proc12g.is_valid("strict"), "❌ Placeholder defined but still failed strict validation"
