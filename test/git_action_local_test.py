@@ -624,6 +624,105 @@ finally:
     Process.default_parameters.clear()
 
 
+print("\n>>> Test 17: update_vars() supports list of files and YAML directory")
+time.sleep(0.5)
+try:
+    import tempfile, shutil
+
+    # ---------- A) List of files ----------
+    tmpA = tempfile.mkdtemp(prefix="update_vars_list_")
+    try:
+        # Two YAML files: one global, one process-specific
+        v1 = os.path.join(tmpA, "v1.yaml")
+        v2 = os.path.join(tmpA, "v2.yml")
+
+        with open(v1, "w") as f:
+            f.write("""
+- scope: global
+  var:
+    MSG: "from_v1_global"
+    other: "X1"
+""")
+
+        with open(v2, "w") as f:
+            f.write("""
+- scope: process
+  name: "update_vars_*"
+  var:
+    MSG: "from_v2_process"
+    extra: "EXTRA"
+""")
+
+        pA = Process(
+            name="update_vars_proc",
+            script="#!/bin/bash\necho {{MSG}}\necho {{other}}\necho {{extra}}\necho {{org}}",
+            var={"org": "Original"},
+            logs_directory="logs_test_update_vars"
+        )
+
+        # Update from a list of files; v2 should override MSG; extra should appear; "org" kept
+        pA.update_vars([v1, v2])
+        pA.execute()
+        Process.wait(pA.hash)
+
+        outA = pA.get_output()
+        assert "from_v2_process" in outA, "❌ MSG from process-scoped v2 not applied"
+        assert "X1" in outA, "❌ 'other' from v1 (global) not applied"
+        assert "EXTRA" in outA, "❌ 'extra' from v2 not applied"
+        assert "Original" in outA, "❌ inline var 'org' not preserved"
+
+        # verify we kept track of var_file(s) as list-like (stringify is ok)
+        assert pA.params.get("var_file") is not None, "❌ var_file tracking missing after list update"
+
+    finally:
+        shutil.rmtree(tmpA, ignore_errors=True)
+
+    # ---------- B) Directory of YAMLs ----------
+    tmpB = tempfile.mkdtemp(prefix="update_vars_dir_")
+    try:
+        d1 = os.path.join(tmpB, "one.yaml")
+        d2 = os.path.join(tmpB, "two.yml")
+        with open(d1, "w") as f:
+            f.write("""
+A: "from_dir_1"
+""")
+        with open(d2, "w") as f:
+            f.write("""
+- scope: process
+  name: "update_vars_dir_*"
+  var:
+    B: "from_dir_process"
+""")
+        # a non-yaml file should be ignored
+        with open(os.path.join(tmpB, "ignore.txt"), "w") as f:
+            f.write("NOPE\n")
+
+        pB = Process(
+            name="update_vars_dir_proc",
+            script="#!/bin/bash\necho {{A}}\necho {{B}}",
+            logs_directory="logs_test_update_vars"
+        )
+
+        pB.update_vars(tmpB)  # pass directory
+        pB.execute()
+        Process.wait(pB.hash)
+
+        outB = pB.get_output()
+        assert "from_dir_1" in outB, "❌ Directory YAML (A) not merged"
+        assert "from_dir_process" in outB, "❌ Directory process-scoped var (B) not applied"
+        assert pB.params.get("var_file") == tmpB or pB.params.get("var_file") == [tmpB], "❌ var_file tracking should reflect directory"
+
+        print("✅ Passed: update_vars() with list and directory")
+        passed += 1
+
+    finally:
+        shutil.rmtree(tmpB, ignore_errors=True)
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
 
 
 print("\n===== TEST SUMMARY =====")
