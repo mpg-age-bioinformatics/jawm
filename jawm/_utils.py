@@ -57,7 +57,7 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
                         if scope == "global" and "var" in entry:
                             vars_dict.update(entry["var"])
                         elif scope == "process" and process_name and "var" in entry:
-                            if name and fnmatch.fnmatch(name, process_name):
+                            if name and fnmatch.fnmatch(process_name, name):
                                 vars_dict.update(entry["var"])
             else:
                 for line in f:
