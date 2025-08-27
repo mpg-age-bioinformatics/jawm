@@ -136,44 +136,16 @@ def _script_placeholders(self, script_content):
 
     # Load additional parameters from file if provided
     if self.var_file:
-        file_ext = os.path.splitext(self.var_file)[1].lower()
-
         try:
-            with open(self.var_file, "r") as param_file:
-                if file_ext in [".yaml", ".yml"]:
-                    parsed_yaml = yaml.safe_load(param_file)
-                    if isinstance(parsed_yaml, dict):
-                        parameters.update(parsed_yaml)
-
-                    elif isinstance(parsed_yaml, list):
-                        for entry in parsed_yaml:
-                            if not isinstance(entry, dict):
-                                continue
-
-                            scope = entry.get("scope")
-                            name = entry.get("name", None)
-
-                            if scope == "global" and "var" in entry:
-                                if isinstance(entry["var"], dict):
-                                    parameters.update(entry["var"])
-
-                            elif scope == "process" and name and self.name:
-                                if fnmatch.fnmatch(self.name, name):
-                                    if isinstance(entry.get("var"), dict):
-                                        parameters.update(entry["var"])
-
-                    else:
-                        self.logger.warning(f"{self.var_file} contains no usable var.")
-
-                else:
-                    for line in param_file:
-                        if line.strip() and "=" in line:
-                            key, value = map(str.strip, line.strip().split("=", 1))
-                            if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
-                                value = value[1:-1]
-                            parameters[key] = value
+            from ._utils import read_variables
+            loaded = read_variables(
+                self.var_file,
+                process_name=self.name,
+                output_type="dict"
+            ) or {}
+            parameters.update(loaded)
         except Exception as e:
-            self.logger.warning(f"Failed to load var_file '{self.var_file}': {e}")
+            self.logger.warning(f"Failed to load var_file '{str(self.var_file)}': {e}")
 
     # Resolve nested attribute like JAWM.Process.logs_directory → self.logs_directory
     def resolve_placeholder(key):

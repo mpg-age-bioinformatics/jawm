@@ -69,7 +69,7 @@ class Process:
         "script": str,
         "script_file": str,
         "var": dict,
-        "var_file": str,
+        "var_file": (str, list),
         "project_directory": str,
         "logs_directory": str,
         "error_summary_file": str,
@@ -176,8 +176,8 @@ class Process:
         var : dict, optional
             Key-value pairs to substitute into the script as placeholders.
 
-        var_file : str, optional
-            File containing either key=value pairs or a YAML dictionary for script placeholder substitution.
+        var_file : str or list of str, optional
+            File(s) containing either key=value pairs, or YAML file(s), or a YAML dictionary for script placeholder substitution.
 
         project_directory : str, optional
             Base directory for outputs and logs. Defaults to current working directory.
