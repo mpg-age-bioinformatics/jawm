@@ -813,6 +813,25 @@ class Process:
         return self.finished_event.is_set()
 
 
+    def get_values(self):
+        """
+        Return current values of the Process instance
+        """
+        values = {}
+        exclude_from_values = {"params", "scope"}
+
+        # Include parameter_types
+        for key in self.parameter_types.keys():
+            values[key] = getattr(self, key, None)
+
+        # Include reserved_keys
+        for key in self.reserved_keys:
+            if key not in exclude_from_values:
+                values[key] = getattr(self, key, None)
+
+        return values
+
+
     # ----------------------------------------------------------
     #   Class methods with Process Lifecycle and Runtime Control
     # ----------------------------------------------------------
