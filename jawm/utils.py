@@ -326,10 +326,10 @@ def hash_content(paths, hash_func=hashlib.sha256,
     if isinstance(paths, (str, Path)):
         paths = [paths]
 
-    # Normalize ext list (lowercased, with leading dot)
+    # Normalize ext list
     allowed_exts = None
     if allowed_extensions:
-        allowed_exts = set(e.lower() for e in allowed_extensions)
+        allowed_exts = set(e.lower() if e.startswith(".") else "." + e.lower() for e in allowed_extensions)
 
     h = hash_func()
 
