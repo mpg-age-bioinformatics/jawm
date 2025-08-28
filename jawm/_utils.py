@@ -12,6 +12,8 @@ import os
 import yaml
 import fnmatch
 import inspect
+import hashlib
+from pathlib import Path
 
 
 def read_variables(file_or_list_or_dir, process_name=None, output_type="var", namespace=None):
@@ -99,3 +101,90 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
             target[k] = v
 
     return merged_vars
+
+
+def hash_content(paths, hash_func=hashlib.sha256, 
+                 exclude_dirs=None, exclude_files=None,
+                 allowed_extensions=None):
+    """
+    Return a combined hash digest for multiple files and/or folders,
+    including their contents and structure, excluding specified directories
+    and files, optionally consider only allowed extention in case of directory .
+
+    Args:
+        paths (str or Path or list[str | Path]): A single file/folder path or 
+            a list of paths to include in the hash.
+        hash_func (callable, optional): Hash function from hashlib (default: sha256).
+        exclude_dirs (list[str], optional): List of directory name patterns to exclude.
+        exclude_files (list[str], optional): List of file name patterns to exclude.
+        allowed_extensions (list[str], optional): Only consider allowed files if a directory provided
+
+    Returns:
+        str: Hex digest representing the combined hash of all provided files
+            and folder contents/structure.
+
+    Example:
+        >>> hash_content(["/data/folder1", "/data/file.txt"])
+        '5d41402abc4b2a76b9719d911017c592'
+    """
+    if exclude_dirs is None:
+        exclude_dirs = []
+    if exclude_files is None:
+        exclude_files = []
+
+    if isinstance(paths, (str, Path)):
+        paths = [paths]
+
+    # Normalize ext list
+    allowed_exts = None
+    if allowed_extensions:
+        allowed_exts = set(e.lower() if e.startswith(".") else "." + e.lower() for e in allowed_extensions)
+
+    h = hash_func()
+
+    for path in paths:
+        path = os.path.abspath(path)
+
+        if os.path.isfile(path):
+            # Handle individual file
+            fname = os.path.basename(path)
+            if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
+                continue
+            h.update(fname.encode())
+            with open(path, "rb") as f:
+                while chunk := f.read(8192):
+                    h.update(chunk)
+
+        elif os.path.isdir(path):
+            # Handle folder
+            for root, dirs, files in os.walk(path):
+                # Filter directories in-place
+                dirs[:] = [d for d in dirs 
+                           if not any(fnmatch.fnmatch(d, pat) for pat in exclude_dirs)]
+
+                for fname in sorted(files):
+                    # Skip excluded files
+                    if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
+                        continue
+
+                    # If extensions are restricted, keep only matching ones
+                    if allowed_exts is not None:
+                        ext = os.path.splitext(fname)[1].lower()
+                        if ext not in allowed_exts:
+                            continue
+
+                    fpath = os.path.join(root, fname)
+                    relpath = os.path.relpath(fpath, path)
+
+                    # Include relative path
+                    h.update(relpath.encode())
+
+                    # Include file content
+                    with open(fpath, "rb") as f:
+                        while chunk := f.read(8192):
+                            h.update(chunk)
+        else:
+            # Skip non-existent paths
+            continue
+
+    return h.hexdigest()
