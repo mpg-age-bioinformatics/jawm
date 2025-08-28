@@ -1154,14 +1154,19 @@ class Process:
 
 
     @classmethod
-    def wait(cls, process_list="all", allowed_exit="all"):
+    def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5):
         """
         Wait until the given processes are finished, optionally checking their exit codes.
 
         Parameters:
         -----------
         process_list ("all" (default) | list[str] | str) : Which process(es) to wait for.
-        allowed_exit ("all" (default) | int | str | list[int | str]) : Allowed exit codes. If not matched, give warning and return False; True otherwise. 
+        allowed_exit ("all" (default) | int | str | list[int | str]) : Allowed exit codes. If not matched, give warning and return False; True otherwise.
+        tail (None | True | "stdout" | "stderr" | "both"): If set, stream live output while waiting.
+            - True / "stdout": tail the process stdout file
+            - "stderr": tail the process stderr file
+            - "both": tail both stdout and stderr
+        tail_poll (float): polling interval in seconds for tailing (default 0.5) 
 
         Returns:
             bool: True if all waited processes completed with allowed exit codes, False otherwise.
@@ -1202,14 +1207,74 @@ class Process:
                     print(f"Process.wait | WARNING :: Unsupported process reference: {item}")
                     success = False
 
+        def _follow_file(path, stop_event, prefix, poll):
+            """
+            Minimal tail -f: waits for file creation, then seeks to end and
+            prints new lines until stop_event is set.
+            """
+            try:
+                # Wait for the file to exist (process might not have created it yet)
+                while not stop_event.is_set() and not os.path.exists(path):
+                    time.sleep(poll)
+
+                if not os.path.exists(path):
+                    return  # stopped before file showed up
+
+                with open(path, "r") as f:
+                    # Go to end of file
+                    f.seek(0, os.SEEK_END)
+                    while not stop_event.is_set():
+                        where = f.tell()
+                        line = f.readline()
+                        if line:
+                            # Print with a lightweight prefix for clarity
+                            print(f"[TAIL {prefix}] {line}", end="")
+                        else:
+                            time.sleep(poll)
+                            f.seek(where)
+            except Exception as e:
+                print(f"Process.wait | WARNING :: Tail failed for {path}: {e}")
+
         for proc in procs:
             try:
                 if proc.finished_event.is_set():
                     proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] already completed")
                 else:
                     proc.logger.info(f"Process.wait → Waiting for {proc.name} [{proc.hash}] to complete...")
+
+                    # --- Start optional tailing ---
+                    tail_threads = []
+                    tail_stop = threading.Event()
+
+                    def _add_tail(path, label):
+                        t = threading.Thread(
+                            target=_follow_file,
+                            args=(path, tail_stop, f"{proc.name}|{proc.hash} {label}", tail_poll),
+                            daemon=True
+                        )
+                        t.start()
+                        tail_threads.append(t)
+
+                    if tail:
+                        # Accept True/"stdout"/"stderr"/"both"
+                        if tail is True or str(tail).lower() == "stdout":
+                            _add_tail(proc.stdout_path, "stdout")
+                        elif str(tail).lower() == "stderr":
+                            _add_tail(proc.stderr_path, "stderr")
+                        elif str(tail).lower() == "both":
+                            _add_tail(proc.stdout_path, "stdout")
+                            _add_tail(proc.stderr_path, "stderr")
+                        else:
+                            proc.logger.warning(f"Process.wait | WARNING :: Unsupported tail option '{tail}' — ignoring")
+
                     proc.finished_event.wait()
                     proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] has completed")
+
+                    # --- Stop tailers cleanly ---
+                    if tail_threads:
+                        tail_stop.set()
+                        for t in tail_threads:
+                            t.join(timeout=1.0)
 
                 if allowed_exit != "all":
                     exit_code = proc.get_exitcode()
