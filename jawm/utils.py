@@ -292,12 +292,15 @@ def script_to_yaml(
 
     return yaml_str
 
+# utils.py
+
 def hash_content(paths, hash_func=hashlib.sha256, 
-                 exclude_dirs=None, exclude_files=None):
+                 exclude_dirs=None, exclude_files=None,
+                 allowed_extensions=None):
     """
     Return a combined hash digest for multiple files and/or folders,
     including their contents and structure, excluding specified directories
-    and files.
+    and files, optionally consider only allowed extention in case of directory .
 
     Args:
         paths (str or Path or list[str | Path]): A single file/folder path or 
@@ -305,6 +308,7 @@ def hash_content(paths, hash_func=hashlib.sha256,
         hash_func (callable, optional): Hash function from hashlib (default: sha256).
         exclude_dirs (list[str], optional): List of directory name patterns to exclude.
         exclude_files (list[str], optional): List of file name patterns to exclude.
+        allowed_extensions (list[str], optional): Only consider allowed files if a directory provided
 
     Returns:
         str: Hex digest representing the combined hash of all provided files
@@ -321,6 +325,11 @@ def hash_content(paths, hash_func=hashlib.sha256,
 
     if isinstance(paths, (str, Path)):
         paths = [paths]
+
+    # Normalize ext list (lowercased, with leading dot)
+    allowed_exts = None
+    if allowed_extensions:
+        allowed_exts = set(e.lower() for e in allowed_extensions)
 
     h = hash_func()
 
@@ -348,6 +357,12 @@ def hash_content(paths, hash_func=hashlib.sha256,
                     # Skip excluded files
                     if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
                         continue
+
+                    # If extensions are restricted, keep only matching ones
+                    if allowed_exts is not None:
+                        ext = os.path.splitext(fname)[1].lower()
+                        if ext not in allowed_exts:
+                            continue
 
                     fpath = os.path.join(root, fname)
                     relpath = os.path.relpath(fpath, path)
