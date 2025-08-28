@@ -1166,7 +1166,7 @@ class Process:
             - True / "stdout": tail the process stdout file
             - "stderr": tail the process stderr file
             - "both": tail both stdout and stderr
-        tail_poll (float): polling interval in seconds for tailing (default 0.5) 
+        tail_poll (float): polling interval in seconds for tailing (default 0.5)
 
         Returns:
             bool: True if all waited processes completed with allowed exit codes, False otherwise.
@@ -1184,13 +1184,18 @@ class Process:
             else:
                 print("Process.wait | WARNING :: Unsupported format for allowed_exit, skipping check.")
                 allowed_exit = "all"
-        
+
         # Normalize single process to list
         if process_list != "all" and not isinstance(process_list, list):
             process_list = [process_list]
 
+        # Resolve processes to wait on
         if process_list == "all":
-            procs = list({id(p): p for p in cls.registry.values() if isinstance(p, cls) and p.execution_start_at is not None}.values())
+            procs = list({
+                id(p): p
+                for p in cls.registry.values()
+                if isinstance(p, cls) and p.execution_start_at is not None
+            }.values())
         else:
             procs = []
             for item in process_list:
@@ -1207,6 +1212,9 @@ class Process:
                     print(f"Process.wait | WARNING :: Unsupported process reference: {item}")
                     success = False
 
+        # ---------------------------
+        # Live tailing: helpers/setup
+        # ---------------------------
         def _follow_file(path, stop_event, prefix, poll):
             """
             Minimal tail -f: waits for file creation, then seeks to end and
@@ -1228,59 +1236,60 @@ class Process:
                         line = f.readline()
                         if line:
                             # Print with a lightweight prefix for clarity
-                            print(f"[TAIL {prefix}] {line}", end="")
+                            sys.stdout.write(f"[TAIL {prefix}] {line}")
+                            sys.stdout.flush()
                         else:
                             time.sleep(poll)
                             f.seek(where)
             except Exception as e:
                 print(f"Process.wait | WARNING :: Tail failed for {path}: {e}")
 
+        # Start tailers for ALL selected processes up-front, so they run concurrently
+        tail_state = {}  # proc -> {"stop": Event, "threads": [Thread,...]}
+        if tail:
+            for proc in procs:
+                stop_evt = threading.Event()
+                threads = []
+
+                def _add_tail(path, label):
+                    t = threading.Thread(
+                        target=_follow_file,
+                        args=(path, stop_evt, f"{proc.name}|{proc.hash} {label}", tail_poll),
+                        daemon=True
+                    )
+                    t.start()
+                    threads.append(t)
+
+                opt = str(tail).lower() if tail is not True else "stdout"
+                if opt == "stdout":
+                    _add_tail(proc.stdout_path, "stdout")
+                elif opt == "stderr":
+                    _add_tail(proc.stderr_path, "stderr")
+                elif opt == "both":
+                    _add_tail(proc.stdout_path, "stdout")
+                    _add_tail(proc.stderr_path, "stderr")
+                else:
+                    proc.logger.warning(f"Process.wait | WARNING :: Unsupported tail option '{tail}' — ignoring for {proc.name}")
+
+                tail_state[proc] = {"stop": stop_evt, "threads": threads}
+
+        # ------------------------------------------------------------
+        # Wait for processes & tear down their tailers as they finish
+        # ------------------------------------------------------------
         for proc in procs:
             try:
                 if proc.finished_event.is_set():
                     proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] already completed")
                 else:
                     proc.logger.info(f"Process.wait → Waiting for {proc.name} [{proc.hash}] to complete...")
-
-                    # --- Start optional tailing ---
-                    tail_threads = []
-                    tail_stop = threading.Event()
-
-                    def _add_tail(path, label):
-                        t = threading.Thread(
-                            target=_follow_file,
-                            args=(path, tail_stop, f"{proc.name}|{proc.hash} {label}", tail_poll),
-                            daemon=True
-                        )
-                        t.start()
-                        tail_threads.append(t)
-
-                    if tail:
-                        # Accept True/"stdout"/"stderr"/"both"
-                        if tail is True or str(tail).lower() == "stdout":
-                            _add_tail(proc.stdout_path, "stdout")
-                        elif str(tail).lower() == "stderr":
-                            _add_tail(proc.stderr_path, "stderr")
-                        elif str(tail).lower() == "both":
-                            _add_tail(proc.stdout_path, "stdout")
-                            _add_tail(proc.stderr_path, "stderr")
-                        else:
-                            proc.logger.warning(f"Process.wait | WARNING :: Unsupported tail option '{tail}' — ignoring")
-
                     proc.finished_event.wait()
                     proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] has completed")
-
-                    # --- Stop tailers cleanly ---
-                    if tail_threads:
-                        tail_stop.set()
-                        for t in tail_threads:
-                            t.join(timeout=1.0)
 
                 if allowed_exit != "all":
                     exit_code = proc.get_exitcode()
                     try:
-                        code = int(exit_code.split(":")[0]) if ":" in exit_code else int(exit_code)
-                    except:
+                        code = int(exit_code.split(":")[0]) if (exit_code and ":" in exit_code) else int(exit_code)
+                    except Exception:
                         code = None
                     if str(code) not in allowed_exit:
                         proc.logger.warning(f"Process {proc.name} ({proc.hash}) has completed with disallowed exit code: {exit_code}")
@@ -1291,8 +1300,14 @@ class Process:
                 if hasattr(proc, "_log_error_summary"):
                     proc._log_error_summary(f"Error during Process Wait: {str(e)}", "Wait")
                 proc.logger.error(f"Failed while managing {proc.name} ({proc.hash}) for process wait: {str(e)}")
-
                 success = False
+            finally:
+                # stop & join this proc's tailers (others keep running)
+                ts = tail_state.get(proc)
+                if ts:
+                    ts["stop"].set()
+                    for t in ts["threads"]:
+                        t.join(timeout=1.0)
 
         print(f"Process.wait | INFO :: Wait completed for {len(procs)} process(es).")
         return success
