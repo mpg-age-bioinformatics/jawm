@@ -723,7 +723,69 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 18: Concurrent tail across multiple processes")
+time.sleep(0.5)
+try:
+    # Two processes that overlap in time and write to both stdout and stderr
+    procA = Process(
+        name="tail_conc_1",
+        script="""#!/bin/bash
+for i in {1..4}; do
+    echo "A STDOUT $i"
+    echo "A STDERR $i" >&2
+    sleep 1
+done
+""",
+        logs_directory="logs_test_tail_concurrent"
+    )
+    procB = Process(
+        name="tail_conc_2",
+        script="""#!/bin/bash
+for j in {5..8}; do
+    echo "B STDOUT $j"
+    echo "B STDERR $j" >&2
+    sleep 1
+done
+""",
+        logs_directory="logs_test_tail_concurrent"
+    )
 
+    # Start both
+    procA.execute()
+    procB.execute()
+
+    # Wait with concurrent tailing of BOTH streams
+    ok = Process.wait(["tail_conc_1", "tail_conc_2"], tail="both", tail_poll=0.2)
+    assert ok, "❌ Process.wait returned False"
+
+    # Validate both completed successfully
+    assert procA.get_exitcode() == "0", "❌ tail_conc_1 exit code not 0"
+    assert procB.get_exitcode() == "0", "❌ tail_conc_2 exit code not 0"
+
+    # Validate outputs were fully written
+    outA, errA = procA.get_output(), procA.get_error()
+    outB, errB = procB.get_output(), procB.get_error()
+    assert "A STDOUT 4" in outA, "❌ tail_conc_1 stdout incomplete"
+    assert "A STDERR 4" in errA, "❌ tail_conc_1 stderr incomplete"
+    assert "B STDOUT 8" in outB, "❌ tail_conc_2 stdout incomplete"
+    assert "B STDERR 8" in errB, "❌ tail_conc_2 stderr incomplete"
+
+    # Backward-compatibility check: wait again with no tail (should be a no-op and not crash)
+    ok2 = Process.wait(["tail_conc_1", "tail_conc_2"])
+    assert ok2, "❌ Process.wait without tail unexpectedly failed"
+
+    print("✅ Passed: Concurrent multi-process tailing (stdout+stderr) and no-tail fallback")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
+
+# ---------------------------
+# Summary of the test cases
+# ---------------------------
 
 print("\n===== TEST SUMMARY =====")
 print(f"✅ Passed: {passed}")
