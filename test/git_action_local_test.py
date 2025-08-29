@@ -2,6 +2,8 @@ import os
 import time
 import sys
 import subprocess
+import shutil
+import tempfile
 from jawm import Process
 
 passed = 0
@@ -780,6 +782,102 @@ done
 except Exception as e:
     print(f"❌ Failed: {e}")
     failed += 1
+
+
+print("\n>>> Test 19: Hash reacts deterministically (same inputs) and to allowed file changes")
+time.sleep(0.5)
+try:
+    # --- Setup a temp directory with inputs ---
+    tmpdir = tempfile.mkdtemp(prefix="hash_inputs_")
+    p_yaml = os.path.join(tmpdir, "p.yaml")
+    v_yaml = os.path.join(tmpdir, "v.yaml")
+    script_py = os.path.join(tmpdir, "test.py")
+
+    with open(p_yaml, "w") as f: f.write("A: 1\n")
+    with open(v_yaml, "w") as f: f.write("B: 2\n")
+    with open(script_py, "w") as f: f.write("#!/usr/bin/env python3\nprint('v1')\n")
+
+    # ========== A) SAME INPUTS -> SAME PREFIX ==========
+    pA1 = Process(
+        name="hash_files_demo_A",
+        param_file=tmpdir,         # only .yaml/.yml considered
+        var_file=tmpdir,           # .yaml/.yml/.rc (and .env/.conf if you enabled)
+        script_file=script_py
+    )
+    hA1 = pA1.hash[:6]
+
+    # Another identical process: should have SAME prefix
+    pA2 = Process(
+        name="hash_files_demo_A",
+        param_file=tmpdir,
+        var_file=tmpdir,
+        script_file=script_py
+    )
+    hA2 = pA2.hash[:6]
+    assert hA1 == hA2, "❌ Same inputs should yield same 6-char prefix"
+
+    # ========== B) NO CHANGE IN ALLOWED FILES -> PREFIX UNCHANGED ==========
+    # Add a non-allowed file (e.g., .txt) to the directory; should NOT affect prefix
+    with open(os.path.join(tmpdir, "note.txt"), "w") as f: f.write("this should be ignored\n")
+
+    pA3 = Process(
+        name="hash_files_demo_A",
+        param_file=tmpdir,
+        var_file=tmpdir,
+        script_file=script_py
+    )
+    hA3 = pA3.hash[:6]
+    assert hA3 == hA1, "❌ Adding non-allowed files should not change prefix"
+
+    # ========== C) CHANGE ALLOWED FILE CONTENT -> PREFIX CHANGES ==========
+    # Change the script_file content (always included)
+    with open(script_py, "w") as f: f.write("#!/usr/bin/env python3\nprint('v2')\n")
+
+    pA4 = Process(
+        name="hash_files_demo_A",
+        param_file=tmpdir,
+        var_file=tmpdir,
+        script_file=script_py
+    )
+    hA4 = pA4.hash[:6]
+    assert hA4 != hA1, "❌ Changing script_file content should change prefix"
+
+    # Also change an allowed YAML (var/param) file content; should change again
+    with open(v_yaml, "w") as f: f.write("B: 999\n")
+
+    pA5 = Process(
+        name="hash_files_demo_A",
+        param_file=tmpdir,
+        var_file=tmpdir,
+        script_file=script_py
+    )
+    hA5 = pA5.hash[:6]
+    assert hA5 != hA4, "❌ Changing allowed YAML content should change prefix again"
+
+    # ========== D) NO param_file / var_file / script_file ==========
+    # Same inline script -> same prefix
+    pB1 = Process(name="hash_no_files", script="#!/bin/bash\necho hi\n")
+    pB2 = Process(name="hash_no_files", script="#!/bin/bash\necho hi\n")
+    hB1, hB2 = pB1.hash[:6], pB2.hash[:6]
+    assert hB1 == hB2, "❌ Same params without files should yield same prefix"
+
+    # Change inline script -> prefix changes
+    pB3 = Process(name="hash_no_files", script="#!/bin/bash\necho bye\n")
+    hB3 = pB3.hash[:6]
+    assert hB3 != hB1, "❌ Changing inline script should change prefix"
+
+    print("✅ Passed: Hash stability and sensitivity across files, dirs, and inline script")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    try:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    except Exception:
+        pass
+
 
 
 
