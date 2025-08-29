@@ -94,7 +94,8 @@ class Process:
         "container_after_script": str,
         "run_in_detached": bool,
         "validation": (bool, str),
-        "resume": bool
+        "resume": bool,
+        "parallelism": bool
     }
     # Set of internal/reserved keys
     reserved_keys = {
@@ -149,6 +150,7 @@ class Process:
         container_after_script=None,
         validation=None,
         resume=None,
+        parallelism=None,
         **kwargs
     ):
         """
@@ -252,6 +254,9 @@ class Process:
 
         resume : bool, default=False  
             Whether to skip execution if a matching process with the same parameter hash has already completed successfully.
+        
+        parallelism : bool, default=True  
+            Whether the process should run in parallel with others (True) or block until it finishes before the next one starts (False).
 
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
@@ -342,6 +347,7 @@ class Process:
         self.container_before_script = self.params.get("container_before_script", None)
         self.container_after_script = self.params.get("container_after_script", None)
         self.resume = self.params.get("resume", False)
+        self.parallelism = self.params.get("parallelism", True)
 
         # Local execution configurations
         self.manager_local = self.params.get("manager_local", {})
@@ -486,6 +492,8 @@ class Process:
             try:
                 self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self._run_manager()
+                if not self.parallelism:
+                    self.finished_event.wait()
             except Exception as e:
                 self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
                 Process.stop_future_event.set()
@@ -525,6 +533,8 @@ class Process:
             # Spawn a background thread
             a_thread = threading.Thread(target=run_in_background, daemon=False)
             a_thread.start()
+            if not self.parallelism:
+                self.finished_event.wait()
             return None
 
     
