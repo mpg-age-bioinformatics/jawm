@@ -58,7 +58,7 @@ def _generate_hash_params(self):
     try:
         sf = self.params.get("script_file", None)
         if sf:
-            digest = hash_content(sf)
+            digest = hash_content(sf, recursive=False)
             h.update(digest.encode())
     except Exception:
         pass
@@ -67,7 +67,7 @@ def _generate_hash_params(self):
     try:
         pf = self.params.get("param_file", None)
         if pf:
-            digest = hash_content(pf, allowed_extensions=["yaml", "yml"])
+            digest = hash_content(pf, allowed_extensions=["yaml", "yml"], recursive=False)
             h.update(digest.encode())
     except Exception:
         pass
@@ -76,7 +76,7 @@ def _generate_hash_params(self):
     try:
         vf = self.params.get("var_file", None)
         if vf:
-            digest = hash_content(vf, allowed_extensions=["yaml", "yml", "rc", "env", "conf"])
+            digest = hash_content(vf, allowed_extensions=["yaml", "yml", "rc", "env", "conf"], recursive=False)
             h.update(digest.encode())
     except Exception:
         pass

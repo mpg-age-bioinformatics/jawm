@@ -105,7 +105,7 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
 
 def hash_content(paths, hash_func=hashlib.sha256, 
                  exclude_dirs=None, exclude_files=None,
-                 allowed_extensions=None):
+                 allowed_extensions=None, recursive=True):
     """
     Return a combined hash digest for multiple files and/or folders,
     including their contents and structure, excluding specified directories
@@ -117,7 +117,8 @@ def hash_content(paths, hash_func=hashlib.sha256,
         hash_func (callable, optional): Hash function from hashlib (default: sha256).
         exclude_dirs (list[str], optional): List of directory name patterns to exclude.
         exclude_files (list[str], optional): List of file name patterns to exclude.
-        allowed_extensions (list[str], optional): Only consider allowed files if a directory provided
+        allowed_extensions (list[str], optional): Only consider allowed files if a directory provided.
+        recursive (bool, optional): Whether to descend into subdirectories (default: True).
 
     Returns:
         str: Hex digest representing the combined hash of all provided files
@@ -157,10 +158,16 @@ def hash_content(paths, hash_func=hashlib.sha256,
 
         elif os.path.isdir(path):
             # Handle folder
-            for root, dirs, files in os.walk(path):
-                # Filter directories in-place
-                dirs[:] = [d for d in dirs 
-                           if not any(fnmatch.fnmatch(d, pat) for pat in exclude_dirs)]
+            if recursive:
+                walker = os.walk(path)
+            else:
+                # Top-level only: mimic os.walk but with no subdirs
+                walker = [(path, [], os.listdir(path))]
+
+            for root, dirs, files in walker:
+                if recursive:
+                    dirs[:] = [d for d in dirs 
+                               if not any(fnmatch.fnmatch(d, pat) for pat in exclude_dirs)]
 
                 for fname in sorted(files):
                     # Skip excluded files
