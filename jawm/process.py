@@ -101,7 +101,7 @@ class Process:
     reserved_keys = {
         "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
-        "parameters_directory", "logger"
+        "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name"
     }
 
 
