@@ -8,7 +8,6 @@ import subprocess
 import time
 import sys
 import re
-import hashlib
 from datetime import datetime
 
 # Extend the Process class with methods from modular backend implementations
@@ -285,11 +284,12 @@ class Process:
         # Set up the hash (with 6 characters params based and 4 characters suffix) and logger
         # If there is a callable in the instance, hash_params would produce diffeent hash every time
         try:
-            hash_params = hashlib.sha256(repr(sorted(self.params.items())).encode()).hexdigest()[:6]
+            hash_params = self._generate_hash_params()
             hash_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
             self.hash = f"{hash_params}{hash_suffix}"
         except:
             self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+        self.params["hash"] = self.hash
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
 
         # Register the process and get depends_on parameter

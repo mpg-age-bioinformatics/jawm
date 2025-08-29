@@ -4,6 +4,7 @@ import re
 import time
 import fnmatch
 import shlex
+import hashlib
 from functools import reduce
 from datetime import datetime
 
@@ -29,6 +30,59 @@ def _prepare_base_dirs(self):
         self.logger.warning(f"Monitoring directory issue: {str(e)}")
         self.monitoring_directory = None
     os.makedirs(self.log_path, exist_ok=True)
+
+
+@register
+def _generate_hash_params(self):
+    """
+    Generate a 6-char SHA256 prefix from:
+      - sorted self.params (so path strings also affect it),
+      - content hash of script_file (file only),
+      - content hash of param_file / var_file (files or directories),
+        filtering directory contents by allowed extensions.
+
+    Returns
+    -------
+    str
+        6-character hexadecimal hash prefix.
+    """
+    from ._utils import hash_content
+
+    # Hash the parameters themselves (stable ordering)
+    h = hashlib.sha256()
+    base_items = sorted((self.params or {}).items())
+    h.update(repr(base_items).encode())
+
+    # Add content digests for referenced files/dirs
+    # script_file (single file path)
+    try:
+        sf = self.params.get("script_file", None)
+        print(f"Now {sf}")
+        if sf:
+            digest = hash_content(sf)
+            h.update(digest.encode())
+    except Exception:
+        pass
+
+    # param_file (file or directory; restrict to YAML when directory)
+    try:
+        pf = self.params.get("param_file", None)
+        if pf:
+            digest = hash_content(pf, allowed_extensions=["yaml", "yml"])
+            h.update(digest.encode())
+    except Exception:
+        pass
+
+    # var_file (file/list/dir; restrict to YAML/RC/ENV/CONF when directory)
+    try:
+        vf = self.params.get("var_file", None)
+        if vf:
+            digest = hash_content(vf, allowed_extensions=["yaml", "yml", "rc", "env", "conf"])
+            h.update(digest.encode())
+    except Exception:
+        pass
+
+    return h.hexdigest()[:6]
 
 
 @register
