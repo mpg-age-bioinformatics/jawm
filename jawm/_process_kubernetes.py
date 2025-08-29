@@ -20,7 +20,6 @@ def _generate_k8s_manifest(self):
     Build a Kubernetes Job manifest for this Process and write it to <log_path>/<name>.k8s.json.
     Returns the manifest path.
     """
-    import os, json
 
     os.makedirs(self.log_path, exist_ok=True)
     manifest_path = os.path.join(self.log_path, f"{self.name}.k8s.json")
@@ -134,8 +133,6 @@ def _execute_kubernetes(self):
     Submit as a Kubernetes Job via kubectl, then monitor until completion.
     Writes .id (job name), .exitcode, and .command, and updates monitoring files.
     """
-    import os, subprocess, shlex, time
-    from datetime import datetime
 
     self.logger.info(f"Executing process {self.name} in Kubernetes")
     self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
