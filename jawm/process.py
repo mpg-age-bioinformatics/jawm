@@ -289,7 +289,6 @@ class Process:
             self.hash = f"{hash_params}{hash_suffix}"
         except:
             self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
-        self.params["hash"] = self.hash
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
 
         # Register the process and get depends_on parameter
