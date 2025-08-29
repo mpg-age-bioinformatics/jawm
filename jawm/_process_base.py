@@ -93,6 +93,8 @@ def _run_manager(self):
         self._execute_local()
     elif self.manager == "slurm":
         self._execute_slurm()
+    elif self.manager == "kubernetes":
+        self._execute_kubernetes()
     else:
         self._log_error_summary(f"Unsupported manager: {self.manager}")
         Process.stop_future_event.set()
