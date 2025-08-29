@@ -57,7 +57,6 @@ def _generate_hash_params(self):
     # script_file (single file path)
     try:
         sf = self.params.get("script_file", None)
-        print(f"Now {sf}")
         if sf:
             digest = hash_content(sf)
             h.update(digest.encode())
