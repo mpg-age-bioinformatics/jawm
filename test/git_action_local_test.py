@@ -879,6 +879,129 @@ finally:
         pass
 
 
+print("\n>>> Test 20: Parallelism True vs False (timing + overlap checks)")
+time.sleep(0.5)
+try:
+    import re, time
+
+    def parse_epochs(text):
+        """
+        Extract integer epochs from lines like: 'EPOCH LABEL N'
+        Returns a list of ints; ignores lines that don't match.
+        """
+        epochs = []
+        if not text:
+            return epochs
+        for line in text.splitlines():
+            m = re.match(r"^\s*(\d{9,})\s+[A-D]\s+\d+\s*$", line.strip())
+            if m:
+                try:
+                    epochs.append(int(m.group(1)))
+                except Exception:
+                    pass
+        return sorted(epochs)
+
+    # Common 3-iteration script that prints epoch seconds + label + counter
+    def loop_script(label):
+        return f"""#!/bin/bash
+for i in {{1..3}}; do
+    echo "$(date +%s) {label} $i"
+    sleep 1
+done
+"""
+
+    logs_dir = "logs_test_parallel"
+
+    # --------------- A) parallelism=True (default): should overlap ---------------
+    pA = Process(
+        name="parallel_true_A",
+        script=loop_script("A"),
+        logs_directory=logs_dir
+    )
+    pB = Process(
+        name="parallel_true_B",
+        script=loop_script("B"),
+        logs_directory=logs_dir
+    )
+
+    t0 = time.time()
+    pA.execute()
+    pB.execute()
+    Process.wait([pA.hash, pB.hash])
+    t1 = time.time()
+    elapsed_parallel = t1 - t0
+
+    outA = pA.get_output()
+    outB = pB.get_output()
+    A_epochs = parse_epochs(outA)
+    B_epochs = parse_epochs(outB)
+
+    assert pA.get_exitcode() == "0", "❌ parallelism=True: A exit code non-zero"
+    assert pB.get_exitcode() == "0", "❌ parallelism=True: B exit code non-zero"
+    assert len(A_epochs) >= 3 and len(B_epochs) >= 3, "❌ parallelism=True: missing epoch lines"
+
+    # Ranges overlap check: [minA, maxA] intersects [minB, maxB]
+    overlap_parallel = (min(A_epochs) <= max(B_epochs)) and (min(B_epochs) <= max(A_epochs))
+    assert overlap_parallel, "❌ parallelism=True: expected overlapping execution windows"
+
+    # --------------- B) parallelism=False: must run one-after-another ---------------
+    pC = Process(
+        name="parallel_false_A",
+        script=loop_script("C"),
+        logs_directory=logs_dir,
+        parallelism=False
+    )
+    pD = Process(
+        name="parallel_false_B",
+        script=loop_script("D"),
+        logs_directory=logs_dir,
+        parallelism=False
+    )
+
+    t2 = time.time()
+    pC.execute()
+    pD.execute()
+    Process.wait([pC.hash, pD.hash])
+    t3 = time.time()
+    elapsed_serial = t3 - t2
+
+    outC = pC.get_output()
+    outD = pD.get_output()
+    C_epochs = parse_epochs(outC)
+    D_epochs = parse_epochs(outD)
+
+    assert pC.get_exitcode() == "0", "❌ parallelism=False: C exit code non-zero"
+    assert pD.get_exitcode() == "0", "❌ parallelism=False: D exit code non-zero"
+    assert len(C_epochs) >= 3 and len(D_epochs) >= 3, "❌ parallelism=False: missing epoch lines"
+
+    # Non-overlap check: earliest D is strictly after latest C
+    no_overlap_serial = min(D_epochs) > max(C_epochs)
+    assert no_overlap_serial, (
+        "❌ parallelism=False: detected overlap — D started before C fully finished"
+    )
+
+    # --------------- Timing sanity checks (robust to system variance) ---------------
+    # Each script loops ~3 seconds; parallel should be clearly faster than serial.
+    assert elapsed_serial >= 5.0, f"❌ Serial run unusually fast: {elapsed_serial:.1f}s"
+    assert elapsed_parallel < (elapsed_serial * 0.75), (
+        f"❌ Expected parallel run at least 25% faster: parallel={elapsed_parallel:.1f}s, serial={elapsed_serial:.1f}s"
+    )
+    # Optional soft cap to catch extreme slowness on overloaded machines:
+    # assert elapsed_parallel < 8.0, f"❌ Parallel took unusually long: {elapsed_parallel:.1f}s"
+
+    print(
+        f"✅ Passed: Parallelism True vs False "
+        f"(parallel={elapsed_parallel:.1f}s, serial={elapsed_serial:.1f}s; "
+        f"overlap=True, serialized=True)"
+    )
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
+
 
 
 # ---------------------------
