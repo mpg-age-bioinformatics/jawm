@@ -25,4 +25,4 @@ jobs:
 
       - name: 🧪 Run JAWM smoke tests for local cases
         run: |
-          python test/git_action_local_test.py
+          python test/base_test.py

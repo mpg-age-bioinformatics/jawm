@@ -164,6 +164,7 @@ cython_debug/
 # Test directories
 exercise/
 test/*_test
+test/logs*
 logs_test
 data_test
 notebook
