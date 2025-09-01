@@ -190,6 +190,10 @@ def _execute_kubernetes(self):
                     import json as _json
                     data = _json.loads(pods.stdout)
                     items = data.get("items", [])
+                    # bail out fast if user killed the job
+                    if getattr(self, "_k8s_killed", False):
+                        exit_code_int = 130  # synthetic "killed"
+                        break
                     if items:
                         # pick the newest pod if multiple (e.g., retries)
                         items.sort(key=lambda i: i.get("metadata", {}).get("creationTimestamp", ""), reverse=True)

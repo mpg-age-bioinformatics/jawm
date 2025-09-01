@@ -103,7 +103,7 @@ class Process:
     reserved_keys = {
         "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
-        "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name"
+        "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed"
     }
 
 
@@ -1032,6 +1032,7 @@ class Process:
                 error_message = f"Failed to verify or cancel Slurm job {runtime_id}: {e}"
 
         elif proc.manager == "kubernetes":
+            proc._k8s_killed = True
             ns = getattr(proc, "_k8s_namespace", None)
             job = str(runtime_id)
             killed, error_message = False, None
