@@ -6,6 +6,7 @@ import string
 import signal
 import subprocess
 import time
+import json
 import sys
 import re
 from datetime import datetime
@@ -1030,6 +1031,22 @@ class Process:
             except Exception as e:
                 error_message = f"Failed to verify or cancel Slurm job {runtime_id}: {e}"
 
+        elif proc.manager == "kubernetes":
+            ns = getattr(proc, "_k8s_namespace", None)
+            job = str(runtime_id)
+            killed, error_message = False, None
+            k = lambda *a: subprocess.run(["kubectl"] + (["-n", ns] if ns else []) + list(a),
+                                        capture_output=True, text=True)
+            k("delete", "job", job, "--force", "--grace-period=0", "--ignore-not-found=true", "--wait=false")
+            k("delete", "pod", "-l", f"job-name={job}", "--force", "--grace-period=0", "--ignore-not-found=true")
+            deadline = time.time() + 60
+            while time.time() < deadline:
+                r = k("get", "pods", "-l", f"job-name={job}", "-o", "json")
+                items = (json.loads(r.stdout or "{}").get("items", []) if r.returncode == 0 else [])
+                if not items: killed = True; break
+                time.sleep(2)
+            if not killed:
+                error_message = f"Timed out waiting for Kubernetes pods of job {job} to terminate."
 
         else:
             error_message = f"Unsupported manager '{proc.manager}' for killing."
