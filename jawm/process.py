@@ -1039,7 +1039,7 @@ class Process:
                                         capture_output=True, text=True)
             k("delete", "job", job, "--force", "--grace-period=0", "--ignore-not-found=true", "--wait=false")
             k("delete", "pod", "-l", f"job-name={job}", "--force", "--grace-period=0", "--ignore-not-found=true")
-            deadline = time.time() + 60
+            deadline = time.time() + 30
             while time.time() < deadline:
                 r = k("get", "pods", "-l", f"job-name={job}", "-o", "json")
                 items = (json.loads(r.stdout or "{}").get("items", []) if r.returncode == 0 else [])
@@ -1170,16 +1170,31 @@ class Process:
         """
         if getattr(cls, "_cleanup_hooks_registered", False):
             return
+        cls._cleanup_hooks_registered = True
+        cls._sigint_fired = False
 
         def _on_sigint(sig, frame):
+            # Second Ctrl+C: skip cleanup and hard-exit fast
+            if cls._sigint_fired:
+                try:
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
+                except Exception:
+                    pass
+                os._exit(130)
+
+            cls._sigint_fired = True
             print("\nCtrl+C detected — terminating running JAWM jobs...")
-            cls.kill_all()
-            time.sleep(3)
-            sys.exit(130)
+
+            try:
+                cls.kill_all()
+            finally:
+                try:
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
+                except Exception:
+                    pass
+                sys.exit(130)
 
         signal.signal(signal.SIGINT, _on_sigint)
-
-        cls._cleanup_hooks_registered = True
 
 
     @classmethod
