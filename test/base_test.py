@@ -1003,6 +1003,14 @@ except Exception as e:
 
 
 
+# -----------------------------
+# Cleanup created directories
+# -----------------------------
+for d in ["logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
+          "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test", "logs",
+          "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test"]:
+    shutil.rmtree(d, ignore_errors=True)
+
 
 # ---------------------------
 # Summary of the test cases
