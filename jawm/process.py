@@ -12,10 +12,10 @@ from datetime import datetime
 
 # Extend the Process class with methods from modular backend implementations
 from ._method_lib import add_methods_from
-from . import _process_base, _process_local, _process_slurm
+from . import _process_base, _process_local, _process_slurm, _process_kubernetes
 
 
-@add_methods_from(_process_base, _process_local, _process_slurm)
+@add_methods_from(_process_base, _process_local, _process_slurm, _process_kubernetes)
 class Process:
     """
     A JAWM Process represents a step in a workflow with full support for:
@@ -84,6 +84,7 @@ class Process:
         "when": bool,
         "manager_local": dict,
         "manager_slurm": dict,
+        "manager_kubernetes": dict,
         "environment": str,
         "container": str,
         "environment_apptainer": dict,
@@ -101,7 +102,7 @@ class Process:
     reserved_keys = {
         "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
-        "parameters_directory", "logger"
+        "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name"
     }
 
 
@@ -139,6 +140,7 @@ class Process:
         when=None,
         manager_local=None,
         manager_slurm=None,
+        manager_kubernetes=None,
         environment=None,
         container=None,
         environment_apptainer=None,
@@ -224,6 +226,9 @@ class Process:
 
         manager_slurm : dict, optional
             Configuration specific to Slurm execution, to be passed exactly as-is
+
+        manager_kubernetes : dict, optional
+            Configuration specific to Kubernetes execution, to be passed exactly as-is
 
         environment : str, default="local"
             Execution environment: "local", "docker", or "apptainer".
@@ -354,6 +359,9 @@ class Process:
 
         # Slurm execution configurations
         self.manager_slurm = self.params.get("manager_slurm", {})
+
+        # Kubernetes execution configurations
+        self.manager_kubernetes = self.params.get("manager_kubernetes", {})
 
         # Execution environment configurations
         self.environment = self.params.get("environment", "local")
