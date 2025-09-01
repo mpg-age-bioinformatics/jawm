@@ -1,0 +1,9 @@
+- scope: global
+  manager: kubernetes
+  container: "ubuntu:22.04"
+  manager_kubernetes:
+    namespace: "jawm"
+    backoffLimit: 0
+    ttlSecondsAfterFinished: 120
+    resources:
+      requests: { cpu: "100m", memory: "128Mi" }
