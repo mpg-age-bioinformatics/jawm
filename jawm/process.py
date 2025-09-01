@@ -1071,6 +1071,10 @@ class Process:
             if hasattr(proc, "_log_error_summary"):
                 proc._log_error_summary(f"Process was manually terminated via Process.kill('{identifier}')", "Killer")
 
+            # Mark finished so Process.wait() unblocks
+            proc.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+            proc.finished_event.set()
+
             print(f"{proc.name}|{proc.hash} :: Process (ID: {runtime_id}) killed successfully.")
             return True
 
