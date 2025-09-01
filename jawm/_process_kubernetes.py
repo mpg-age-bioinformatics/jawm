@@ -42,7 +42,7 @@ def _generate_k8s_manifest(self):
     if self.after_script:
         parts.append(self.after_script.strip())
 
-    container_command = ["/bin/bash", "-lc", " && ".join(parts)]
+    container_command = ["/bin/bash", "-lc", "set -euo pipefail; " + " && ".join(parts)]
 
     # 2) Resolve image & env
     image = self.container or "ubuntu:22.04"
@@ -64,6 +64,11 @@ def _generate_k8s_manifest(self):
     activeDeadlineSeconds = mk.pop("activeDeadlineSeconds", None)
     labels_extra = mk.pop("labels", {})
     annotations = mk.pop("annotations", None)
+
+    if isinstance(imagePullSecrets, str):
+        imagePullSecrets = [{"name": imagePullSecrets}]
+    elif isinstance(imagePullSecrets, list) and imagePullSecrets and isinstance(imagePullSecrets[0], str):
+        imagePullSecrets = [{"name": n} for n in imagePullSecrets]
 
     # 4) Sanitize names/labels using YOUR instance method
     job_name = self._k8s_sanitize_label(f"{self.name}-{self.hash}")
@@ -151,6 +156,10 @@ def _execute_kubernetes(self):
         with open(command_path, "w") as cf:
             cf.write(" ".join(shlex.quote(c) for c in cmd))
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        # log apply output
+        apply_log = os.path.join(self.log_path, f"{self.name}.kubectl_apply.log")
+        with open(apply_log, "w") as f:
+            f.write((res.stdout or "") + (("\n" + res.stderr) if res.stderr else ""))
         if res.returncode != 0:
             self._log_error_summary(res.stderr)
             self.logger.error(f"kubectl apply failed: {res.stderr.strip()}")
@@ -241,6 +250,16 @@ def _execute_kubernetes(self):
                                     exit_code_int = int(chosen["state"]["terminated"].get("exitCode", 1))
                                 except Exception:
                                     exit_code_int = 1
+                            # Pod describe in failure
+                            if exit_code_int != 0 and last_pod_name:
+                                try:
+                                    desc = _kubectl(["describe", "pod", last_pod_name])
+                                    with open(self.stderr_path, "a") as f:
+                                        f.write("\n\n=== kubectl describe pod ===\n")
+                                        f.write(desc.stdout or desc.stderr or "")
+                                except Exception:
+                                    pass
+
                             break
                 except Exception:
                     pass
