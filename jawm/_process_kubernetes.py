@@ -276,6 +276,16 @@ def _execute_kubernetes(self):
                 f.write(str(exit_code_int))
         except Exception:
             pass
+        
+        # Ensure stdout/stderr files exist even if container produced nothing
+        try:
+            if not os.path.exists(self.stdout_path):
+                open(self.stdout_path, "w").close()
+            if not os.path.exists(self.stderr_path):
+                open(self.stderr_path, "w").close()
+        except Exception:
+            pass
+
         self._monitoring_completed_file(job_id, manifest_path, exit_code_int)
         return 0 if exit_code_int == 0 else 1
 
