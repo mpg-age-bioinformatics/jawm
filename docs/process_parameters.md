@@ -693,3 +693,22 @@ resume: true
 
 ---
 
+### `parallelism`
+
+- **Category**: `parameter`  
+- **Type**: `bool`  
+- **Default**: `True`  
+
+If `True`, the process runs in parallel with others. If `False`, execution is serialized — the next process waits until this one finishes.
+
+**Example:**
+```python
+parallelism=False
+```
+**YAML Example:**
+```yaml
+resume: false
+```
+
+---
+
