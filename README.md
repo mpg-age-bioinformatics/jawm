@@ -1,4 +1,4 @@
-# JAWM
+# jawm
 Just Another Workflow Manager
 
 
@@ -11,7 +11,7 @@ Just Another Workflow Manager
 
 ## Installation
 ```
-pip install git+ssh://git@github.com/mpg-age-bioinformatics/JAWM.git --user
+pip install git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git --user
 ```
 
 ## HelloWorld
@@ -40,14 +40,14 @@ process_hw.execute()
 This Process would run the bash script locally with the default parameters (check the available [parameters](docs/process_parameters.md)) and would generate logs with basic info:
 ```
 [2025-08-14 08:11:53] - INFO - hello_world|003af14gxp :: Executing process hello_world locally.
-[2025-08-14 08:11:53] - INFO - hello_world|003af14gxp :: Log folder for process hello_world: /JAWM/notebook/logs/hello_world_20250814_081143_003af14gxp
+[2025-08-14 08:11:53] - INFO - hello_world|003af14gxp :: Log folder for process hello_world: /jawm/notebook/logs/hello_world_20250814_081143_003af14gxp
 [2025-08-14 08:11:53] - INFO - hello_world|003af14gxp :: Preparing base script for process hello_world
 [2025-08-14 08:11:53] - INFO - hello_world|003af14gxp :: Process hello_world started with PID: 1385124
 [2025-08-14 08:11:53] - INFO - hello_world|003af14gxp :: Process hello_world (PID: 1385124) is still running...
 [2025-08-14 08:11:58] - INFO - hello_world|003af14gxp :: Process hello_world completed with exit code: 0
 ```
 
-JAWM logs follow this pattern by default: `[YYYY-MM-DD HH:MM:SS] - LEVEL - process_name|hash :: log_message`
+jawm logs follow this pattern by default: `[YYYY-MM-DD HH:MM:SS] - LEVEL - process_name|hash :: log_message`
 
 Alternatively, with parameter YAML file the Process can be initiated and executed with:
 ```python
