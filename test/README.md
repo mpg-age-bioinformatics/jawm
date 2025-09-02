@@ -19,7 +19,12 @@ jawm base_test.py -p parameters/slurm.yaml
 `parameters/slurm.yaml` contains only the basic parameters. You can update the `yaml` based on the system, if required.
 
 ## `kubernetes` Execution
-Run with:
+Create a `namespace` to execute the tests (namespace `jawm` based on the `yaml` file's value).
+```
+kubectl create namespace jawm >/dev/null 2>&1 || true
+```
+
+Run the script with:
 ```
 jawm base_test.py -p parameters/k8.yaml
 ```
