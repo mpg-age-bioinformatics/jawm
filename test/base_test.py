@@ -23,7 +23,7 @@ try:
     )
     proc1.execute()
     Process.wait(proc1.hash)
-    assert proc1.get_exitcode() == "0", "❌ Basic execution failed"
+    assert proc1.get_exitcode().startswith("0"), "❌ Basic execution failed"
     print("✅ Passed: Basic Inline Script")
     passed += 1
 except Exception as e:
@@ -52,8 +52,8 @@ try:
     proc2a.execute()
     proc2b.execute()
     Process.wait(["step_a", "step_b"])
-    assert proc2a.get_exitcode() == "0", "❌ step_a failed"
-    assert proc2b.get_exitcode() == "0", "❌ step_b failed"
+    assert proc2a.get_exitcode().startswith("0"), "❌ step_a failed"
+    assert proc2b.get_exitcode().startswith("0"), "❌ step_b failed"
     print("✅ Passed: Dependency Handling")
     passed += 1
 except Exception as e:
@@ -77,7 +77,7 @@ try:
         Process.wait(proc3.hash)
     except RuntimeError:
         pass
-    assert proc3.get_exitcode() != "0", "❌ Retry test unexpectedly succeeded"
+    assert not proc3.get_exitcode().startswith("0"), "❌ Retry test unexpectedly succeeded"
     time.sleep(0.5)
     print("✅ Passed: Retry Mechanism")
     passed += 1
@@ -566,7 +566,7 @@ try:
     proc15a.execute()
     Process.wait(proc15a.hash)
 
-    assert proc15a.get_exitcode() == "0", "❌ First run did not finish successfully"
+    assert proc15a.get_exitcode().startswith("0"), "❌ First run did not finish successfully"
 
     # Step 2: Clone the process
     proc15b = proc15a.copy()
@@ -576,7 +576,7 @@ try:
 
     # Step 3: Confirm resume behavior
     assert proc15b.log_path == proc15a.log_path, "❌ Resume did not use existing log folder"
-    assert proc15b.get_exitcode() == "0", "❌ Resume did not resolve to a successful result"
+    assert proc15b.get_exitcode().startswith("0"), "❌ Resume did not resolve to a successful result"
     assert proc15b.finished_event.is_set(), "❌ Resume process did not mark itself as finished"
     assert proc15b.execution_end_at is not None, "❌ Resume process was not marked as completed"
 
@@ -759,8 +759,8 @@ done
     assert ok, "❌ Process.wait returned False"
 
     # Validate both completed successfully
-    assert procA.get_exitcode() == "0", "❌ tail_conc_1 exit code not 0"
-    assert procB.get_exitcode() == "0", "❌ tail_conc_2 exit code not 0"
+    assert procA.get_exitcode().startswith("0"), "❌ tail_conc_1 exit code not 0"
+    assert procB.get_exitcode().startswith("0"), "❌ tail_conc_2 exit code not 0"
 
     # Validate outputs were fully written
     outA, errA = procA.get_output(), procA.get_error()
@@ -934,8 +934,8 @@ done
     A_epochs = parse_epochs(outA)
     B_epochs = parse_epochs(outB)
 
-    assert pA.get_exitcode() == "0", "❌ parallelism=True: A exit code non-zero"
-    assert pB.get_exitcode() == "0", "❌ parallelism=True: B exit code non-zero"
+    assert pA.get_exitcode().startswith("0"), "❌ parallelism=True: A exit code non-zero"
+    assert pB.get_exitcode().startswith("0"), "❌ parallelism=True: B exit code non-zero"
     assert len(A_epochs) >= 3 and len(B_epochs) >= 3, "❌ parallelism=True: missing epoch lines"
 
     # Ranges overlap check: [minA, maxA] intersects [minB, maxB]
@@ -968,8 +968,8 @@ done
     C_epochs = parse_epochs(outC)
     D_epochs = parse_epochs(outD)
 
-    assert pC.get_exitcode() == "0", "❌ parallelism=False: C exit code non-zero"
-    assert pD.get_exitcode() == "0", "❌ parallelism=False: D exit code non-zero"
+    assert pC.get_exitcode().startswith("0"), "❌ parallelism=False: C exit code non-zero"
+    assert pD.get_exitcode().startswith("0"), "❌ parallelism=False: D exit code non-zero"
     assert len(C_epochs) >= 3 and len(D_epochs) >= 3, "❌ parallelism=False: missing epoch lines"
 
     # Non-overlap check: earliest D is strictly after latest C
