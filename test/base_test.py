@@ -261,9 +261,8 @@ try:
         param_file="data_test/test_params.yaml"
     )
 
-    if proc11.manager=="local":
-        assert proc11.params.get("retries") == 5, "❌ Process-specific value not applied"
-        assert "logs_from_yaml_process" in proc11.logs_directory, "❌ logs_directory not from process scope"
+    assert proc11.retries == 5, "❌ Process-specific value not applied"
+    assert "logs_from_yaml_process" in proc11.logs_directory, "❌ logs_directory not from process scope"
     print("✅ Passed: YAML Parameter Resolution (skipped for cli override)")
     passed += 1
 except Exception as e:
