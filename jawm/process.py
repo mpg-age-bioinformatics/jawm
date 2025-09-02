@@ -105,7 +105,8 @@ class Process:
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
         "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed"
     }
-
+    # Supported managers by the jawm
+    supported_managers = {"local", "slurm", "kubernetes"}
 
     # Configure logging with proper format
     logging.basicConfig(
@@ -618,7 +619,7 @@ class Process:
                 warnings.append(f"Parameter '{key}' expected type {type_names}, got {type(value).__name__}")
 
         # --- Runtime requirements ---
-        if self.manager not in {"local", "slurm"}:
+        if self.manager not in self.supported_managers:
             errors.append(f"Unsupported manager: {self.manager}")
 
         if self.script_file and not os.path.isfile(self.script_file):
