@@ -244,7 +244,7 @@ depends_on:
 - **Category**: `parameter`
 - **Type**: `str`
 - **Default**: `local`
-- **Allowed**: `local`, `slurm`
+- **Allowed**: `local`, `slurm`, `kubernetes`
 
 Selects the execution backend. Validation fails for unsupported values.
 
@@ -412,6 +412,95 @@ manager_slurm={"--mem": "4G", "--time": "01:00:00"}
 **YAML Example:**
 ```yaml
 manager_slurm: {"--mem": "4G", "--time": "01:00:00"}
+```
+
+---
+
+### `manager_kubernetes`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Kubernetes manager-specific options (e.g., namespace, restartPolicy).
+
+_**Note**_: These options are passed directly into the generated Kubernetes Job manifest.
+
+_**Supported keys**_:
+
+- **`namespace`** *(str)*  
+  Namespace to create the Job in. If not provided, defaults to your current
+  kubectl context namespace.
+
+- **`backoffLimit`** *(int, default: `0`)*  
+  Number of retries for failed pods at the Kubernetes Job level.  
+  Recommended to keep at `0` since JAWM handles retries itself.
+
+- **`ttlSecondsAfterFinished`** *(int, default: `600`)*  
+  Time in seconds before Kubernetes cleans up the finished Job.
+
+- **`restartPolicy`** *(str, default: `"Never"`)*  
+  Pod restart policy. Valid values: `"Never"`, `"OnFailure"`.
+
+- **`resources`** *(dict)*  
+  Container resource requests/limits, e.g.:
+  ```yaml
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "1", memory: "1Gi" }
+  ```
+
+- **`nodeSelector`** *(dict)*  
+  Node selector labels to influence scheduling.
+
+- **`tolerations`** *(list[dict])*  
+  Pod tolerations for tainted nodes.
+
+- **`imagePullSecrets`** *(str | list[str] | list[dict])*  
+  Secrets for pulling images from private registries.  
+  Can be a string, list of strings, or list of `{name: ...}` objects.
+
+- **`serviceAccountName`** *(str)*  
+  Service account name to run the pod with.
+
+- **`volumes`** *(list[dict])*  
+  Pod-level volume definitions.
+
+- **`volumeMounts`** *(list[dict])*  
+  Container-level mounts for the above volumes.
+
+- **`activeDeadlineSeconds`** *(int)*  
+  Maximum allowed run time (in seconds) before Kubernetes forcibly terminates the pod.
+
+- **`labels`** *(dict)*  
+  Extra labels merged into Job and Pod metadata.  
+  JAWM always adds:  
+  - `jawm-name: <process_name>`  
+  - `jawm-hash: <hash>`
+
+- **`annotations`** *(dict)*  
+  Extra annotations merged into Job and Pod metadata.
+
+**Example (Python):**
+```python
+manager_kubernetes={
+    "namespace": "jawm",
+    "backoffLimit": 0,
+    "ttlSecondsAfterFinished": 120,
+    "nodeSelector": {"kubernetes.io/os": "linux"},
+    "labels": {"team": "workflow"}
+}
+```
+
+**YAML Example:**
+```yaml
+manager_kubernetes:
+  namespace: "jawm"
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 120
+  nodeSelector:
+    kubernetes.io/os: "linux"
+  labels:
+    team: "workflow"
 ```
 
 ---
