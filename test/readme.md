@@ -1,4 +1,4 @@
-# `jawm` Base Tests with `base_test,py`
+# `jawm` Base Tests with `base_test.py`
 
 This script (`base_test.py`) can validate the core functionalities of **jawm (Just Another Workflow Manager)** across multiple execution backends: **local**, **Slurm**, and **Kubernetes**.
 
