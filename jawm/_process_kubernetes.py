@@ -187,8 +187,7 @@ def _execute_kubernetes(self):
             pods = _kubectl(["get", "pods", "-l", f"job-name={job_id}", "-o", "json"])
             if pods.returncode == 0:
                 try:
-                    import json as _json
-                    data = _json.loads(pods.stdout)
+                    data = json.loads(pods.stdout)
                     items = data.get("items", [])
                     # bail out fast if user killed the job
                     if getattr(self, "_k8s_killed", False):
