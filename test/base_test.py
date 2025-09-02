@@ -530,14 +530,12 @@ try:
     proc14a = Process(
         name="hash_test",
         script="#!/bin/bash\necho Hello",
-        manager="local",
         logs_directory="logs_test_hash"
     )
 
     proc14b = Process(
         name="hash_test",
         script="#!/bin/bash\necho Hello",
-        manager="local",
         logs_directory="logs_test_hash"
     )
 
@@ -563,7 +561,6 @@ try:
         name="resume_test_proc",
         script="""#!/bin/bash\necho 'Resumable process'""",
         logs_directory="logs_resume_test",
-        manager="local",
         resume=True
     )
     proc15a.execute()
