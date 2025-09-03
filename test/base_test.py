@@ -999,14 +999,65 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 21: always_run ignores global stop (runs after upstream failure)")
+try:
+    Process.reset_stop()
+
+    # Failing upstream (sets global stop in backends)
+    up = Process(
+        name="ar_fail_up",
+        script="#!/bin/bash\nexit 3",
+        logs_directory="logs_ar"
+    )
+    try:
+        up.execute()
+        Process.wait(up.hash)
+    except RuntimeError:
+        pass
+
+    # Normally this would be skipped due to global stop; always_run makes it launch
+    dn = Process(
+        name="ar_dn",
+        script="#!/bin/bash\necho 'I ran'",
+        depends_on=["ar_fail_up"],
+        always_run=True,
+        logs_directory="logs_ar"
+    )
+    dn.execute()
+    Process.wait(dn.hash)
+    assert dn.get_exitcode() == "0", "❌ always_run should run despite global stop"
+    print("✅ Passed: always_run runs despite global stop")
+except Exception as e:
+    print(f"❌ Failed: {e}")
+
+print("\n>>> Test: always_run does not override 'when'")
+try:
+    from jawm import Process
+    Process.reset_stop()
+    p = Process(
+        name="ar_when_false",
+        script="#!/bin/bash\necho nope",
+        when=False,
+        always_run=True,
+        logs_directory="logs_ar"
+    )
+    p.execute()
+    assert p.finished_event.is_set() and p.get_exitcode() is None, "❌ 'when=False' should still skip"
+    print("✅ Passed: always_run respects 'when'")
+except Exception as e:
+    print(f"❌ Failed: {e}")
+
+Process.reset_stop()
+
 
 
 # -----------------------------
 # Cleanup created directories
 # -----------------------------
 for d in ["logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
-          "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test", "logs",
-          "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test"]:
+          "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test",
+          "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test",
+          "logs", "logs_ar"]:
     shutil.rmtree(d, ignore_errors=True)
 
 
