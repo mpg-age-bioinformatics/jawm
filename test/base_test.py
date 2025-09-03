@@ -17,8 +17,8 @@ try:
     proc1 = Process(
         name="basic_hello",
         script="""#!/usr/bin/env python3
-    print('Hello JAWM!')
-    """,
+print('Hello JAWM!')
+""",
         logs_directory="logs_test"
     )
     proc1.execute()
@@ -37,15 +37,15 @@ try:
     proc2a = Process(
         name="step_a",
         script="""#!/bin/bash
-    echo 'Step A done'
-    """,
+echo 'Step A done'
+""",
         logs_directory="logs_test"
     )
     proc2b = Process(
         name="step_b",
         script="""#!/usr/bin/env python3
-    print('Step B done')
-    """,
+print('Step B done')
+""",
         depends_on=["step_a"],
         logs_directory="logs_test"
     )
@@ -67,8 +67,8 @@ try:
     proc3 = Process(
         name="retry_test",
         script="""#!/bin/bash
-    fakecommandddddd
-    """,
+fakecommandddddd
+""",
         retries=1,
         logs_directory="logs_test"
     )
@@ -123,8 +123,8 @@ try:
     proc6 = Process(
         name="var_subst",
         script="""#!/usr/bin/env python3
-    print("Job name is {{APPNAME}}")
-    """,
+print("Job name is {{APPNAME}}")
+""",
         var={"APPNAME": "JAWM-Test"},
         logs_directory="logs_test"
     )
@@ -152,8 +152,8 @@ try:
     proc7 = Process(
         name="file_vars",
         script="""#!/bin/bash
-    echo "{{GREETING}}"
-    """,
+echo "{{GREETING}}"
+""",
         var_file="data_test/vars.rc",
         logs_directory="logs_test"
     )
@@ -174,8 +174,8 @@ try:
     proc8 = Process(
         name="skip_this",
         script="""#!/bin/bash
-    echo 'Should not run' > skip.txt
-    """,
+echo 'Should not run' > skip.txt
+""",
         when=False,
         logs_directory="logs_test"
     )
@@ -197,13 +197,13 @@ try:
     original = Process(
         name="original_proc",
         script="""#!/bin/bash
-    echo 'Original'
-    """,
+echo 'Original'
+""",
         logs_directory="logs_test"
     )
     clone = original.copy(name="cloned_proc", script="""#!/bin/bash
-    echo 'Cloned'
-    """)
+echo 'Cloned'
+""")
     original.execute()
     clone.execute()
     Process.wait(["original_proc", "cloned_proc"])
@@ -224,8 +224,8 @@ try:
     proc10 = Process(
         name="default_param_proc",
         script="""#!/bin/bash
-    echo 'Check default retries'
-    """
+echo 'Check default retries'
+"""
     )
     assert proc10.params.get("retries") == 3, "❌ Default parameter (retries) not applied"
     assert "logs_test_default" in proc10.logs_directory, "❌ logs_directory default not applied"
@@ -256,8 +256,8 @@ try:
     proc11 = Process(
         name="yaml_specific_proc",
         script="""#!/bin/bash
-    echo 'YAML parameter test'
-    """,
+echo 'YAML parameter test'
+""",
         param_file="data_test/test_params.yaml"
     )
 
