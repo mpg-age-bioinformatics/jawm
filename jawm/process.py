@@ -836,6 +836,15 @@ class Process:
         """Return True or False based on whether the Process has finished or not"""
         return self.finished_event.is_set()
 
+    def is_successful(self):
+        """Return True iff the process completed successfully, False if still running, skipped, or failed."""
+        c = self.get_exitcode()
+        return (c is not None) and (str(c).strip() == "0" or str(c).strip().startswith("0:"))
+
+    def has_failed(self):
+        """Return True iff the process finished with a non-zero exit code, False if still running, skipped , or successful."""
+        c = self.get_exitcode()
+        return (c is not None) and not (str(c).strip() == "0" or str(c).strip().startswith("0:"))
 
     def get_values(self):
         """
