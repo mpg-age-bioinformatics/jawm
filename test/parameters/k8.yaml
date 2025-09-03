@@ -1,6 +1,5 @@
 - scope: global
   manager: kubernetes
-  container: "ubuntu:22.04"
   manager_kubernetes:
     namespace: "jawm"
     backoffLimit: 0
