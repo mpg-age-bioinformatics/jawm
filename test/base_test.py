@@ -1044,7 +1044,61 @@ except Exception as e:
     print(f"❌ Failed: {e}")
     failed += 1
 
-Process.reset_stop()
+
+print("\n>>> Test 22: allow_skipped_deps — default allows skip, strict blocks")
+time.sleep(0.5)
+try:
+    Process.reset_stop()
+
+    # --- A) Default behavior (allow_skipped_deps=True): downstream runs if upstream is skipped
+    upA = Process(
+        name="askip_up_A",
+        script="#!/bin/bash\necho UP\n",
+        when=False,  # upstream is skipped
+        logs_directory="logs_allow_skip"
+    )
+    upA.execute()
+
+    dnA = Process(
+        name="askip_dn_A",
+        script="#!/bin/bash\necho DN\n",
+        depends_on=["askip_up_A"],  # default allow_skipped_deps=True
+        logs_directory="logs_allow_skip"
+    )
+    dnA.execute()
+    Process.wait(dnA.hash)
+    assert dnA.get_exitcode() == "0", "❌ Default should allow skipped dependency"
+    print("✅ Subtest A passed: default allows skipped deps")
+
+    # --- B) Strict behavior (allow_skipped_deps=False): downstream is blocked on skipped upstream
+    Process.reset_stop()
+
+    upB = Process(
+        name="askip_up_B",
+        script="#!/bin/bash\necho UP\n",
+        when=False,  # upstream is skipped again
+        logs_directory="logs_allow_skip"
+    )
+    upB.execute()
+
+    dnB = Process(
+        name="askip_dn_B",
+        script="#!/bin/bash\necho DN\n",
+        depends_on=["askip_up_B"],
+        allow_skipped_deps=False,  # strict: require success; skip is not allowed
+        logs_directory="logs_allow_skip"
+    )
+    dnB.execute()
+    Process.wait(dnB.hash)
+    assert dnB.finished_event.is_set(), "❌ Strict mode: downstream should be marked finished (skipped)"
+    assert dnB.get_exitcode() is None, "❌ Strict mode: downstream should not have an exit code"
+    print("✅ Subtest B passed: strict blocks when upstream is skipped")
+
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
 
 
 
@@ -1054,7 +1108,7 @@ Process.reset_stop()
 for d in ["logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
           "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test",
           "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test",
-          "logs", "logs_ar"]:
+          "logs", "logs_ar", "logs_allow_skip"]:
     shutil.rmtree(d, ignore_errors=True)
 
 
