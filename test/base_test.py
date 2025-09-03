@@ -1027,13 +1027,8 @@ try:
     Process.wait(dn.hash)
     assert dn.get_exitcode() == "0", "❌ always_run should run despite global stop"
     print("✅ Passed: always_run runs despite global stop")
-except Exception as e:
-    print(f"❌ Failed: {e}")
 
-print("\n>>> Test: always_run does not override 'when'")
-try:
-    from jawm import Process
-    Process.reset_stop()
+    # always_run does not override when
     p = Process(
         name="ar_when_false",
         script="#!/bin/bash\necho nope",
@@ -1044,8 +1039,10 @@ try:
     p.execute()
     assert p.finished_event.is_set() and p.get_exitcode() is None, "❌ 'when=False' should still skip"
     print("✅ Passed: always_run respects 'when'")
+    passed += 1
 except Exception as e:
     print(f"❌ Failed: {e}")
+    failed += 1
 
 Process.reset_stop()
 
