@@ -320,6 +320,7 @@ class Process:
             self.depends_on = [self.depends_on]
         self.allow_skipped_deps = self.params.get("allow_skipped_deps", True)
 
+        # Script and var parameters
         self.script = self.params.get("script", "#!/bin/bash")
         self.script_file = self.params.get("script_file", None)
         self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
@@ -327,8 +328,6 @@ class Process:
         self.var_file = self.params.get("var_file", None)
 
         # Directory parameters
-        # self.project_directory = self.params.get("project_directory", os.path.dirname(os.path.abspath(sys.argv[0])))
-        # self.project_directory = self.params.get("project_directory", os.getcwd())
         self.project_directory = os.path.abspath(self.params.get("project_directory", "."))
         # os.makedirs(self.project_directory, exist_ok=True)
         self.logs_directory = os.path.abspath(self.params.get("logs_directory", os.path.join(self.project_directory, "logs")))
@@ -338,13 +337,6 @@ class Process:
 
         # Setup monitoring directory
         self.monitoring_directory = self.params.get("monitoring_directory", os.environ.get("JAWM_MONITORING_DIRECTORY", os.path.expanduser("~/.jawm/monitoring")))
-        # try:
-        #     os.makedirs(self.monitoring_directory, exist_ok=True) if self.monitoring_directory is not None else None
-        #     self.running_directory, self.completed_directory = (os.path.join(self.monitoring_directory, 'Running'), os.path.join(self.monitoring_directory, 'Completed')) if self.monitoring_directory else (None, None)
-        #     if self.monitoring_directory: os.makedirs(self.running_directory, exist_ok=True); os.makedirs(self.completed_directory, exist_ok=True)
-        # except Exception as e:
-        #     self.logger.warning(f"Monitoring directory issue: {str(e)}")
-        #     self.monitoring_directory = None
 
         # Management parameters
         self.run_in_detached = self.params.get("run_in_detached", False)
@@ -1412,6 +1404,4 @@ class Process:
 
         print(f"Process.wait | INFO :: Wait completed for {len(procs)} process(es).")
         return success
-
-
 
