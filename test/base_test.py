@@ -16,8 +16,8 @@ time.sleep(0.5)
 try:
     proc1 = Process(
         name="basic_hello",
-        script="""#!/bin/bash
-    echo 'Hello JAWM!'
+        script="""#!/usr/bin/env python3
+    print('Hello JAWM!')
     """,
         logs_directory="logs_test"
     )
@@ -43,8 +43,8 @@ try:
     )
     proc2b = Process(
         name="step_b",
-        script="""#!/bin/bash
-    echo 'Step B done'
+        script="""#!/usr/bin/env python3
+    print('Step B done')
     """,
         depends_on=["step_a"],
         logs_directory="logs_test"
@@ -122,8 +122,8 @@ time.sleep(0.5)
 try:
     proc6 = Process(
         name="var_subst",
-        script="""#!/bin/bash
-    echo "Job name is {{APPNAME}}"
+        script="""#!/usr/bin/env python3
+    print("Job name is {{APPNAME}}")
     """,
         var={"APPNAME": "JAWM-Test"},
         logs_directory="logs_test"
@@ -603,8 +603,8 @@ try:
     # Even if we pass retries=2 in constructor, override should still win
     proc16 = Process(
         name="override_param_proc",
-        script="""#!/bin/bash
-    echo 'Check override retries'
+        script="""#!/usr/bin/env python3
+    print('Check override retries')
     """,
         retries=2,
         logs_directory="logs_should_be_overridden"
