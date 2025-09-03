@@ -5,6 +5,7 @@ import shlex
 import subprocess
 import threading
 import re
+import base64
 from datetime import datetime
 
 # Setup method registration for dynamic injection into the main Process class
@@ -29,20 +30,79 @@ def _generate_k8s_manifest(self):
     with open(base_script_path, "r") as f:
         core_script = f.read()
 
-    # Wrap with optional before/after (host/container)
-    parts = []
-    if self.container_before_script:
-        parts.append(self.container_before_script.strip())
-    parts.append(core_script)
-    if self.container_after_script:
-        parts.append(self.container_after_script.strip())
-    # (host-level before/after also fine to include here for simplicity)
-    if self.before_script:
-        parts.insert(0, self.before_script.strip())
-    if self.after_script:
-        parts.append(self.after_script.strip())
+    # # Wrap with optional before/after (host/container)
+    # parts = []
+    # if self.container_before_script:
+    #     parts.append(self.container_before_script.strip())
+    # parts.append(core_script)
+    # if self.container_after_script:
+    #     parts.append(self.container_after_script.strip())
+    # # (host-level before/after also fine to include here for simplicity)
+    # if self.before_script:
+    #     parts.insert(0, self.before_script.strip())
+    # if self.after_script:
+    #     parts.append(self.after_script.strip())
 
-    container_command = ["/bin/bash", "-lc", "set -euo pipefail; " + " && ".join(parts)]
+    # container_command = ["/bin/bash", "-lc", "set -euo pipefail; " + " && ".join(parts)]
+
+    # script_b64 = base64.b64encode(core_script.encode("utf-8")).decode("ascii")
+    # cmd_parts = ["set -euo pipefail"]
+    # # Optional host-level hooks currently run inside the container for parity with Slurm (compute-side).
+    # if self.before_script:
+    #     cmd_parts.append(self.before_script.strip())
+    # # Materialize the script
+    # cmd_parts.append(
+    #     "echo {b64} | base64 -d > /tmp/jawm_main.script".format(b64=shlex.quote(script_b64))
+    # )
+    # cmd_parts.append("chmod +x /tmp/jawm_main.script")
+    # # Container-level pre-hook
+    # if self.container_before_script:
+    #     cmd_parts.append(self.container_before_script.strip())
+    # # Execute the actual file (shebang respected)
+    # cmd_parts.append("/tmp/jawm_main.script")
+    # # Container-level post-hook
+    # if self.container_after_script:
+    #     cmd_parts.append(self.container_after_script.strip())
+    # # Optional host-level after hook (still inside container environment here)
+    # if self.after_script:
+    #     cmd_parts.append(self.after_script.strip())
+
+    # container_command = ["/bin/bash", "-lc", " && ".join(cmd_parts)]
+
+    # Execute the file (respect shebangs), not inline its text
+    # Write to a unique temp file in the container, run it, then clean up
+    script_b64 = base64.b64encode(core_script.encode("utf-8")).decode("ascii")
+
+    cmd_parts = ["set -euo pipefail"]
+
+    # Optional host-level pre-hook (executed inside container in current design)
+    if self.before_script:
+        cmd_parts.append(self.before_script.strip())
+
+    # Create temp file, materialize script, make it executable
+    cmd_parts.append('TMPFILE="$(mktemp /tmp/jawm_k8.XXXXXX)"')
+    cmd_parts.append("echo {b64} | base64 -d > \"$TMPFILE\"".format(b64=shlex.quote(script_b64)))
+    cmd_parts.append('chmod +x "$TMPFILE"')
+
+    # Container-level pre-hook
+    if self.container_before_script:
+        cmd_parts.append(self.container_before_script.strip())
+
+    # Execute the actual file (shebang respected)
+    cmd_parts.append('"$TMPFILE"')
+
+    # Container-level post-hook
+    if self.container_after_script:
+        cmd_parts.append(self.container_after_script.strip())
+
+    # Cleanup temp file
+    cmd_parts.append('rm -f "$TMPFILE"')
+
+    # Optional host-level post-hook (executed inside container in current design)
+    if self.after_script:
+        cmd_parts.append(self.after_script.strip())
+
+    container_command = ["/bin/bash", "-lc", " && ".join(cmd_parts)]
 
     # 2) Resolve image & env
     image = self.container or "ubuntu:22.04"
