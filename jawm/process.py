@@ -75,6 +75,7 @@ class Process:
         "error_summary_file": str,
         "monitoring_directory": str,
         "depends_on": (str, list),
+        "allow_skipped_deps": bool,
         "manager": str,
         "env": dict,
         "inputs": dict,
@@ -149,6 +150,7 @@ class Process:
         environment_apptainer=None,
         environment_docker=None,
         depends_on=None,
+        allow_skipped_deps=None,
         before_script=None,
         after_script=None,
         container_before_script=None,
@@ -199,6 +201,9 @@ class Process:
 
         depends_on : str or list of str, optional
             Name(s) or hash(es) of processes this one depends on.
+
+        allow_skipped_deps: bool, default=True
+            Whether to treat skipped dependencies as acceptable; if False, process only runs when all dependencies succeeded.
 
         manager : str, default="local"
             Execution backend. Options: "local", "slurm".
@@ -313,6 +318,7 @@ class Process:
         self.depends_on = self.params.get("depends_on", [])
         if isinstance(self.depends_on, str):
             self.depends_on = [self.depends_on]
+        self.allow_skipped_deps = self.params.get("allow_skipped_deps", True)
 
         self.script = self.params.get("script", "#!/bin/bash")
         self.script_file = self.params.get("script_file", None)
@@ -488,7 +494,7 @@ class Process:
             return
 
         if not self.run_in_detached:
-        # Wait for dependencies *in the main thread*
+            # Wait for dependencies *in the main thread*
             for dep in self.depends_on:
                 dep_proc = Process.registry.get(dep)
                 if dep_proc is None:
@@ -496,10 +502,23 @@ class Process:
                 else:
                     self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
                     dep_proc.finished_event.wait()
+
+            # If strict: require all deps to have succeeded (skipped/failed -> block)
+            if not self.allow_skipped_deps and self.depends_on:
+                bad = []
+                for dep in self.depends_on:
+                    dp = Process.registry.get(dep)
+                    if dp and not dp.is_successful():
+                        bad.append((dp.name, dp.get_exitcode()))
+                if bad:
+                    self.logger.warning(f"Skipping {self.name}: dependencies not successful: " + ", ".join(f"{n} (exit={c})" for n, c in bad))
+                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    self.finished_event.set()
+                    return
         
             # Check if another process has already failed (skip if always_run)
             if (not self.always_run) and Process.stop_future_event.is_set():
-                self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
+                self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
                 self.finished_event.set()
                 return
 
@@ -529,9 +548,22 @@ class Process:
                         self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
                         dep_proc.finished_event.wait()
 
+                 # If strict: require all deps to have succeeded (skipped/failed -> block)
+                if not self.allow_skipped_deps and self.depends_on:
+                    bad = []
+                    for dep in self.depends_on:
+                        dp = Process.registry.get(dep)
+                        if dp and not dp.is_successful():
+                            bad.append((dp.name, dp.get_exitcode()))
+                    if bad:
+                        self.logger.warning(f"Skipping {self.name}: dependencies not successful: " + ", ".join(f"{n} (exit={c})" for n, c in bad))
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        return
+
                 # Check if another process has already failed (skip if always_run)
                 if (not self.always_run) and Process.stop_future_event.is_set():
-                    self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
+                    self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
                     self.finished_event.set()
                     return
 
