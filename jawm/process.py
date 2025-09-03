@@ -489,7 +489,7 @@ class Process:
 
         # Check if another process has already failed (skip this gate if always_run)
         if (not self.always_run) and Process.stop_future_event.is_set():
-            self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
+            self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
             self.finished_event.set()
             return
 
