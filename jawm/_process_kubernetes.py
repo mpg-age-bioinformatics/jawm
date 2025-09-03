@@ -30,47 +30,6 @@ def _generate_k8s_manifest(self):
     with open(base_script_path, "r") as f:
         core_script = f.read()
 
-    # # Wrap with optional before/after (host/container)
-    # parts = []
-    # if self.container_before_script:
-    #     parts.append(self.container_before_script.strip())
-    # parts.append(core_script)
-    # if self.container_after_script:
-    #     parts.append(self.container_after_script.strip())
-    # # (host-level before/after also fine to include here for simplicity)
-    # if self.before_script:
-    #     parts.insert(0, self.before_script.strip())
-    # if self.after_script:
-    #     parts.append(self.after_script.strip())
-
-    # container_command = ["/bin/bash", "-lc", "set -euo pipefail; " + " && ".join(parts)]
-
-    # script_b64 = base64.b64encode(core_script.encode("utf-8")).decode("ascii")
-    # cmd_parts = ["set -euo pipefail"]
-    # # Optional host-level hooks currently run inside the container for parity with Slurm (compute-side).
-    # if self.before_script:
-    #     cmd_parts.append(self.before_script.strip())
-    # # Materialize the script
-    # cmd_parts.append(
-    #     "echo {b64} | base64 -d > /tmp/jawm_main.script".format(b64=shlex.quote(script_b64))
-    # )
-    # cmd_parts.append("chmod +x /tmp/jawm_main.script")
-    # # Container-level pre-hook
-    # if self.container_before_script:
-    #     cmd_parts.append(self.container_before_script.strip())
-    # # Execute the actual file (shebang respected)
-    # cmd_parts.append("/tmp/jawm_main.script")
-    # # Container-level post-hook
-    # if self.container_after_script:
-    #     cmd_parts.append(self.container_after_script.strip())
-    # # Optional host-level after hook (still inside container environment here)
-    # if self.after_script:
-    #     cmd_parts.append(self.after_script.strip())
-
-    # container_command = ["/bin/bash", "-lc", " && ".join(cmd_parts)]
-
-    # Execute the file (respect shebangs), not inline its text
-    # Write to a unique temp file in the container, run it, then clean up
     script_b64 = base64.b64encode(core_script.encode("utf-8")).decode("ascii")
 
     cmd_parts = ["set -euo pipefail"]
@@ -105,7 +64,24 @@ def _generate_k8s_manifest(self):
     container_command = ["/bin/bash", "-lc", " && ".join(cmd_parts)]
 
     # 2) Resolve image & env
-    image = self.container or "ubuntu:22.04"
+    def _infer_image_from_shebang(line: str) -> str:
+        l = (line or "").strip().lower()
+        # Common cases
+        if "python" in l:      # covers /usr/bin/python, /usr/bin/env python3, etc.
+            return "python:3.11-slim"
+        if "rscript" in l:     # covers /usr/bin/env Rscript
+            return "rocker/r-ver:4.4.1"
+        # default shell-only workloads
+        return "ubuntu:22.04"
+
+    first_line = (core_script.splitlines() or [""])[0]
+    if self.container:
+        image = self.container
+    else:
+        image = _infer_image_from_shebang(first_line)
+        # Warn loudly that we’re guessing
+        self.logger.warning(f"Container image not provided; inferred '{image}' from shebang. it may fail if required dependencies are missing.")
+
     env_list = [{"name": k, "value": str(v)} for k, v in (self.env or {}).items()]
 
     # 3) Pull K8s options from manager_kubernetes (safe defaults)
