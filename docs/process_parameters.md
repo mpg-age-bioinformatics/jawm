@@ -239,6 +239,25 @@ depends_on:
 
 ---
 
+### `allow_skipped_deps`
+
+- **Category**: `parameter`  
+- **Type**: `bool`  
+- **Default**: `True`  
+
+Whether to treat skipped dependencies as acceptable; if `False`, process only runs when all dependencies succeeded.
+
+**Example:**
+```python
+allow_skipped_deps=False
+```
+**YAML Example:**
+```yaml
+allow_skipped_deps: false
+```
+
+---
+
 ### `manager`
 
 - **Category**: `parameter`
@@ -708,6 +727,25 @@ parallelism=False
 **YAML Example:**
 ```yaml
 resume: false
+```
+
+---
+
+### `always_run`
+
+- **Category**: `parameter`  
+- **Type**: `bool`  
+- **Default**: `False`  
+
+Whether the process should run even if something failed. It does not override when: `when=False` still skips.
+
+**Example:**
+```python
+always_run=True
+```
+**YAML Example:**
+```yaml
+always_run: true
 ```
 
 ---
