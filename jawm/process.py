@@ -97,7 +97,8 @@ class Process:
         "run_in_detached": bool,
         "validation": (bool, str),
         "resume": bool,
-        "parallelism": bool
+        "parallelism": bool,
+        "always_run": bool
     }
     # Set of internal/reserved keys
     reserved_keys = {
@@ -265,6 +266,9 @@ class Process:
         parallelism : bool, default=True  
             Whether the process should run in parallel with others (True) or block until it finishes before the next one starts (False).
 
+        always_run : bool, default=False  
+            Whether the process should run even if something failed. It does not override when: `when=False` still skips.
+
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
             and can override YAML-defined values.
@@ -355,6 +359,7 @@ class Process:
         self.container_after_script = self.params.get("container_after_script", None)
         self.resume = self.params.get("resume", False)
         self.parallelism = self.params.get("parallelism", True)
+        self.always_run = self.params.get("always_run", False)
 
         # Local execution configurations
         self.manager_local = self.params.get("manager_local", {})
@@ -476,8 +481,8 @@ class Process:
         # Create necessary directories
         self._prepare_base_dirs()
 
-        # Check if another process has already failed
-        if Process.stop_future_event.is_set():
+        # Check if another process has already failed (skip this gate if always_run)
+        if (not self.always_run) and Process.stop_future_event.is_set():
             self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
             self.finished_event.set()
             return
@@ -492,8 +497,8 @@ class Process:
                     self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
                     dep_proc.finished_event.wait()
         
-            # Check if another process has already failed
-            if Process.stop_future_event.is_set():
+            # Check if another process has already failed (skip if always_run)
+            if (not self.always_run) and Process.stop_future_event.is_set():
                 self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
                 self.finished_event.set()
                 return
@@ -524,8 +529,8 @@ class Process:
                         self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
                         dep_proc.finished_event.wait()
 
-                # Check if another process has already failed
-                if Process.stop_future_event.is_set():
+                # Check if another process has already failed (skip if always_run)
+                if (not self.always_run) and Process.stop_future_event.is_set():
                     self.logger.error(f"Skipping execution of {self.name}, as some other process already failed")
                     self.finished_event.set()
                     return
