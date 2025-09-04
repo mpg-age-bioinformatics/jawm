@@ -16,6 +16,25 @@ register = register_method(__methods__)
 
 
 @register
+def _k8s_sanitize_label(self, s, max_len=60, fallback_suffix="jawm-process"):
+    """
+    Simple RFC1123-style sanitizer for K8s names/labels:
+    - lowercase
+    - keep only [a-z0-9-]  (strict; underscores/dots become '-')
+    - collapse consecutive '-'
+    - trim leading/trailing '-'
+    - truncate to max_len (default 50)
+    - never return empty
+    """
+    s = (s or "").lower()
+    s = re.sub(r"[^a-z0-9-]+", "-", s)   # replace illegal chars with '-'
+    s = re.sub(r"-{2,}", "-", s)         # collapse multiple dashes
+    s = s.strip("-")                     # must start/end alnum
+    s = s[:max_len]
+    return s or f"{fallback_suffix}-{self.hash}"
+
+
+@register
 def _generate_k8s_manifest(self):
     """
     Build a K8s Job manifest for this Process and write it to <log_path>/<name>.k8s.json.
@@ -230,13 +249,28 @@ def _execute_kubernetes(self):
         self._monitoring_running_file(job_id, manifest_path)
 
         # Poll job status; once finished, fetch pod exit code + logs
-        def _kubectl(args):
+        def _kubectl(args, expect_success=True):
             base = ["kubectl"]
             if getattr(self, "_k8s_namespace", None):
                 base += ["-n", self._k8s_namespace]
-            return subprocess.run(base + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            full_cmd = base + args
+
+            res = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+            if res.returncode != 0 or (expect_success and res.stderr.strip()):
+                msg = (
+                    f"kubectl command failed (rc={res.returncode}): "
+                    f"{' '.join(full_cmd)}\n"
+                    f"STDERR: {res.stderr.strip()}"
+                )
+                self.logger.error(msg)
+                # Also log into central error summary file
+                self._log_error_summary(msg, type_text="K8sKubectl")
+
+            return res
 
         exit_code_int = 1
+        elapsed_time = 0
         last_pod_name = None
         selected_container = getattr(self, "_k8s_container_name", None)
 
@@ -328,7 +362,10 @@ def _execute_kubernetes(self):
                 except Exception:
                     pass
 
-            time.sleep(5)
+            time.sleep(10)
+            elapsed_time += 10
+            if elapsed_time % 180 == 0:
+                self.logger.info(f"Process {self.name} (K8s job: {job_id}) is still running...")
 
         # Write exit code files and monitoring move
         try:
@@ -373,21 +410,3 @@ def _execute_kubernetes(self):
     self._monitor_thread.start()
     return None
 
-
-@register
-def _k8s_sanitize_label(self, s, max_len=60, fallback_suffix="jawm-process"):
-    """
-    Simple RFC1123-style sanitizer for K8s names/labels:
-    - lowercase
-    - keep only [a-z0-9-]  (strict; underscores/dots become '-')
-    - collapse consecutive '-'
-    - trim leading/trailing '-'
-    - truncate to max_len (default 50)
-    - never return empty
-    """
-    s = (s or "").lower()
-    s = re.sub(r"[^a-z0-9-]+", "-", s)   # replace illegal chars with '-'
-    s = re.sub(r"-{2,}", "-", s)         # collapse multiple dashes
-    s = s.strip("-")                     # must start/end alnum
-    s = s[:max_len]
-    return s or f"{fallback_suffix}-{self.hash}"
