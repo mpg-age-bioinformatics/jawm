@@ -39,7 +39,7 @@ def _generate_k8s_manifest(self):
         cmd_parts.append(self.before_script.strip())
 
     # Create temp file, materialize script, make it executable
-    cmd_parts.append('TMPFILE="$(mktemp /tmp/jawm_k8.XXXXXX)"')
+    cmd_parts.append(f'TMPFILE="$(mktemp /tmp/{self.name}.XXXXXX)"')
     cmd_parts.append("echo {b64} | base64 -d > \"$TMPFILE\"".format(b64=shlex.quote(script_b64)))
     cmd_parts.append('chmod +x "$TMPFILE"')
 
