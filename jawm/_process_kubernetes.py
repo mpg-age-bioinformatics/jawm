@@ -196,6 +196,13 @@ def _execute_kubernetes(self):
     def run_once(attempt_i, total_attempts):
         manifest_path = self._generate_k8s_manifest()
 
+        # Ensure a fresh Job for this attempt (applicable for retry)
+        if attempt_i > 1:
+            del_cmd = ["kubectl", "delete", "job", (getattr(self, "_k8s_job_name", "") or ""), "--ignore-not-found=true", "--wait=true"]
+            if getattr(self, "_k8s_namespace", None):
+                del_cmd.extend(["-n", self._k8s_namespace])
+            subprocess.run(del_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
         # kubectl apply
         cmd = ["kubectl", "apply", "-f", manifest_path]
         if getattr(self, "_k8s_namespace", None):
