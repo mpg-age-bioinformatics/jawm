@@ -61,7 +61,9 @@ def _generate_k8s_manifest(self):
     if self.after_script:
         cmd_parts.append(self.after_script.strip())
 
-    container_command = ["/bin/bash", "-lc", " && ".join(cmd_parts)]
+    shell_check = "[ -x /bin/bash ] && exec /bin/bash -lc \"$0\" || exec /bin/sh -lc \"$0\""
+    container_command = ["/bin/sh", "-c", shell_check, "--", " && ".join(cmd_parts)]
+
 
     # 2) Resolve image & env
     def _infer_image_from_shebang(line: str) -> str:
