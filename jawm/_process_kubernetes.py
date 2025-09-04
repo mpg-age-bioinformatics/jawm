@@ -32,7 +32,7 @@ def _generate_k8s_manifest(self):
 
     script_b64 = base64.b64encode(core_script.encode("utf-8")).decode("ascii")
 
-    cmd_parts = ["set -euo pipefail"]
+    cmd_parts = []
 
     # Optional host-level pre-hook (executed inside container in current design)
     if self.before_script:
@@ -61,8 +61,17 @@ def _generate_k8s_manifest(self):
     if self.after_script:
         cmd_parts.append(self.after_script.strip())
 
-    shell_check = "[ -x /bin/bash ] && exec /bin/bash -lc \"$0\" || exec /bin/sh -lc \"$0\""
-    container_command = ["/bin/sh", "-c", shell_check, "--", " && ".join(cmd_parts)]
+    # Compose final strings for each shell
+    cmd_core = " && ".join(cmd_parts)
+    cmd_str_bash = f"set -euo pipefail && {cmd_core}"  # bash supports pipefail
+    cmd_str_sh   = f"set -eu && {cmd_core}"            # sh does not; no -l here
+
+    # Prefer bash if present; otherwise fallback to sh
+    container_command = [
+        "/bin/sh", "-c",
+        f'[ -x /bin/bash ] && exec /bin/bash -lc {shlex.quote(cmd_str_bash)} '
+        f'|| exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
+    ]
 
 
     # 2) Resolve image & env
