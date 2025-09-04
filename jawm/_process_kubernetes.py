@@ -18,9 +18,10 @@ register = register_method(__methods__)
 @register
 def _generate_k8s_manifest(self):
     """
-    Build a Kubernetes Job manifest for this Process and write it to <log_path>/<name>.k8s.json.
+    Build a K8s Job manifest for this Process and write it to <log_path>/<name>.k8s.json.
     Returns the manifest path.
     """
+    self.logger.info(f"Generating K8s job manifest for process: {self.name}")
 
     os.makedirs(self.log_path, exist_ok=True)
     manifest_path = os.path.join(self.log_path, f"{self.name}.k8s.json")
@@ -182,7 +183,7 @@ def _generate_k8s_manifest(self):
 @register
 def _execute_kubernetes(self):
     """
-    Submit as a Kubernetes Job via kubectl, then monitor until completion.
+    Submit as a K8s Job via kubectl, then monitor until completion.
     Writes .id (job name), .exitcode, and .command, and updates monitoring files.
     """
 
@@ -197,7 +198,8 @@ def _execute_kubernetes(self):
         manifest_path = self._generate_k8s_manifest()
 
         # Ensure a fresh Job for this attempt (applicable for retry)
-        if attempt_i > 1:
+        if attempt_i != 1:
+            self.logger.info(f"Launching K8s attempt {attempt_i}/{total_attempts}: clearing previous job {getattr(self, '_k8s_job_name', '')}")
             del_cmd = ["kubectl", "delete", "job", (getattr(self, "_k8s_job_name", "") or ""), "--ignore-not-found=true", "--wait=true"]
             if getattr(self, "_k8s_namespace", None):
                 del_cmd.extend(["-n", self._k8s_namespace])
@@ -209,6 +211,7 @@ def _execute_kubernetes(self):
             cmd.extend(["-n", self._k8s_namespace])
         with open(command_path, "w") as cf:
             cf.write(" ".join(shlex.quote(c) for c in cmd))
+        self.logger.info(f"Submitting process {self.name} with K8s command: {' '.join(cmd)}")
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         # log apply output
         apply_log = os.path.join(self.log_path, f"{self.name}.kubectl_apply.log")
@@ -307,6 +310,10 @@ def _execute_kubernetes(self):
                                     exit_code_int = int(chosen["state"]["terminated"].get("exitCode", 1))
                                 except Exception:
                                     exit_code_int = 1
+
+                            state_txt = "succeeded" if exit_code_int == 0 else "failed"
+                            self.logger.info(f"[K8s] Job {job_id} {state_txt} (pod={last_pod_name}, exit={exit_code_int})")
+
                             # Pod describe in failure
                             if exit_code_int != 0 and last_pod_name:
                                 try:
@@ -340,6 +347,7 @@ def _execute_kubernetes(self):
             pass
 
         self._monitoring_completed_file(job_id, manifest_path, exit_code_int)
+        self.logger.info(f"K8s job {job_id} completed with exit code {exit_code_int}")
         return 0 if exit_code_int == 0 else 1
 
     def monitor_process():
@@ -351,15 +359,15 @@ def _execute_kubernetes(self):
                 self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self.finished_event.set()
                 return
-            self.logger.error(f"Kubernetes attempt {attempt_i}/{total_attempts} failed")
+            self.logger.error(f"K8s attempt {attempt_i}/{total_attempts} failed")
             if attempt_i < total_attempts:
-                self.logger.info(f"Retrying Kubernetes job; {total_attempts - attempt_i} retries left")
+                self.logger.info(f"Retrying K8s job; {total_attempts - attempt_i} retries left")
             else:
                 self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self.finished_event.set()
                 self.stop_future_event.set()
-                self._log_error_summary("Kubernetes job failed after retries")
-                raise RuntimeError(f"Process {self.name} in Kubernetes failed after {total_attempts} attempts")
+                self._log_error_summary("K8s job failed after retries")
+                raise RuntimeError(f"Process {self.name} in K8s failed after {total_attempts} attempts")
 
     self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
     self._monitor_thread.start()
