@@ -100,7 +100,7 @@ def _execute_local(self):
             elapsed_time = 0
             while result.poll() is None:
                 # (Optional) log if it's been 3 minutes
-                if elapsed_time % 180 == 0:
+                if elapsed_time % 600 == 0:
                     self.logger.info(f"Process {self.name} (PID: {process_id}) is still running...")
                 elapsed_time += 5
                 time.sleep(5)

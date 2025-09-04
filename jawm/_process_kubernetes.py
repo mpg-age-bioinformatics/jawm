@@ -364,7 +364,7 @@ def _execute_kubernetes(self):
 
             time.sleep(10)
             elapsed_time += 10
-            if elapsed_time % 180 == 0:
+            if elapsed_time % 600 == 0:
                 self.logger.info(f"Process {self.name} (K8s job: {job_id}) is still running...")
 
         # Write exit code files and monitoring move
