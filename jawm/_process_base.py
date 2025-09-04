@@ -448,7 +448,7 @@ def _apply_retry_parameters(self, attempt_i):
     if not retry_params:
         return
 
-    self.logger.info(f"Applying retry parameters for retry attempt {attempt_i}: {retry_params}")
+    self.logger.info(f"Applying retry parameters for retry attempt {attempt_i}: {len(retry_params)} parameter(s) found")
 
     def _adjust_time(time_str, delta):
         """
