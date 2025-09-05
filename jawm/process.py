@@ -39,6 +39,15 @@ class Process:
 
     Class Attributes:
     -----------------
+    parameter_types (dict):
+        Dictionary consisting of expected parameters with types.
+    
+    reserved_keys (set):
+        Set of internal keys.
+
+    supported_managers (set):
+        Supported managers by the jawm.
+
     registry (dict):
         Stores all Process instances, indexed by name and hash.
 
@@ -116,10 +125,7 @@ class Process:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    """
-    A class to define and execute processes with support for multiple managers,
-    pre/post scripts, retries, and resource configurations.
-    """
+    
     def __init__(
         self,
         name,
