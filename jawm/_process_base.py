@@ -97,7 +97,7 @@ def _run_manager(self):
         self._execute_kubernetes()
     else:
         self._log_error_summary(f"Unsupported manager: {self.manager}")
-        Process.stop_future_event.set()
+        self.__class__.stop_future_event.set()
         raise ValueError(f"Unsupported manager: {self.manager}")
 
 @register
@@ -253,7 +253,7 @@ def _generate_base_script(self):
         self.logger.info(f"Original script for process {self.script_file}")
     else:
         self._log_error_summary("Invalid script type or missing script content.")
-        Process.stop_future_event.set()
+        self.__class__.stop_future_event.set()
         raise ValueError("Invalid script type or missing script content.")
 
     # Replace placeholders with provided parameters
