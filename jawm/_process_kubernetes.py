@@ -358,6 +358,41 @@ def _execute_kubernetes(self):
                                 except Exception:
                                     pass
 
+                            # Record the failure summary
+                            if exit_code_int != 0:
+                                try:
+                                    term = ((chosen or {}).get("state", {}) or {}).get("terminated", {}) or {}
+                                    pod_status = (pod.get("status", {}) or {})
+                                    reason = (
+                                        term.get("reason")
+                                        or pod_status.get("reason")
+                                        or ((chosen or {}).get("state", {}).get("waiting", {}) or {}).get("reason")
+                                        or "NA"
+                                    )
+
+                                    # prefer pod/container message, else fall back to logs tail
+                                    msg_raw = (term.get("message") or pod_status.get("message") or "").strip()
+                                    if not msg_raw:
+                                        try:
+                                            last_lines = "\n".join((out.stdout or "").splitlines()[-5:])
+                                            msg_raw = f"Last log lines: {last_lines}" if last_lines.strip() else "NA"
+                                        except Exception:
+                                            msg_raw = "NA"
+
+                                    summary = (
+                                        f"K8s job failed: "
+                                        f"pod={last_pod_name} "
+                                        f"phase={pod_status.get('phase')} "
+                                        f"reason={term.get('reason') or pod_status.get('reason') or 'NA '} "
+                                        f"exit={term.get('exitCode') if term.get('exitCode') is not None else 'NA '} "
+                                        f"msg={msg_raw} "
+                                        f"description={self.stderr_path or 'NA '} "
+                                    )
+                                    self._log_error_summary(summary, type_text="K8sAttempt")
+                                except Exception:
+                                    self._log_error_summary(f"K8s job failed (could not build failure summary! records on: {self.stderr_path})", type_text="K8sAttempt")
+
+
                             break
                 except Exception:
                     pass
@@ -396,14 +431,14 @@ def _execute_kubernetes(self):
                 self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self.finished_event.set()
                 return
-            self.logger.error(f"K8s attempt {attempt_i}/{total_attempts} failed")
+            self.logger.error(f"K8s attempt {attempt_i}/{total_attempts} failed! Summary can be found in: {self.error_summary_file}")
             if attempt_i < total_attempts:
                 self.logger.info(f"Retrying K8s job; {total_attempts - attempt_i} retries left")
             else:
                 self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self.finished_event.set()
                 self.stop_future_event.set()
-                self._log_error_summary("K8s job failed after retries")
+                self._log_error_summary(f"K8s job failed after retries (records on: {self.stderr_path})", type_text="K8sAttempt")
                 raise RuntimeError(f"Process {self.name} in K8s failed after {total_attempts} attempts")
 
     self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
