@@ -117,7 +117,6 @@ class Process:
     }
     # Supported managers by the jawm
     supported_managers = {"local", "slurm", "kubernetes"}
-    """set: Execution managers supported by jawm."""
 
     # Configure logging with proper format
     logging.basicConfig(
