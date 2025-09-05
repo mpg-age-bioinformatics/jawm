@@ -169,8 +169,8 @@ class Process:
 
         Parameters
         ----------
-        name : str
-            Name of the process. Required.
+        name : str, required
+            Name of the process.
 
         param_file : str or list of str, optional
             YAML file(s) or directory containing YAMLs that define global and process-specific parameters.
