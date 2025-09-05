@@ -21,7 +21,7 @@ class Process:
     A JAWM Process represents a step in a workflow with full support for:
 
     - Script execution of different languages
-    - Local or Slurm execution (with container support)
+    - Local, Slurm, or Kubernetes execution (with container support)
     - Dependency management and re-try support
     - YAML-based or inline configuration
 
@@ -40,13 +40,13 @@ class Process:
     Class Attributes:
     -----------------
     parameter_types (dict):
-        Dictionary consisting of expected parameters with types.
+        Dictionary of expected parameters and their types.
     
     reserved_keys (set):
-        Set of internal keys.
+        Internal keys reserved for runtime bookkeeping.
 
     supported_managers (set):
-        Supported managers by the jawm.
+        Execution managers supported by jawm.
 
     registry (dict):
         Stores all Process instances, indexed by name and hash.
@@ -117,6 +117,7 @@ class Process:
     }
     # Supported managers by the jawm
     supported_managers = {"local", "slurm", "kubernetes"}
+    """set: Execution managers supported by jawm."""
 
     # Configure logging with proper format
     logging.basicConfig(
