@@ -815,7 +815,7 @@ class Process:
         except Exception as e:
             self.logger.error(f"update_vars failed for {self.name}: {e}")
             if hasattr(self, "_log_error_summary"):
-                self._log_error_summary(f"update_vars failed: {e}", "VarUpdate")
+                self._log_error_summary(f"update_vars failed: {e}", type_text="VarUpdate")
     
     def get_id(self, max_wait=3, interval=0.5):
         """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable (default, retrying up to: max_wait=3, interval=0.5)."""
@@ -1109,7 +1109,7 @@ class Process:
 
             # Log to error summary
             if hasattr(proc, "_log_error_summary"):
-                proc._log_error_summary(f"Process was manually terminated via Process.kill('{identifier}')", "Killer")
+                proc._log_error_summary(f"Process was manually terminated via Process.kill('{identifier}')", type_text="Killer")
 
             # Mark finished so Process.wait() unblocks
             proc.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -1121,7 +1121,7 @@ class Process:
         else:
             print(f"{proc.name}|{proc.hash} :: {error_message}")
             if hasattr(proc, "_log_error_summary"):
-                proc._log_error_summary(error_message, "Killer")
+                proc._log_error_summary(error_message, type_text="Killer")
             return False
 
 
@@ -1387,11 +1387,11 @@ class Process:
                     if str(code) not in allowed_exit:
                         proc.logger.warning(f"Process {proc.name} ({proc.hash}) has completed with disallowed exit code: {exit_code}")
                         if hasattr(proc, "_log_error_summary"):
-                            proc._log_error_summary(f"Process has completed with disallowed exit code: {exit_code}", "Wait")
+                            proc._log_error_summary(f"Process has completed with disallowed exit code: {exit_code}", type_text="ErrorWait")
                         success = False
             except Exception as e:
                 if hasattr(proc, "_log_error_summary"):
-                    proc._log_error_summary(f"Error during Process Wait: {str(e)}", "Wait")
+                    proc._log_error_summary(f"Error during Process Wait: {str(e)}", type_text="ErrorWait")
                 proc.logger.error(f"Failed while managing {proc.name} ({proc.hash}) for process wait: {str(e)}")
                 success = False
             finally:

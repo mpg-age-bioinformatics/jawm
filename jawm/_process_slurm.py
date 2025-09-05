@@ -124,7 +124,7 @@ def _execute_slurm(self):
 
             # Check submission result
             if result.returncode != 0:
-                self._log_error_summary(result.stderr)
+                self._log_error_summary(result.stderr, type_text="SlurmError")
                 self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}")
                 return 127  # or some non-zero to indicate failure
 
@@ -158,7 +158,7 @@ def _execute_slurm(self):
                 # Handle failure on Slurm job querying
                 if job_info.returncode != 0:
                     if retry_fail >= max_fail:
-                        self._log_error_summary("Monitoring failed from sacct tool!")
+                        self._log_error_summary("Monitoring failed from sacct tool!", type_text="SlurmMonitoring")
                         self.logger.error(f"Max retries ({max_fail}) for querying job {job_id} with sacct tool. Stopping monitoring!")
                         break
                     self.logger.warning(f"Failed to query job {job_id} status: {job_info.stderr}")
@@ -190,7 +190,7 @@ def _execute_slurm(self):
                             if os.path.exists(self.stderr_path) and os.path.getsize(self.stderr_path) > 0:
                                 with open(self.stderr_path, "r") as error_file:
                                     error_message = error_file.read().strip()
-                                self._log_error_summary(error_message)
+                                self._log_error_summary(error_message, type_text="SlurmError")
                         break
 
                 time.sleep(10)  # Check status every 10 seconds
@@ -220,7 +220,7 @@ def _execute_slurm(self):
                     self.finished_event.set()
                     self.stop_future_event.set()
                     # Fallback error summary logging
-                    self._log_error_summary("Process in Slurm failed — job may have failed silently or without stderr output.")
+                    self._log_error_summary("Process in Slurm failed — job may have failed silently or without stderr output.", type_text="SlurmError")
                     raise RuntimeError(f"Process {self.name} in Slurm failed after {total_attempts} attempts.")
 
         # Start a background thread that runs the multi-attempt logic

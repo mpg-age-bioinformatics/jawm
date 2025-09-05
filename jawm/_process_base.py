@@ -96,7 +96,7 @@ def _run_manager(self):
     elif self.manager == "kubernetes":
         self._execute_kubernetes()
     else:
-        self._log_error_summary(f"Unsupported manager: {self.manager}")
+        self._log_error_summary(f"Unsupported manager: {self.manager}", type_text="InvalidValue")
         self.__class__.stop_future_event.set()
         raise ValueError(f"Unsupported manager: {self.manager}")
 
@@ -131,7 +131,7 @@ def _parse_yaml_config(self, param_file):
                 yaml_data = yaml.safe_load(file) or []
         except Exception as e:
             # It may not log in error summary if self.error_summary_file is not yet there
-            self._log_error_summary(f"Failed to load YAML file {yaml_file}: {str(e)}")
+            self._log_error_summary(f"Failed to load YAML file {yaml_file}: {str(e)}", type_text="ErrorYAML")
             self.__class__.stop_future_event.set()
             ter_err = f"Failed to load YAML file {yaml_file}:\n\n{str(e)}"
             raise ValueError(ter_err)
@@ -252,7 +252,7 @@ def _generate_base_script(self):
             script_content = original_script.read()
         self.logger.info(f"Original script for process {self.script_file}")
     else:
-        self._log_error_summary("Invalid script type or missing script content.")
+        self._log_error_summary("Invalid script type or missing script content.", type_text="ErrorScript")
         self.__class__.stop_future_event.set()
         raise ValueError("Invalid script type or missing script content.")
 

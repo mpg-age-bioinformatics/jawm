@@ -138,7 +138,7 @@ def _execute_local(self):
                 self.logger.error(f"Attempt {attempt_i} for process {self.name} failed with exit code {exit_code}")
                 with open(self.stderr_path, "r") as stderr_file:
                     error_message = stderr_file.read().strip()
-                self._log_error_summary(error_message)
+                self._log_error_summary(error_message, type_text="LocalAttempt")
 
                 # If there's another attempt left, keep going
                 if attempt_i < total_attempts:

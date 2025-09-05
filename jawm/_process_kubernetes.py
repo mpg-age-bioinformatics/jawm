@@ -237,7 +237,7 @@ def _execute_kubernetes(self):
         with open(apply_log, "w") as f:
             f.write((res.stdout or "") + (("\n" + res.stderr) if res.stderr else ""))
         if res.returncode != 0:
-            self._log_error_summary(res.stderr)
+            self._log_error_summary(res.stderr, type_text="K8sKubectl")
             self.logger.error(f"kubectl apply failed: {res.stderr.strip()}")
             return 127
 
