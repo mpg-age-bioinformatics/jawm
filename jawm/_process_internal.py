@@ -381,7 +381,7 @@ def _build_docker_command(self, script_path):
             # Handle regular key-value options
             docker_command.extend([option, str(value)])
 
-    # --- Auto volumes from var (mk.* / map.*), RW default, with dedupe ---
+    # Collecting existing mount
     existing = set()
     for opt, val in (self.environment_docker or {}).items():
         if opt not in ("-v", "--volume"):
@@ -390,6 +390,13 @@ def _build_docker_command(self, script_path):
         for one in vals:
             existing.add(_normalize_mount_spec(one))
 
+    # Mount log path
+    log_dir = os.path.abspath(self.log_path)
+    log_spec = _normalize_mount_spec(f"{log_dir}:{log_dir}")
+    if log_spec not in existing:
+        docker_command.extend(["-v", log_spec])
+
+    # Mount, create mk, map from vars
     for m in self._auto_mounts_from_vars():
         spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
         if spec not in existing:

@@ -1,0 +1,3 @@
+- scope: global
+  environment: docker
+  container: python:3.11-slim
