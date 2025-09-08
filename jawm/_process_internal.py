@@ -1,7 +1,6 @@
 import os
 import yaml
 import re
-import time
 import fnmatch
 import shlex
 import hashlib
@@ -14,6 +13,10 @@ from ._method_lib import register_method
 __methods__ = []
 register = register_method(__methods__)
 
+
+# ----------------------------------------------------------
+#   Process instance specific internal methods
+# ---------------------------------------------------------
 
 @register
 def _prepare_base_dirs(self):
