@@ -333,7 +333,8 @@ def docker_available(v=False):
         return False
     except subprocess.CalledProcessError as e:
         # Docker exists but returned an error
-        print("Docker command failed:", e.stderr.strip())
+        if v:
+            print("Docker command failed:", e.stderr.strip())
         return False
 
 
@@ -378,8 +379,46 @@ def apptainer_available(v=False):
         return False
     except subprocess.CalledProcessError as e:
         # apptainer exists but returned an error
-        print("Apptainer command failed:", e.stderr.strip())
+        if v:
+            print("Apptainer command failed:", e.stderr.strip())
         return False
+    
+
+def kubernetes_available(v=False):
+    """
+    Check whether Kubernetes (kubectl) is available on the system.
+
+    This function attempts to run `kubectl version --client` to verify that
+    the kubectl CLI tool is installed and accessible.
+
+    Args:
+        v (bool, optional): If True, prints diagnostic messages about
+            kubectl's availability and version.
+
+    Returns:
+        bool: True if kubectl is installed and responds successfully,
+              otherwise False.
+    """
+    try:
+        result = subprocess.run(
+            ["kubectl", "version", "--client", "--short"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        if v:
+            print("Kubernetes found:", result.stdout.strip())
+        return True
+    except FileNotFoundError:
+        if v:
+            print("kubectl is not installed or not in PATH.")
+        return False
+    except subprocess.CalledProcessError as e:
+        if v:
+            print("kubectl command failed:", e.stderr.strip())
+        return False
+
 
 def write_hash_file(paths, hash_file, hash_func=hashlib.sha256, 
                     exclude_dirs=None, exclude_files=None):
