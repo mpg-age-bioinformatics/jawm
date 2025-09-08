@@ -414,6 +414,7 @@ def update_vars(self, var_file):
         if hasattr(self, "_log_error_summary"):
             self._log_error_summary(f"update_vars failed: {e}", type_text="VarUpdate")
 
+
 @register
 def get_id(self, max_wait=3, interval=0.5):
     """Return the content of the process .id file (PID or Slurm job ID), or None if unavailable (default, retrying up to: max_wait=3, interval=0.5)."""
@@ -465,17 +466,20 @@ def is_finished(self):
     """Return True or False based on whether the Process has finished or not"""
     return self.finished_event.is_set()
 
+
 @register
 def is_successful(self):
     """Return True iff the process completed successfully, False if still running, skipped, or failed."""
     c = self.get_exitcode()
     return (c is not None) and (str(c).strip() == "0" or str(c).strip().startswith("0:"))
 
+
 @register
 def has_failed(self):
     """Return True iff the process finished with a non-zero exit code, False if still running, skipped , or successful."""
     c = self.get_exitcode()
     return (c is not None) and not (str(c).strip() == "0" or str(c).strip().startswith("0:"))
+
 
 @register
 def get_values(self):
@@ -495,3 +499,4 @@ def get_values(self):
             values[key] = getattr(self, key, None)
 
     return values
+
