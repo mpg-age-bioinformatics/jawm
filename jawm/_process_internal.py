@@ -317,7 +317,7 @@ def _build_apptainer_command(self, script_path):
             # Handle regular key-value options
             apptainer_command.extend([option, str(value)])
 
-    # --- Auto binds from var (mk.* / map.*), RW default, with dedupe ---
+    # Collecting existing mount
     existing = set()
     for opt, val in (self.environment_apptainer or {}).items():
         if opt != "--bind":
@@ -326,6 +326,13 @@ def _build_apptainer_command(self, script_path):
         for one in vals:
             existing.add(_normalize_mount_spec(one))
 
+    # Bind log path to make sure
+    log_dir = os.path.abspath(self.log_path)
+    log_spec = _normalize_mount_spec(f"{log_dir}:{log_dir}")
+    if log_spec not in existing:
+        apptainer_command.extend(["--bind", log_spec])
+
+    # Mount, create mk, map from vars
     for m in self._auto_mounts_from_vars():
         spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
         if spec not in existing:
