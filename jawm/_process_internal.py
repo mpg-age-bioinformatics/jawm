@@ -317,6 +317,21 @@ def _build_apptainer_command(self, script_path):
             # Handle regular key-value options
             apptainer_command.extend([option, str(value)])
 
+    # --- Auto binds from var (mk.* / map.*), RW default, with dedupe ---
+    existing = set()
+    for opt, val in (self.environment_apptainer or {}).items():
+        if opt != "--bind":
+            continue
+        vals = val if isinstance(val, list) else [val]
+        for one in vals:
+            existing.add(_normalize_mount_spec(one))
+
+    for m in self._auto_mounts_from_vars():
+        spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
+        if spec not in existing:
+            apptainer_command.extend(["--bind", spec])
+
+
     # Add environment variables
     if self.env:
         # apptainer_command.extend(["--env", f"{','.join(f'{k}="{v}"' for k, v in self.env.items())}"])
@@ -365,6 +380,20 @@ def _build_docker_command(self, script_path):
         else:
             # Handle regular key-value options
             docker_command.extend([option, str(value)])
+
+    # --- Auto volumes from var (mk.* / map.*), RW default, with dedupe ---
+    existing = set()
+    for opt, val in (self.environment_docker or {}).items():
+        if opt not in ("-v", "--volume"):
+            continue
+        vals = val if isinstance(val, list) else [val]
+        for one in vals:
+            existing.add(_normalize_mount_spec(one))
+
+    for m in self._auto_mounts_from_vars():
+        spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
+        if spec not in existing:
+            docker_command.extend(["-v", spec])
 
     # Add environment variables
     if self.env:
@@ -552,3 +581,66 @@ def _check_resume_success(self):
                 self.logger.warning(f"Resume check failed for {entry}: {e}")
     return False
 
+
+@register
+def _auto_mounts_from_vars(self):
+    """
+    Collect auto mounts from self.var:
+      - Keys starting with mk.*  → ensure directory exists, mount RW
+      - Keys starting with map.* → mount RW
+    If value is a file path, mount its parent directory so the file path exists inside.
+
+    Returns a list of dicts:
+      [{"src": <host_abs>, "dst": <same_abs>, "kind": "mk"|"map"}]
+    """
+    mounts, seen = [], set()
+    var = self.var or {}
+
+    def _norm(p):
+        p = os.path.abspath(str(p))
+        return os.path.dirname(p) if os.path.isfile(p) else p
+
+    for k, v in var.items():
+        if not isinstance(k, str) or not isinstance(v, (str, os.PathLike)):
+            continue
+        if not (k.startswith("mk.") or k.startswith("map.")):
+            continue
+
+        kind = "mk" if k.startswith("mk.") else "map"
+        src = _norm(v)
+
+        if kind == "mk":
+            try:
+                os.makedirs(src, exist_ok=True)
+            except Exception as e:
+                self.logger.warning(f"mk.* could not create {src}: {e}")
+
+        dst = src  # same path inside
+        key = (src, dst)
+        if key in seen:
+            continue
+        seen.add(key)
+        mounts.append({"src": src, "dst": dst, "kind": kind})
+
+    return mounts
+
+
+
+
+# --------------------------------------------
+#   Plain Helper Methods without @register
+# --------------------------------------------
+
+def _normalize_mount_spec(val):
+    """
+    Normalize Docker/Apptainer mount specs to 'abs_host:container' form.
+    Handles short '-v src' → 'src:src'.
+    """
+    parts = str(val).split(":")
+    if len(parts) == 1:
+        host = os.path.abspath(parts[0])
+        return f"{host}:{host}"
+    elif len(parts) >= 2:
+        host = os.path.abspath(parts[0])
+        return f"{host}:{parts[1]}"
+    return str(val)

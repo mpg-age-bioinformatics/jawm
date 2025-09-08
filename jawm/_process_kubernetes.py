@@ -128,6 +128,43 @@ def _generate_k8s_manifest(self):
     serviceAccountName = mk.pop("serviceAccountName", None)
     volumes = mk.pop("volumes", None)
     volumeMounts = mk.pop("volumeMounts", None)
+
+    # --- Auto-add hostPath volumes/mounts for mk./map. (RW default) ---
+    auto = self._auto_mounts_from_vars()
+
+    def _vol_name(path):
+        base = os.path.basename(path) or "root"
+        safe = re.sub(r'[^a-z0-9\-]+', '-', base.lower())
+        return f"jawm-vol-{safe}"[:63]
+
+    auto_vols, auto_mounts = [], []
+    for m in auto:
+        name = _vol_name(m["src"])
+        vtype = "DirectoryOrCreate" if m["kind"] == "mk" else "Directory"
+        auto_vols.append({"name": name, "hostPath": {"path": m["src"], "type": vtype}})
+        auto_mounts.append({"name": name, "mountPath": m["dst"]})  # RW default
+
+    def _merge_vols(existing, extras):
+        existing = existing or []
+        seen = {(v.get("name"), (v.get("hostPath") or {}).get("path")) for v in existing}
+        for v in extras:
+            key = (v.get("name"), (v.get("hostPath") or {}).get("path"))
+            if key not in seen:
+                existing.append(v); seen.add(key)
+        return existing
+
+    def _merge_mounts(existing, extras):
+        existing = existing or []
+        seen = {(m.get("name"), m.get("mountPath")) for m in existing}
+        for mm in extras:
+            key = (mm.get("name"), mm.get("mountPath"))
+            if key not in seen:
+                existing.append(mm); seen.add(key)
+        return existing
+
+    volumeMounts = _merge_mounts(volumeMounts, auto_mounts)
+    volumes = _merge_vols(volumes, auto_vols)
+
     activeDeadlineSeconds = mk.pop("activeDeadlineSeconds", None)
     labels_extra = mk.pop("labels", {})
     annotations = mk.pop("annotations", None)
