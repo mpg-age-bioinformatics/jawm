@@ -1,0 +1,8 @@
+- scope: global
+  manager: slurm
+  manager_slurm:
+    --time: "00:10:00"
+    --mem: "256M"
+    --cpus-per-task: "1"
+  environment: apptainer
+  container: "docker://python:3.11-slim"
