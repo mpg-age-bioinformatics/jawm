@@ -401,14 +401,14 @@ def kubernetes_available(v=False):
     """
     try:
         result = subprocess.run(
-            ["kubectl", "version", "--client", "--short"],
+            ["kubectl", "version"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             check=True
         )
         if v:
-            print("Kubernetes found:", result.stdout.strip())
+            print("Kubernetes available:", result.stdout.strip())
         return True
     except FileNotFoundError:
         if v:
@@ -416,7 +416,11 @@ def kubernetes_available(v=False):
         return False
     except subprocess.CalledProcessError as e:
         if v:
-            print("kubectl command failed:", e.stderr.strip())
+            print("kubectl command failed:", (e.stderr or e.stdout).strip())
+        return False
+    except Exception as e:
+        if v:
+            print("Unexpected error while checking Kubernetes:", str(e))
         return False
 
 
