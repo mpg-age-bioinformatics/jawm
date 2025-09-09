@@ -1100,6 +1100,66 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 23: Auto mk./map. vars mount for apptainer, docker, kubernetes")
+time.sleep(0.5)
+try:
+    from jawm import utils
+    import tempfile
+
+    # prepare a simple directory and input file
+    tmp_dir = tempfile.mkdtemp(prefix="auto_mount_test_")
+    mk_dir = os.path.join(tmp_dir, "out")
+    map_file = os.path.join(tmp_dir, "in.txt")
+    with open(map_file, "w") as f:
+        f.write("HelloFromMap\n")
+
+    common = dict(
+        name="auto_mount_test",
+        script="""#!/bin/bash
+echo "OUTDIR={{mk.outdir}}"
+cat {{map.infile}}
+""",
+        var={"mk.outdir": mk_dir, "map.infile": map_file},
+        logs_directory="logs_test_auto_mount"
+    )
+
+    ran = False
+
+    if utils.docker_available():
+        print("   [docker] running...")
+        pD = Process(**{**common, "environment": "docker", "container": "ubuntu:22.04"})
+        pD.execute()
+        Process.wait(pD.hash)
+        assert pD.get_exitcode().startswith("0"), "❌ Docker auto-mount failed"
+        ran = True
+
+    if utils.apptainer_available():
+        print("   [apptainer] running...")
+        pA = Process(**{**common, "environment": "apptainer", "container": "ubuntu:22.04"})
+        pA.execute()
+        Process.wait(pA.hash)
+        assert pA.get_exitcode().startswith("0"), "❌ Apptainer auto-mount failed"
+        ran = True
+
+    if utils.kubernetes_available():
+        print("   [kubernetes] generating manifest...")
+        pK = Process(**{**common, "manager": "kubernetes", "container": "ubuntu:22.04"})
+        manifest_path = pK._generate_k8s_manifest()
+        assert os.path.exists(manifest_path), "❌ K8s manifest not created"
+        with open(manifest_path) as f:
+            manifest_json = f.read()
+        assert "jawm-vol" in manifest_json, "❌ K8s auto volume missing"
+        ran = True
+
+    if not ran:
+        print("   Skipped (no container backend available)")
+
+    print("✅ Passed: Auto mk./map. vars mount")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
 
 
 # -----------------------------
