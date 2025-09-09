@@ -261,7 +261,7 @@ echo 'YAML parameter test'
         param_file="data_test/test_params.yaml"
     )
 
-    if proc11.manager=="local":
+    if proc11.manager=="local" or proc11.environment in ["docker", "apptainer"]:
         assert proc11.retries == 5, "❌ Process-specific value not applied"
         assert "logs_from_yaml_process" in proc11.logs_directory, "❌ logs_directory not from process scope"
     print("✅ Passed: YAML Parameter Resolution (skipped for cli override)")
