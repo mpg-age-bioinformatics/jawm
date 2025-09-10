@@ -196,7 +196,7 @@ def main():
         """
         Minimal YAML reader to collect include paths/globs for hashing.
         Schema:
-        include: [files/dirs/globs]   # required
+        include: [files/dirs/globs]               # required
         exclude_dirs: [dir name patterns]         # optional (not applied here; we let hash_content handle)
         exclude_files: [file name patterns]       # optional (not applied here; we let hash_content handle)
         allowed_extensions: [ext without dot]     # optional
