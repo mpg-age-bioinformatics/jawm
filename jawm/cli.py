@@ -201,6 +201,7 @@ def main():
         exclude_files: [file name patterns]       # optional (not applied here; we let hash_content handle)
         allowed_extensions: [ext without dot]     # optional
         recursive: true|false                     # optional
+        overwrite: true|false                     # optional
         Returns a dict with the resolved 'paths' and optional policy keys.
         """
         data = yaml.safe_load(Path(yaml_path).read_text()) or {}
@@ -224,10 +225,11 @@ def main():
             "exclude_dirs": data.get("exclude_dirs"),
             "exclude_files": data.get("exclude_files"),
             "recursive": data.get("recursive", True),
+            "overwrite": data.get("overwrite", False),
         }
 
 
-    def _default_hash_output_path_cli(logs_dir: str, workflow_path: str):
+    def _default_hash_output_path_cli(logs_dir, workflow_path):
         """
         Default hash file under <logs_dir>/jawm_cli_hashes/<workflow_stem>.hash
         (single canonical location to compare runs).
@@ -238,7 +240,7 @@ def main():
         return os.path.join(out_dir, f"{wf_stem}.hash")
     
 
-    def _hash_history_path_cli(logs_dir: str, workflow_path: str):
+    def _hash_history_path_cli(logs_dir, workflow_path):
         """
         <logs_dir>/jawm_cli_hashes/<workflow>_hash.history
         """
@@ -259,7 +261,7 @@ def main():
 
 
 
-    def _write_and_compare_hash_cli(hash_value: str, out_path: str):
+    def _write_and_compare_hash_cli(hash_value, out_path, overwrite=False):
         """
         Compare with existing file (if any), print a clear log, and write the new hash.
         Returns True if written or matched, False if mismatch (but still writes).
@@ -275,8 +277,9 @@ def main():
                 logger.warning(f"[hash] mismatch for {outp.name}: \nStored={stored} \nComputed={hash_value}")
             else:
                 logger.info(f"[hash] matches existing file {outp.name}")
-        outp.write_text(hash_value + "\n")
-        logger.info(f"[hash] wrote hash to: {outp}")
+        if not outp.exists() or overwrite:
+            outp.write_text(hash_value + "\n")
+            logger.info(f"[hash] wrote current hash to: {outp}")
         return matched
 
 
@@ -342,6 +345,7 @@ def main():
             resolved_workflow_path = workflow_path
             logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
             out_path = _default_hash_output_path_cli(logs_dir, resolved_workflow_path)
+            overwrite = False
 
             logger.info(f"[hash] mode={args.hash!r} -> output file: {out_path}")
 
@@ -369,6 +373,7 @@ def main():
             else:
                 cfg = _collect_paths_from_yaml_cli(os.path.abspath(args.hash))
                 paths = cfg.get("paths") or []
+                overwrite = cfg.get("overwrite", False)
                 if not paths:
                     logger.warning("[hash] YAML produced no paths to hash")
                     combined_hash = hashlib.sha256(b"").hexdigest()
@@ -383,7 +388,7 @@ def main():
             
             # Store the hash
             logger.info(f"[hash] hash for the current run: {combined_hash}")
-            _write_and_compare_hash_cli(combined_hash, out_path)
+            _write_and_compare_hash_cli(combined_hash, out_path, overwrite)
             _append_hash_history_cli(logs_dir, resolved_workflow_path, combined_hash)
 
     except Exception:
