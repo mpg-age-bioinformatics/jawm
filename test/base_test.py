@@ -1228,6 +1228,10 @@ recursive: true
     assert h3 != h1, "❌ baseline not updated with overwrite:true"
 
     print("✅ Passed: CLI --hash <yaml> minimal flow (new → mismatch → overwrite)")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
 finally:
     shutil.rmtree(root, ignore_errors=True)
 
