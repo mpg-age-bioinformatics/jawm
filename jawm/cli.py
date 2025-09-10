@@ -106,7 +106,9 @@ def main():
 
     # --- Workflow label and timestamp ---
     workflow_label = os.path.basename(os.path.abspath(args.workflow)).replace(".py", "")
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    now = datetime.datetime.now()
+    timestamp = now.strftime('%Y%m%d_%H%M%S')
+    timestamp_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
 
     # --- CLI log file path ---
     base_logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
@@ -234,6 +236,27 @@ def main():
         out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_cli_hashes")
         os.makedirs(out_dir, exist_ok=True)
         return os.path.join(out_dir, f"{wf_stem}.hash")
+    
+
+    def _hash_history_path_cli(logs_dir: str, workflow_path: str):
+        """
+        <logs_dir>/jawm_cli_hashes/<workflow>_hash.history
+        """
+        wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
+        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_cli_hashes")
+        os.makedirs(out_dir, exist_ok=True)
+        return os.path.join(out_dir, f"{wf_stem}_hash.history")
+    
+
+    def _append_hash_history_cli(logs_dir, workflow_path, hash_value, ts=timestamp_iso, log_file=cli_log_file):
+        """
+        Append: "<timestamp>\t<hash>\t<cli_log_file_path>\n"
+        """
+        hist_path = _hash_history_path_cli(logs_dir, workflow_path)
+        with open(hist_path, "a", encoding="utf-8") as f:
+            f.write(f"{ts}\t{hash_value}\t{log_file}\n")
+        logger.info(f"[hash] appended history → {hist_path}")
+
 
 
     def _write_and_compare_hash_cli(hash_value: str, out_path: str):
@@ -290,6 +313,7 @@ def main():
 
     # --- Run the workflow script ---
     exit_code_from_script = None
+    exit_code_def = 0
     try:
         logger.info(f"Running workflow: {workflow_path}")
         try:
@@ -298,6 +322,8 @@ def main():
             # Defer exiting until after we perform cleanup + hashing
             exit_code_from_script = e.code if isinstance(e.code, int) else 0
             logger.info(f"Workflow ended with exitcode ({exit_code_from_script}); Initiating post run procedures.")
+
+        exit_code_def = 0 if exit_code_from_script is None else exit_code_from_script
 
 
         # Wait for process to fully end and cleaned up
@@ -340,9 +366,6 @@ def main():
                     else:
                         combined_hash = hashlib.sha256(b"").hexdigest()
 
-                logger.info(f"[hash] hash for the current run: {combined_hash}")
-                _write_and_compare_hash_cli(combined_hash, out_path)
-
             else:
                 cfg = _collect_paths_from_yaml_cli(os.path.abspath(args.hash))
                 paths = cfg.get("paths") or []
@@ -357,19 +380,21 @@ def main():
                         exclude_files=cfg.get("exclude_files"),
                         recursive=cfg.get("recursive", True),
                     )
-                logger.info(f"JAWM hash: {combined_hash}")
-                _write_and_compare_hash_cli(combined_hash, out_path)
+            
+            # Store the hash
+            logger.info(f"[hash] hash for the current run: {combined_hash}")
+            _write_and_compare_hash_cli(combined_hash, out_path)
+            _append_hash_history_cli(logs_dir, resolved_workflow_path, combined_hash)
 
     except Exception:
         logger.exception("Failed to execute workflow script")
         # If workflow raised SystemExit, prefer that code; else generic failure
         sys.exit(exit_code_from_script if exit_code_from_script is not None else 1)
     finally:
-        code = 0 if exit_code_from_script is None else exit_code_from_script
-        if code == 0:
+        if exit_code_def == 0:
             logger.info("Ending JAWM workflow script from jawm command")
         else:
-            logger.error(f"Ending JAWM workflow script from jawm command with exit code {code}")
+            logger.error(f"Ending JAWM workflow script from jawm command with exit code {exit_code_def}")
         # Now, if the script wanted to exit with a specific code, honor it
         if exit_code_from_script is not None:
             sys.exit(exit_code_from_script)
