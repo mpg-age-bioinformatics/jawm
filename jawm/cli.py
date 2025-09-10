@@ -269,8 +269,10 @@ def main():
         outp = Path(out_path)
         outp.parent.mkdir(parents=True, exist_ok=True)
         matched = True
+        new = True
         if outp.exists():
             stored = outp.read_text().strip()
+            new = False
             if stored != hash_value:
                 matched = False
                 # Required: log mismatch to CLI output
@@ -280,7 +282,7 @@ def main():
         if not outp.exists() or overwrite:
             outp.write_text(hash_value + "\n")
             logger.info(f"[hash] wrote current hash to: {outp}")
-        return matched
+        return matched, new
 
 
     def _compute_run_hash_from_process_prefixes_cli():
@@ -388,7 +390,15 @@ def main():
             
             # Store the hash
             logger.info(f"[hash] hash for the current run: {combined_hash}")
-            _write_and_compare_hash_cli(combined_hash, out_path, overwrite)
+            matched, new = _write_and_compare_hash_cli(combined_hash, out_path, overwrite)
+            if matched:
+                if new:
+                    logger.info(f"[hash] STATUS: NEW ✅✅✅")
+                else:
+                    logger.info(f"[hash] STATUS: MATCHED ✅✅✅")
+            else:
+                logger.info(f"[hash] STATUS: MISMATCHED ❌❌❌")
+                
             _append_hash_history_cli(logs_dir, resolved_workflow_path, combined_hash)
 
     except Exception:
