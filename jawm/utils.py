@@ -425,7 +425,8 @@ def kubernetes_available(v=False):
 
 
 def write_hash_file(paths, hash_file, hash_func=hashlib.sha256, 
-                    exclude_dirs=None, exclude_files=None):
+                    v=True, exclude_dirs=None, exclude_files=None,
+                    allowed_extensions=None, recursive=True):
     """
     Compute the combined hash of files/folders and write it to a file.
     If the file already exists, check if the stored hash matches the current hash
@@ -435,27 +436,37 @@ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256,
         paths (str | Path | list[str | Path]): File(s) and/or folder(s) to hash.
         hash_file (str | Path): Path to the file where the hash should be written.
         hash_func (callable, optional): Hash function to use (default: hashlib.sha256).
+        v (bool): Print the verbose (default: True).
         exclude_dirs (list[str], optional): Directory patterns to exclude.
         exclude_files (list[str], optional): File patterns to exclude.
+        allowed_extensions (list[str] | None): When hashing directories, only count these extensions.
+        recursive (bool): Recurse into subdirectories (default: True).
 
     Returns:
         bool: True if the hash was written or matched the existing hash, 
               False if the existing hash differs.
     """
-    current_hash = hash_content(paths, hash_func=hash_func, 
+    current_hash = hash_content(paths, hash_func=hash_func,
+                                allowed_extensions=allowed_extensions, 
                                 exclude_dirs=exclude_dirs, 
-                                exclude_files=exclude_files)
+                                exclude_files=exclude_files,
+                                recursive=recursive)
     hash_file = Path(hash_file)
 
     if hash_file.exists():
         stored_hash = hash_file.read_text().strip()
         if stored_hash == current_hash:
-            print(f"Hash matches existing file: {hash_file}")
+            if v:
+                print(f"Hash matches existing file: {hash_file}")
             return True
         else:
-            print(f"Hash differs from existing file: {hash_file}")
+            if v:
+                print(f"Hash differs from existing file: {hash_file}")
+                print(f"  stored:   {stored_hash}")
+                print(f"  computed: {current_hash}")
             return False
     else:
         hash_file.write_text(current_hash)
-        print(f"Hash written to: {hash_file}")
+        if v:
+            print(f"Hash written to: {hash_file}")
         return True
