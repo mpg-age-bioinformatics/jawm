@@ -1240,11 +1240,21 @@ finally:
 # -----------------------------
 # Cleanup created directories
 # -----------------------------
-for d in ["logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
-          "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test",
-          "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test",
-          "logs", "logs_ar", "logs_allow_skip"]:
-    shutil.rmtree(d, ignore_errors=True)
+for d in [
+    "logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
+    "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test",
+    "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test",
+    "logs", "logs_ar", "logs_allow_skip", "logs_test_auto_mount"
+]:
+    if d == "logs":
+        if os.path.isdir("logs"):
+            for sub in os.listdir("logs"):
+                subpath = os.path.join("logs", sub)
+                if sub.startswith("jawm_cli_has"):
+                    continue
+                shutil.rmtree(subpath, ignore_errors=True) if os.path.isdir(subpath) else os.remove(subpath)
+    else:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 # ---------------------------
