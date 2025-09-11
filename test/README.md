@@ -30,6 +30,18 @@ jawm base_test.py -p parameters/k8.yaml
 ```
 `parameters/k8.yaml` contains only the basic parameters. You can update the `yaml` based on the system, if required.
 
+## `docker` Execution (manager: `local`)
+Run with:
+```
+jawm base_test.py -p parameters/docker.yaml
+```
+
+## `apptainer` Execution (manager: `slurm`)
+Run with:
+```
+jawm base_test.py -p parameters/apptainer.yaml
+```
+
 ## Outcome
 If all test cases passed, there would be a summary similar to the followings.
 ```
