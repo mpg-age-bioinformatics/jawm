@@ -905,7 +905,7 @@ done
 
     logs_dir = "logs_test_parallel"
 
-    # --------------- A) parallelism=True (default): should overlap ---------------
+    # --------------- A) parallel=True (default): should overlap ---------------
     pA = Process(
         name="parallel_true_A",
         script=loop_script("A"),
@@ -929,26 +929,26 @@ done
     A_epochs = parse_epochs(outA)
     B_epochs = parse_epochs(outB)
 
-    assert pA.get_exitcode().startswith("0"), "❌ parallelism=True: A exit code non-zero"
-    assert pB.get_exitcode().startswith("0"), "❌ parallelism=True: B exit code non-zero"
-    assert len(A_epochs) >= 3 and len(B_epochs) >= 3, "❌ parallelism=True: missing epoch lines"
+    assert pA.get_exitcode().startswith("0"), "❌ parallel=True: A exit code non-zero"
+    assert pB.get_exitcode().startswith("0"), "❌ parallel=True: B exit code non-zero"
+    assert len(A_epochs) >= 3 and len(B_epochs) >= 3, "❌ parallel=True: missing epoch lines"
 
     # Ranges overlap check: [minA, maxA] intersects [minB, maxB]
     overlap_parallel = (min(A_epochs) <= max(B_epochs)) and (min(B_epochs) <= max(A_epochs))
-    assert overlap_parallel, "❌ parallelism=True: expected overlapping execution windows"
+    assert overlap_parallel, "❌ parallel=True: expected overlapping execution windows"
 
-    # --------------- B) parallelism=False: must run one-after-another ---------------
+    # --------------- B) parallel=False: must run one-after-another ---------------
     pC = Process(
         name="parallel_false_A",
         script=loop_script("C"),
         logs_directory=logs_dir,
-        parallelism=False
+        parallel=False
     )
     pD = Process(
         name="parallel_false_B",
         script=loop_script("D"),
         logs_directory=logs_dir,
-        parallelism=False
+        parallel=False
     )
 
     t2 = time.time()
@@ -963,14 +963,14 @@ done
     C_epochs = parse_epochs(outC)
     D_epochs = parse_epochs(outD)
 
-    assert pC.get_exitcode().startswith("0"), "❌ parallelism=False: C exit code non-zero"
-    assert pD.get_exitcode().startswith("0"), "❌ parallelism=False: D exit code non-zero"
-    assert len(C_epochs) >= 3 and len(D_epochs) >= 3, "❌ parallelism=False: missing epoch lines"
+    assert pC.get_exitcode().startswith("0"), "❌ parallel=False: C exit code non-zero"
+    assert pD.get_exitcode().startswith("0"), "❌ parallel=False: D exit code non-zero"
+    assert len(C_epochs) >= 3 and len(D_epochs) >= 3, "❌ parallel=False: missing epoch lines"
 
     # Non-overlap check: earliest D is strictly after latest C
     no_overlap_serial = min(D_epochs) > max(C_epochs)
     assert no_overlap_serial, (
-        "❌ parallelism=False: detected overlap — D started before C fully finished"
+        "❌ parallel=False: detected overlap — D started before C fully finished"
     )
 
     # --------------- Timing sanity checks (robust to system variance) ---------------

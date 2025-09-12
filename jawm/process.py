@@ -106,7 +106,7 @@ class Process:
         "run_in_detached": bool,
         "validation": (bool, str),
         "resume": bool,
-        "parallelism": bool,
+        "parallel": bool,
         "always_run": bool
     }
     # Set of internal/reserved keys
@@ -162,7 +162,7 @@ class Process:
         container_after_script=None,
         validation=None,
         resume=None,
-        parallelism=None,
+        parallel=None,
         **kwargs
     ):
         """
@@ -273,7 +273,7 @@ class Process:
         resume : bool, default=False  
             Whether to skip execution if a matching process with the same parameter hash has already completed successfully.
         
-        parallelism : bool, default=True  
+        parallel : bool, default=True  
             Whether the process should run in parallel with others (True) or block until it finishes before the next one starts (False).
 
         always_run : bool, default=False  
@@ -361,7 +361,7 @@ class Process:
         self.container_before_script = self.params.get("container_before_script", None)
         self.container_after_script = self.params.get("container_after_script", None)
         self.resume = self.params.get("resume", False)
-        self.parallelism = self.params.get("parallelism", True)
+        self.parallel = self.params.get("parallel", True)
         self.always_run = self.params.get("always_run", False)
 
         # Local execution configurations

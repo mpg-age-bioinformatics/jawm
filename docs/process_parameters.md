@@ -712,7 +712,7 @@ resume: true
 
 ---
 
-### `parallelism`
+### `parallel`
 
 - **Category**: `parameter`  
 - **Type**: `bool`  
@@ -722,7 +722,7 @@ If `True`, the process runs in parallel with others. If `False`, execution is se
 
 **Example:**
 ```python
-parallelism=False
+parallel=False
 ```
 **YAML Example:**
 ```yaml

@@ -111,7 +111,7 @@ def execute(self):
         try:
             self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
             self._run_manager()
-            if not self.parallelism:
+            if not self.parallel:
                 self.finished_event.wait()
         except Exception as e:
             self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
@@ -165,7 +165,7 @@ def execute(self):
         # Spawn a background thread
         a_thread = threading.Thread(target=run_in_background, daemon=False)
         a_thread.start()
-        if not self.parallelism:
+        if not self.parallel:
             self.finished_event.wait()
         return None
 
