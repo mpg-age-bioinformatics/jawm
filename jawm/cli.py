@@ -168,7 +168,7 @@ def main():
             injected_vars = read_variables(args.variables, output_type="dict")
             exec_namespace.update(injected_vars)
             logger.info(f"Injected {len(injected_vars)} variable(s) from: {args.variables} to the script")
-            _apply_param(var_file=args.variables)
+            _apply_param("var_file", args.variables)
         except Exception as e:
             logger.error(f"Failed to load variables from {args.variables} — {e}")
             sys.exit(2)
