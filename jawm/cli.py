@@ -94,7 +94,7 @@ def main():
     parser = argparse.ArgumentParser(description="JAWM - Just Another Workflow Manager")
     parser.add_argument("workflow", nargs="?", default=".", help="Path to a jawm Python script or directory containing the jawm workflow script with single .py or main.py (default: current directory)")
     parser.add_argument("-p", "--parameters", nargs="+", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
-    parser.add_argument("-v", "--variables", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the workflow script.")
+    parser.add_argument("-v", "--variables", nargs="+", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the workflow script.")
     parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_cli_runs (default: ./logs/jawm_cli_runs).")
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
     parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
@@ -104,9 +104,11 @@ def main():
 
     args = parser.parse_args()
 
-    # normalize -p/--parameters: single item → string; many → list
+    # normalize -p and -v: single item → string; many → list
     if args.parameters is not None and isinstance(args.parameters, list) and len(args.parameters) == 1:
         args.parameters = args.parameters[0]
+    if args.variables is not None and isinstance(args.variables, list) and len(args.variables) == 1:
+        args.variables = args.variables[0]
 
     # --- Workflow label and timestamp ---
     workflow_label = os.path.basename(os.path.abspath(args.workflow)).replace(".py", "")
@@ -348,6 +350,13 @@ def main():
         if args.hash is not None:
             from jawm._utils import hash_content  # canonical hasher
 
+            def _extend_inputs_from_arg(val):
+                if not val:
+                    return []
+                if isinstance(val, list):
+                    return [os.path.abspath(v) for v in val]
+                return [os.path.abspath(val)]
+
             # Use the actually-resolved script we executed (jawm.py/main.py/<only>.py)
             resolved_workflow_path = workflow_path
             logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
@@ -361,10 +370,8 @@ def main():
 
                 if not combined_hash:
                     inputs = [resolved_workflow_path]
-                    if args.parameters:
-                        inputs.append(os.path.abspath(args.parameters))
-                    if args.variables:
-                        inputs.append(os.path.abspath(args.variables))
+                    inputs += _extend_inputs_from_arg(args.parameters)
+                    inputs += _extend_inputs_from_arg(args.variables)
 
                     if inputs:
                         combined_hash = hash_content(
