@@ -1236,6 +1236,62 @@ finally:
     shutil.rmtree(root, ignore_errors=True)
 
 
+print("\n>>> Test 25: update_params invalidates cached script (var re-substitution)")
+try:
+    # workspace
+    tmpdir = tempfile.mkdtemp(prefix="upd_params_")
+    logs = os.path.join(tmpdir, "logs")
+    os.makedirs(logs, exist_ok=True)
+    yaml_path = os.path.join(tmpdir, "params.yaml")
+
+    # YAML that provides var.ncores
+    with open(yaml_path, "w") as f:
+        f.write("""
+- scope: process
+  name: "upd_params_case"
+  var:
+    ncores: "8"
+""")
+
+    # Process with unresolved {{ncores}} initially
+    p = Process(
+        name="upd_params_case",
+        script="""#!/bin/bash
+echo "fastqc -t {{ncores}}"
+""",
+        logs_directory=logs
+    )
+
+    # 1) First run (no vars yet): placeholder should be visible in output
+    p.execute()
+    Process.wait(p.hash)
+    out1 = p.get_output() or ""
+    assert "{{ncores}}" in out1, "❌ Expected unresolved placeholder in first run output"
+
+    # 2) Update params to provide var.ncores, then run again
+    p.update_params(yaml_path)
+    p.execute()
+    Process.wait(p.hash)
+    out2 = p.get_output() or ""
+    script2 = p.get_script() or ""
+
+    # Should now be substituted everywhere
+    assert "fastqc -t 8" in out2, "❌ ncores not substituted in second run output"
+    assert "{{ncores}}" not in out2, "❌ Placeholder still present in second run output"
+    assert "fastqc -t 8" in script2, "❌ ncores not substituted in regenerated base script"
+
+    print("✅ Passed: update_params triggers base script regeneration and var substitution")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    try:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    except Exception:
+        pass
+
+
 
 # -----------------------------
 # Cleanup created directories
