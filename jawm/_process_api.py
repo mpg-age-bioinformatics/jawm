@@ -324,6 +324,12 @@ def update_params(self, param_file=None):
         self.logger.warning("No param_file provided for update_params, skipping.")
         return
 
+    # Get existing values if already there for var update
+    old_script      = getattr(self, "script", None)
+    old_script_file = getattr(self, "script_file", None)
+    old_var         = (self.var.copy() if isinstance(self.var, dict) else {}) or {}
+    old_var_file    = self.var_file
+    
     yaml_params = self._parse_yaml_config(param_file)
 
     # Merge global + process-specific configs
@@ -347,6 +353,15 @@ def update_params(self, param_file=None):
         self.param_file = [self.param_file, param_file]
     
     self.params["param_file"] = self.param_file
+
+    # Invalidate cached base script if script/vars changed
+    new_script      = getattr(self, "script", None)
+    new_script_file = getattr(self, "script_file", None)
+    new_var         = (self.var.copy() if isinstance(self.var, dict) else {}) or {}
+    new_var_file    = self.var_file
+
+    if (old_script != new_script or old_script_file != new_script_file or old_var != new_var or old_var_file != new_var_file):
+        self.base_script_path = None
 
     self.logger.info(f"Process {self.name} updated parameters from {param_file}")
 
