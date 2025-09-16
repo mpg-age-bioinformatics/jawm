@@ -414,6 +414,10 @@ def _build_docker_command(self, script_path):
         if spec not in existing:
             docker_command.extend(["-v", spec])
 
+    # Set working directory inside container
+    workdir = os.path.abspath(getattr(self, "project_directory", os.getcwd()))
+    docker_command.extend(["-w", workdir])
+
     # Add environment variables
     if self.env:
         for key, val in self.env.items():
