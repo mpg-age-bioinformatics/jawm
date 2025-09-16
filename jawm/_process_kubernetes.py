@@ -130,7 +130,7 @@ def _generate_k8s_manifest(self):
     volumeMounts = mk.pop("volumeMounts", None)
 
     # --- Auto-add hostPath volumes/mounts for mk./map. (RW default) ---
-    auto = self._auto_mounts_from_vars()
+    auto = self._auto_mounts_from_vars() if getattr(self, "automated_mount", True) else []
 
     def _vol_name(path):
         base = os.path.basename(path) or "root"

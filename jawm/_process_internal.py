@@ -335,10 +335,11 @@ def _build_apptainer_command(self, script_path):
         apptainer_command.extend(["--bind", log_spec])
 
     # Mount, create mk, map from vars
-    for m in self._auto_mounts_from_vars():
-        spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
-        if spec not in existing:
-            apptainer_command.extend(["--bind", spec])
+    if getattr(self, "automated_mount", True):
+        for m in self._auto_mounts_from_vars():
+            spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
+            if spec not in existing:
+                apptainer_command.extend(["--bind", spec])
 
 
     # Add environment variables
@@ -409,10 +410,11 @@ def _build_docker_command(self, script_path):
         docker_command.extend(["-v", log_spec])
 
     # Mount, create mk, map from vars
-    for m in self._auto_mounts_from_vars():
-        spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
-        if spec not in existing:
-            docker_command.extend(["-v", spec])
+    if getattr(self, "automated_mount", True):
+        for m in self._auto_mounts_from_vars():
+            spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
+            if spec not in existing:
+                docker_command.extend(["-v", spec])
 
     # Set working directory inside container
     workdir = os.path.abspath(getattr(self, "project_directory", os.getcwd()))
@@ -616,6 +618,10 @@ def _auto_mounts_from_vars(self):
     Returns a list of dicts:
       [{"src": <host_abs>, "dst": <same_abs>, "kind": "mk"|"map"}]
     """
+    # No auto mount if automated_mount is False
+    if not getattr(self, "automated_mount", True):
+        return []
+
     mounts, seen = [], set()
     var = self.var or {}
 

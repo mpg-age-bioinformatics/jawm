@@ -107,7 +107,8 @@ class Process:
         "validation": (bool, str),
         "resume": bool,
         "parallel": bool,
-        "always_run": bool
+        "always_run": bool,
+        "automated_mount": bool
     }
     # Set of internal/reserved keys
     reserved_keys = {
@@ -163,6 +164,8 @@ class Process:
         validation=None,
         resume=None,
         parallel=None,
+        always_run=None,
+        automated_mount=None,
         **kwargs
     ):
         """
@@ -279,6 +282,9 @@ class Process:
         always_run : bool, default=False  
             Whether the process should run even if something failed. It does not override when: `when=False` still skips.
 
+        automated_mount : bool, default=True  
+            If False, it will not auto-bind the process log directory or any mk./map. paths. User-specified container options still apply.
+
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
             and can override YAML-defined values.
@@ -363,6 +369,7 @@ class Process:
         self.resume = self.params.get("resume", False)
         self.parallel = self.params.get("parallel", True)
         self.always_run = self.params.get("always_run", False)
+        self.automated_mount = self.params.get("automated_mount", True)
 
         # Local execution configurations
         self.manager_local = self.params.get("manager_local", {})
