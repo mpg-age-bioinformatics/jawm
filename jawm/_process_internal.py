@@ -306,9 +306,11 @@ def _build_apptainer_command(self, script_path):
     # Apply user-defined Apptainer options dynamically
     for option, value in self.environment_apptainer.items():
         if isinstance(value, list):
-            # Handle options that require multiple values (e.g., --bind)
             for v in value:
-                apptainer_command.extend([option, str(v)])
+                if option in ("--bind", "-B"):
+                    apptainer_command.extend([option, _normalize_user_bind(v)])
+                else:
+                    apptainer_command.extend([option, str(v)])
         elif isinstance(value, bool):
             # Handle flags (e.g., --no-home)
             if value:  # Only include the flag if True
@@ -320,11 +322,11 @@ def _build_apptainer_command(self, script_path):
     # Collecting existing mount
     existing = set()
     for opt, val in (self.environment_apptainer or {}).items():
-        if opt != "--bind":
+        if opt not in ("--bind", "-B"):
             continue
         vals = val if isinstance(val, list) else [val]
         for one in vals:
-            existing.add(_normalize_mount_spec(one))
+            existing.add(_normalize_mount_spec(_normalize_user_bind(one)))
 
     # Bind log path to make sure
     log_dir = os.path.abspath(self.log_path)
@@ -379,7 +381,10 @@ def _build_docker_command(self, script_path):
         if isinstance(value, list):
             # Handle options that require multiple values (e.g., --volume)
             for v in value:
-                docker_command.extend([option, str(v)])
+                if option in ("-v", "--volume"):
+                    docker_command.extend([option, _normalize_user_bind(v)])
+                else:
+                    docker_command.extend([option, str(v)])
         elif isinstance(value, bool):
             # Handle flags (e.g., --privileged)
             if value:  # Only include the flag if True
@@ -395,7 +400,7 @@ def _build_docker_command(self, script_path):
             continue
         vals = val if isinstance(val, list) else [val]
         for one in vals:
-            existing.add(_normalize_mount_spec(one))
+            existing.add(_normalize_mount_spec(_normalize_user_bind(one)))
 
     # Mount log path
     log_dir = os.path.abspath(self.log_path)
@@ -658,3 +663,33 @@ def _normalize_mount_spec(val):
         host = os.path.abspath(parts[0])
         return f"{host}:{parts[1]}"
     return str(val)
+
+
+def _normalize_user_bind(spec: str) -> str:
+    """
+    Normalize a user '--bind'/'-v' spec:
+      - Make host/src absolute.
+      - Preserve a user-specified destination, but ensure it is absolute.
+      - If destination omitted, use src_abs as destination.
+      - Preserve trailing options (e.g., :ro, :Z).
+    """
+    s = str(spec).strip().strip('"').strip("'")
+    if not s:
+        return s
+    parts = s.split(":")
+    src_abs = os.path.abspath(os.path.expanduser(parts[0]))
+
+    # Decide dst and opts
+    if len(parts) == 1:
+        dst = src_abs
+        opts = None
+    else:
+        dst_raw = parts[1]
+        # make container dst absolute while preserving user intent
+        dst = dst_raw if dst_raw.startswith("/") else "/" + dst_raw.lstrip("./")
+        opts = ":".join(parts[2:]) if len(parts) > 2 else None
+
+    out = f"{src_abs}:{dst}"
+    if opts:
+        out += f":{opts}"
+    return out
