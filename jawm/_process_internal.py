@@ -328,14 +328,14 @@ def _build_apptainer_command(self, script_path):
         for one in vals:
             existing.add(_normalize_mount_spec(_normalize_user_bind(one)))
 
-    # Bind log path to make sure
-    log_dir = os.path.abspath(self.log_path)
-    log_spec = _normalize_mount_spec(f"{log_dir}:{log_dir}")
-    if log_spec not in existing:
-        apptainer_command.extend(["--bind", log_spec])
-
-    # Mount, create mk, map from vars
     if getattr(self, "automated_mount", True):
+        # Bind log path to make sure
+        log_dir = os.path.abspath(self.log_path)
+        log_spec = _normalize_mount_spec(f"{log_dir}:{log_dir}")
+        if log_spec not in existing:
+            apptainer_command.extend(["--bind", log_spec])
+
+        # Mount, create mk, map from vars
         for m in self._auto_mounts_from_vars():
             spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
             if spec not in existing:
@@ -403,14 +403,14 @@ def _build_docker_command(self, script_path):
         for one in vals:
             existing.add(_normalize_mount_spec(_normalize_user_bind(one)))
 
-    # Mount log path
-    log_dir = os.path.abspath(self.log_path)
-    log_spec = _normalize_mount_spec(f"{log_dir}:{log_dir}")
-    if log_spec not in existing:
-        docker_command.extend(["-v", log_spec])
-
-    # Mount, create mk, map from vars
     if getattr(self, "automated_mount", True):
+        # Mount log path
+        log_dir = os.path.abspath(self.log_path)
+        log_spec = _normalize_mount_spec(f"{log_dir}:{log_dir}")
+        if log_spec not in existing:
+            docker_command.extend(["-v", log_spec])
+
+        # Mount, create mk, map from vars
         for m in self._auto_mounts_from_vars():
             spec = _normalize_mount_spec(f'{m["src"]}:{m["dst"]}')
             if spec not in existing:
