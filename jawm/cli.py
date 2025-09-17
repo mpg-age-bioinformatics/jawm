@@ -11,6 +11,7 @@ import atexit
 import threading
 import time
 import yaml
+import fnmatch
 from pathlib import Path
 
 
@@ -235,6 +236,61 @@ def main():
             "overwrite": data.get("overwrite", False),
         }
 
+    
+    def _enumerate_hash_inputs_cli(paths, *, allowed_extensions=None, exclude_dirs=None, exclude_files=None, recursive=True):
+        """
+        Return a sorted list of concrete files that would be considered for hashing,
+        using the same policy (ext filter, exclude lists, recursion) as hash_content.
+        """
+        if paths is None:
+            return []
+        if isinstance(paths, (str, Path)):
+            paths = [paths]
+
+        allowed_exts = None
+        if allowed_extensions:
+            allowed_exts = set(("." + e.lower().lstrip(".")) for e in allowed_extensions)
+
+        exclude_dirs = exclude_dirs or []
+        exclude_files = exclude_files or []
+
+        collected = []
+
+        def _file_ok(fname):
+            base = os.path.basename(fname)
+            if any(fnmatch.fnmatch(base, pat) for pat in exclude_files):
+                return False
+            if allowed_exts is not None:
+                ext = os.path.splitext(fname)[1].lower()
+                if ext not in allowed_exts:
+                    return False
+            return True
+
+        for p in paths:
+            p = os.path.abspath(str(p))
+            if os.path.isfile(p):
+                if _file_ok(p):
+                    collected.append(p)
+            elif os.path.isdir(p):
+                if recursive:
+                    for root, dirs, files in os.walk(p):
+                        # apply dir excludes (by name pattern)
+                        dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pat) for pat in (exclude_dirs or []))]
+                        for f in files:
+                            fp = os.path.join(root, f)
+                            if _file_ok(fp):
+                                collected.append(fp)
+                else:
+                    for f in os.listdir(p):
+                        fp = os.path.join(p, f)
+                        if os.path.isfile(fp) and _file_ok(fp):
+                            collected.append(fp)
+            else:
+                # ignore non-existent, same as the hasher
+                continue
+
+        return sorted(set(collected))
+
 
     def _default_hash_output_path_cli(logs_dir, workflow_path):
         """
@@ -257,13 +313,13 @@ def main():
         return os.path.join(out_dir, f"{wf_stem}_hash.history")
     
 
-    def _append_hash_history_cli(logs_dir, workflow_path, hash_value, ts=timestamp_iso, log_file=cli_log_file):
+    def _append_hash_history_cli(logs_dir, workflow_path, hash_value, ts=timestamp_iso, log_file=cli_log_file, files_csv="-"):
         """
-        Append: "<timestamp>\t<hash>\t<cli_log_file_path>\n"
+        Append: "<timestamp>\t<hash>\t<cli_log_file>\t<comma_separated_files>"
         """
         hist_path = _hash_history_path_cli(logs_dir, workflow_path)
         with open(hist_path, "a", encoding="utf-8") as f:
-            f.write(f"{ts}\t{hash_value}\t{log_file}\n")
+            f.write(f"{ts}\t{hash_value}\t{log_file}\t{files_csv}\n")
         logger.info(f"[hash] appended history → {hist_path}")
 
 
@@ -347,6 +403,7 @@ def main():
             time.sleep(1)
 
         # -------- post-run hashing (always reached, even if workflow sys.exit'ed) --------
+        files_csv = "-"
         if args.hash is not None:
             from jawm._utils import hash_content  # canonical hasher
 
@@ -368,11 +425,20 @@ def main():
             if args.hash == "auto" or args.hash is None:
                 combined_hash = _compute_run_hash_from_process_prefixes_cli()
 
-                if not combined_hash:
-                    inputs = [resolved_workflow_path]
-                    inputs += _extend_inputs_from_arg(args.parameters)
-                    inputs += _extend_inputs_from_arg(args.variables)
+                inputs = [resolved_workflow_path]
+                inputs += _extend_inputs_from_arg(args.parameters)
+                inputs += _extend_inputs_from_arg(args.variables)
 
+                files_considered = _enumerate_hash_inputs_cli(
+                    inputs,
+                    allowed_extensions=None,
+                    exclude_dirs=[".git", "__pycache__", ".mypy_cache", ".ipynb_checkpoints"],
+                    exclude_files=["*.tmp", "*.swp"],
+                    recursive=True,
+                )
+                files_csv = ",".join(files_considered) if files_considered else "-"
+
+                if not combined_hash:
                     if inputs:
                         combined_hash = hash_content(
                             inputs,
@@ -392,6 +458,14 @@ def main():
                     logger.warning("[hash] YAML produced no paths to hash")
                     combined_hash = hashlib.sha256(b"").hexdigest()
                 else:
+                    files_considered = _enumerate_hash_inputs_cli(
+                        paths,
+                        allowed_extensions=cfg.get("allowed_extensions"),
+                        exclude_dirs=cfg.get("exclude_dirs"),
+                        exclude_files=cfg.get("exclude_files"),
+                        recursive=cfg.get("recursive", True),
+                    )
+                    files_csv = ",".join(files_considered) if files_considered else "-"
                     combined_hash = hash_content(
                         paths,
                         allowed_extensions=cfg.get("allowed_extensions"),
@@ -411,7 +485,7 @@ def main():
             else:
                 logger.info(f"[hash] STATUS: MISMATCHED ❌❌❌")
                 
-            _append_hash_history_cli(logs_dir, resolved_workflow_path, combined_hash)
+            _append_hash_history_cli(logs_dir, resolved_workflow_path, combined_hash, ts=timestamp_iso, log_file=cli_log_file, files_csv=files_csv)
 
     except Exception:
         logger.exception("Failed to execute workflow script")
