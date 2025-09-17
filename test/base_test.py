@@ -430,7 +430,7 @@ try:
         assert "PROC_LOG_DIR=" in both and "test_logs_from_params_cli" in both, "❌ -p did not influence Process.logs_directory"
 
         # -------------------------
-        # E) --logs_directory: creates CLI run log under <dir>/jawm_cli_runs/
+        # E) --logs_directory: creates CLI run log under <dir>/jawm_runs/
         # -------------------------
         e_dir = os.path.join(root, "logs_dir_check")
         os.makedirs(e_dir, exist_ok=True)
@@ -439,8 +439,8 @@ try:
         custom_logs = os.path.join(root, "custom_cli_logs")
         rc, out, err, both = run_cli([e_dir, "-l", custom_logs])
         assert rc == 0, "❌ CLI failed with --logs_directory"
-        runs_dir = os.path.join(custom_logs, "jawm_cli_runs")
-        assert os.path.isdir(runs_dir), "❌ CLI did not create <logs_directory>/jawm_cli_runs"
+        runs_dir = os.path.join(custom_logs, "jawm_runs")
+        assert os.path.isdir(runs_dir), "❌ CLI did not create <logs_directory>/jawm_runs"
         log_files = glob(os.path.join(runs_dir, "*.log"))
         assert log_files, "❌ No CLI run log file created in logs directory"
 
@@ -1191,14 +1191,14 @@ Process.wait(p.hash)
   - main.py
   - logs_yamlhash/**/*.output
 allowed_extensions: [py, output]
-exclude_dirs: [__pycache__, jawm_cli_runs, jawm_cli_hashes]
+exclude_dirs: [__pycache__, jawm_runs, jawm_hashes]
 exclude_files: ["*.tmp", "*.swp"]
 recursive: true
 """)
 
     # Place CLI logs (and the baseline hash file) under wf/logs
     cli_logs_dir = os.path.join(wf, "logs")
-    hash_dir  = os.path.join(cli_logs_dir, "jawm_cli_hashes")
+    hash_dir  = os.path.join(cli_logs_dir, "jawm_hashes")
     hash_file = os.path.join(hash_dir, "main.hash")
 
     # 1) First run → baseline created
@@ -1306,7 +1306,7 @@ for d in [
         if os.path.isdir("logs"):
             for sub in os.listdir("logs"):
                 subpath = os.path.join("logs", sub)
-                if sub.startswith("jawm_cli_has"):
+                if sub.startswith("jawm_has"):
                     continue
                 shutil.rmtree(subpath, ignore_errors=True) if os.path.isdir(subpath) else os.remove(subpath)
     else:

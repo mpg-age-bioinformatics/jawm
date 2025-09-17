@@ -95,7 +95,7 @@ def main():
     parser.add_argument("workflow", nargs="?", default=".", help="Path to a jawm Python script or directory containing the jawm workflow script with single .py or main.py (default: current directory)")
     parser.add_argument("-p", "--parameters", nargs="+", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
     parser.add_argument("-v", "--variables", nargs="+", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the workflow script.")
-    parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_cli_runs (default: ./logs/jawm_cli_runs).")
+    parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_runs (default: ./logs/jawm_runs).")
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
     parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
     parser.add_argument("--hash", nargs="?", const="auto", help="Post-run hashing. No value for default hashing or pass a YAML file that lists include paths/globs for content hashing.")
@@ -118,7 +118,7 @@ def main():
 
     # --- CLI log file path ---
     base_logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
-    run_logs_dir = os.path.join(base_logs_dir, "jawm_cli_runs")
+    run_logs_dir = os.path.join(base_logs_dir, "jawm_runs")
     os.makedirs(run_logs_dir, exist_ok=True)
     cli_log_file = os.path.join(run_logs_dir, f"{workflow_label}_{timestamp}.log")
 
@@ -238,21 +238,21 @@ def main():
 
     def _default_hash_output_path_cli(logs_dir, workflow_path):
         """
-        Default hash file under <logs_dir>/jawm_cli_hashes/<workflow_stem>.hash
+        Default hash file under <logs_dir>/jawm_hashes/<workflow_stem>.hash
         (single canonical location to compare runs).
         """
         wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
-        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_cli_hashes")
+        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
         os.makedirs(out_dir, exist_ok=True)
         return os.path.join(out_dir, f"{wf_stem}.hash")
     
 
     def _hash_history_path_cli(logs_dir, workflow_path):
         """
-        <logs_dir>/jawm_cli_hashes/<workflow>_hash.history
+        <logs_dir>/jawm_hashes/<workflow>_hash.history
         """
         wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
-        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_cli_hashes")
+        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
         os.makedirs(out_dir, exist_ok=True)
         return os.path.join(out_dir, f"{wf_stem}_hash.history")
     
