@@ -53,7 +53,9 @@ def _generate_hash_params(self):
 
     # Hash the parameters themselves (stable ordering)
     h = hashlib.sha256()
-    base_items = sorted((self.params or {}).items())
+    ignored_params = {"resume"}
+    filtered_params = {k: v for k, v in (self.params or {}).items() if k not in ignored_params}
+    base_items = sorted(filtered_params.items())
     h.update(repr(base_items).encode())
 
     # Add content digests for referenced files/dirs
