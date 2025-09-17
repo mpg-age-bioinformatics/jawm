@@ -208,17 +208,29 @@ def _script_placeholders(self, script_content):
     # Resolve nested attribute like JAWM.Process.logs_directory → self.logs_directory
     def resolve_placeholder(key):
         if key in parameters:
-            return str(parameters[key])
+            val = parameters[key]
 
-        prefix = "JAWM.Process."
-        if key.startswith(prefix):
+            # Only mk.* and map.* should be turned into absolute paths
+            if isinstance(key, str) and (key.startswith("mk.") or key.startswith("map.")):
+                def _to_abs(p):
+                    p = os.path.expanduser(str(p))
+                    if os.path.isabs(p):
+                        return os.path.abspath(p)
+                    base = getattr(self, "project_directory", os.getcwd())
+                    return os.path.abspath(os.path.join(base, p))
+                return _to_abs(val)
+
+            return "" if val is None else str(val)
+
+        prefix = "jawm.process."
+        if key.lower().startswith(prefix):
             attr_path = key[len(prefix):]  # get 'logs_directory'
             try:
                 # Support nested attributes, e.g., a.b.c
                 value = reduce(getattr, attr_path.split("."), self)
                 return "" if value is None else str(value)
             except AttributeError:
-                self.logger.warning(f"Unresolved JAWM.Process variables in Process script (replaced by empty string): {key}")
+                self.logger.warning(f"Unresolved jawm.Process variables in Process script (replaced by empty string): {key}")
                 return ""  # or keep placeholder if preferred: return f"{{{{{key}}}}}"
 
         self.logger.warning(f"Unresolved placeholder variables in Process script (kept as-is): {key}")
