@@ -212,13 +212,15 @@ def _script_placeholders(self, script_content):
 
             # Only mk.* and map.* should be turned into absolute paths
             if isinstance(key, str) and (key.startswith("mk.") or key.startswith("map.")):
-                def _to_abs(p):
-                    p = os.path.expanduser(str(p))
-                    if os.path.isabs(p):
-                        return os.path.abspath(p)
-                    base = getattr(self, "project_directory", os.getcwd())
-                    return os.path.abspath(os.path.join(base, p))
-                return _to_abs(val)
+                if not getattr(self, "automated_mount", True):
+                    def _to_abs(p):
+                        p = os.path.expanduser(str(p))
+                        if os.path.isabs(p):
+                            return os.path.abspath(p)
+                        base = getattr(self, "project_directory", os.getcwd())
+                        return os.path.abspath(os.path.join(base, p))
+                    return _to_abs(val)
+                return "" if val is None else str(val)
 
             return "" if val is None else str(val)
 
