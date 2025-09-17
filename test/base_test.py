@@ -559,7 +559,6 @@ try:
         name="resume_test_proc",
         script="""#!/bin/bash\necho 'Resumable process'""",
         logs_directory="logs_resume_test",
-        resume=True
     )
     proc15a.execute()
     Process.wait(proc15a.hash)
@@ -568,6 +567,7 @@ try:
 
     # Step 2: Clone the process
     proc15b = proc15a.copy()
+    proc15b.resume = True
     proc15b.execute()
 
     Process.wait(proc15b.hash)
