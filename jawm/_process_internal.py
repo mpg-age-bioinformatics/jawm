@@ -417,8 +417,10 @@ def _build_docker_command(self, script_path):
                 docker_command.extend(["-v", spec])
 
     # Set working directory inside container
-    workdir = os.path.abspath(getattr(self, "project_directory", os.getcwd()))
-    docker_command.extend(["-w", workdir])
+    user_set_w = any(opt in (self.environment_docker or {}) for opt in ("-w", "--workdir"))
+    if not user_set_w and getattr(self, "automated_mount", True):
+        workdir = os.path.abspath(getattr(self, "project_directory", os.getcwd()))
+        docker_command.extend(["-w", workdir])
 
     # Add environment variables
     if self.env:
