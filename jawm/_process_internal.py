@@ -394,6 +394,13 @@ def _build_docker_command(self, script_path):
             # Handle regular key-value options
             docker_command.extend([option, str(value)])
 
+    # Implement run as current user
+    if getattr(self, "docker_run_as_user", False):
+        user_set_u = any(opt in (self.environment_docker or {}) for opt in ("-u", "--user"))
+        if not user_set_u:
+            user_spec = f"{os.getuid()}:{os.getgid()}"
+            docker_command.extend(["-u", user_spec])
+
     # Collecting existing mount
     existing = set()
     for opt, val in (self.environment_docker or {}).items():

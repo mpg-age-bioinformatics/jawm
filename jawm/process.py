@@ -99,6 +99,7 @@ class Process:
         "container": str,
         "environment_apptainer": dict,
         "environment_docker": dict,
+        "docker_run_as_user": bool,
         "before_script": str,
         "after_script": str,
         "container_before_script": str,
@@ -155,6 +156,7 @@ class Process:
         container=None,
         environment_apptainer=None,
         environment_docker=None,
+        docker_run_as_user=None,
         depends_on=None,
         allow_skipped_deps=None,
         before_script=None,
@@ -257,6 +259,9 @@ class Process:
 
         environment_docker : dict, optional
             Options for running in Docker, to be passed exactly as-is
+
+        docker_run_as_user : bool, default=False
+            Run Docker container as the current user instead of root
 
         before_script : str, optional
             A one-line or chained shell (bash) command to be executed before the main script starts
@@ -385,6 +390,7 @@ class Process:
         self.container = self.params.get("container", None)
         self.environment_apptainer = self.params.get("environment_apptainer", {})
         self.environment_docker = self.params.get("environment_docker", {})
+        self.docker_run_as_user = self.params.get("docker_run_as_user", False)
         if self.container is None and self.environment != "local":
             self.logger.warning(f"Requested environment '{self.environment}' ignored because no container was provided. Falling back to 'local'")
         self.environment = {"apptainer": "apptainer", "singularity": "apptainer", "docker": "docker"}.get(self.environment, "local") if self.container is not None else "local"
