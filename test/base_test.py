@@ -1153,87 +1153,87 @@ except Exception as e:
     failed += 1
 
 
-print("\n>>> Test 24: CLI --hash <yaml> minimal flow (new → mismatch → overwrite)")
+# print("\n>>> Test 24: CLI --hash <yaml> minimal flow (new → mismatch → overwrite)")
 
-def cli_cmd(args):
-    if shutil.which("jawm"):
-        return ["jawm", *args]
-    return [sys.executable, "-m", "jawm.cli", *args]
+# def cli_cmd(args):
+#     if shutil.which("jawm"):
+#         return ["jawm", *args]
+#     return [sys.executable, "-m", "jawm.cli", *args]
 
-def run_cli(args, timeout=45, cwd=None):
-    r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout, cwd=cwd)
-    return r.returncode, r.stdout, r.stderr, (r.stdout or "") + (r.stderr or "")
+# def run_cli(args, timeout=45, cwd=None):
+#     r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout, cwd=cwd)
+#     return r.returncode, r.stdout, r.stderr, (r.stdout or "") + (r.stderr or "")
 
-root = tempfile.mkdtemp(prefix="cli_hash_yaml_")
-try:
-    wf = os.path.join(root, "wf")
-    os.makedirs(wf, exist_ok=True)
+# root = tempfile.mkdtemp(prefix="cli_hash_yaml_")
+# try:
+#     wf = os.path.join(root, "wf")
+#     os.makedirs(wf, exist_ok=True)
 
-    # Workflow that writes a predictable output file under logs_yamlhash/
-    main_py = os.path.join(wf, "main.py")
-    with open(main_py, "w", encoding="utf-8") as f:
-        f.write("""from jawm import Process
-p = Process(
-    name="demo_yaml_hash",
-    script='''#!/bin/bash
-echo "RUN_ID=run1"
-''',
-    logs_directory="logs_yamlhash"
-)
-p.execute()
-Process.wait(p.hash)
-""")
+#     # Workflow that writes a predictable output file under logs_yamlhash/
+#     main_py = os.path.join(wf, "main.py")
+#     with open(main_py, "w", encoding="utf-8") as f:
+#         f.write("""from jawm import Process
+# p = Process(
+#     name="demo_yaml_hash",
+#     script='''#!/bin/bash
+# echo "RUN_ID=run1"
+# ''',
+#     logs_directory="logs_yamlhash"
+# )
+# p.execute()
+# Process.wait(p.hash)
+# """)
 
-    # YAML: hash the workflow + all produced .output files
-    yaml_path = os.path.join(wf, "hash.yaml")
-    with open(yaml_path, "w", encoding="utf-8") as f:
-        f.write("""include:
-  - main.py
-  - logs_yamlhash/**/*.output
-allowed_extensions: [py, output]
-exclude_dirs: [__pycache__, jawm_runs, jawm_hashes]
-exclude_files: ["*.tmp", "*.swp"]
-recursive: true
-""")
+#     # YAML: hash the workflow + all produced .output files
+#     yaml_path = os.path.join(wf, "hash.yaml")
+#     with open(yaml_path, "w", encoding="utf-8") as f:
+#         f.write("""include:
+#   - main.py
+#   - logs_yamlhash/**/*.output
+# allowed_extensions: [py, output]
+# exclude_dirs: [__pycache__, jawm_runs, jawm_hashes]
+# exclude_files: ["*.tmp", "*.swp"]
+# recursive: true
+# """)
 
-    # Place CLI logs (and the baseline hash file) under wf/logs
-    cli_logs_dir = os.path.join(wf, "logs")
-    hash_dir  = os.path.join(cli_logs_dir, "jawm_hashes")
-    hash_file = os.path.join(hash_dir, "main.hash")
+#     # Place CLI logs (and the baseline hash file) under wf/logs
+#     cli_logs_dir = os.path.join(wf, "logs")
+#     hash_dir  = os.path.join(cli_logs_dir, "jawm_hashes")
+#     hash_file = os.path.join(hash_dir, "main.hash")
 
-    # 1) First run → baseline created
-    rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
-    assert rc == 0, f"❌ CLI failed on first YAML hash run:\n{both}"
-    assert os.path.isfile(hash_file), "❌ main.hash missing after first run"
-    with open(hash_file, "r", encoding="utf-8") as f: h1 = f.read().strip()
-    assert re.fullmatch(r"[0-9a-fA-F]{64}", h1), f"❌ hash not hex: {h1}"
+#     # 1) First run → baseline created
+#     rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
+#     assert rc == 0, f"❌ CLI failed on first YAML hash run:\n{both}"
+#     assert os.path.isfile(hash_file), "❌ main.hash missing after first run"
+#     with open(hash_file, "r", encoding="utf-8") as f: h1 = f.read().strip()
+#     assert re.fullmatch(r"[0-9a-fA-F]{64}", h1), f"❌ hash not hex: {h1}"
 
-    # 2) Change workflow output → expect mismatch (baseline not overwritten)
-    with open(main_py, "r+", encoding="utf-8") as f:
-        txt = f.read().replace("run1", "run2")
-        f.seek(0); f.write(txt); f.truncate()
+#     # 2) Change workflow output → expect mismatch (baseline not overwritten)
+#     with open(main_py, "r+", encoding="utf-8") as f:
+#         txt = f.read().replace("run1", "run2")
+#         f.seek(0); f.write(txt); f.truncate()
 
-    rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
-    assert rc == 0, f"❌ CLI failed after change:\n{both}"
-    with open(hash_file, "r", encoding="utf-8") as f: h2 = f.read().strip()
-    assert h2 == h1, "❌ baseline should NOT be overwritten by default on mismatch"
+#     rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
+#     assert rc == 0, f"❌ CLI failed after change:\n{both}"
+#     with open(hash_file, "r", encoding="utf-8") as f: h2 = f.read().strip()
+#     assert h2 == h1, "❌ baseline should NOT be overwritten by default on mismatch"
 
-    # 3) Add overwrite:true → baseline MUST update
-    with open(yaml_path, "a", encoding="utf-8") as f:
-        f.write("overwrite: true\n")
+#     # 3) Add overwrite:true → baseline MUST update
+#     with open(yaml_path, "a", encoding="utf-8") as f:
+#         f.write("overwrite: true\n")
 
-    rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
-    assert rc == 0, f"❌ CLI failed on overwrite run:\n{both}"
-    with open(hash_file, "r", encoding="utf-8") as f: h3 = f.read().strip()
-    assert h3 != h1, "❌ baseline not updated with overwrite:true"
+#     rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
+#     assert rc == 0, f"❌ CLI failed on overwrite run:\n{both}"
+#     with open(hash_file, "r", encoding="utf-8") as f: h3 = f.read().strip()
+#     assert h3 != h1, "❌ baseline not updated with overwrite:true"
 
-    print("✅ Passed: CLI --hash <yaml> minimal flow (new → mismatch → overwrite)")
-    passed += 1
-except Exception as e:
-    print(f"❌ Failed: {e}")
-    failed += 1
-finally:
-    shutil.rmtree(root, ignore_errors=True)
+#     print("✅ Passed: CLI --hash <yaml> minimal flow (new → mismatch → overwrite)")
+#     passed += 1
+# except Exception as e:
+#     print(f"❌ Failed: {e}")
+#     failed += 1
+# finally:
+#     shutil.rmtree(root, ignore_errors=True)
 
 
 print("\n>>> Test 25: update_params invalidates cached script (var re-substitution)")

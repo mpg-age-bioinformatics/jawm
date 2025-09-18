@@ -99,7 +99,6 @@ def main():
     parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_runs (default: ./logs/jawm_runs).")
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
     parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
-    parser.add_argument("--hash", nargs="?", const="auto", help="Post-run hashing. No value for default hashing or pass a YAML file that lists include paths/globs for content hashing.")
     parser.add_argument("-V", "--version", action="version", version=f"JAWM {_VERSION}")
 
 
@@ -199,48 +198,11 @@ def main():
         logger.error(f"Invalid workflow path: {source_path}")
         sys.exit(2)
 
-    # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---
-    def _collect_paths_from_yaml_cli(yaml_path):
-        """
-        Minimal YAML reader to collect include paths/globs for hashing.
-        Schema:
-        include: [files/dirs/globs]               # required
-        exclude_dirs: [dir name patterns]         # optional (not applied here; we let hash_content handle)
-        exclude_files: [file name patterns]       # optional (not applied here; we let hash_content handle)
-        allowed_extensions: [ext without dot]     # optional
-        recursive: true|false                     # optional
-        overwrite: true|false                     # optional
-        Returns a dict with the resolved 'paths' and optional policy keys.
-        """
-        data = yaml.safe_load(Path(yaml_path).read_text()) or {}
-        include = data.get("include")
-        if not include:
-            return {"paths": []}
-        if isinstance(include, str):
-            include = [include]
-
-        # expand globs; keep literal if no match
-        expanded, seen = [], set()
-        for pat in include:
-            hits = glob.glob(pat, recursive=True) or [pat]
-            for h in hits:
-                if h not in seen:
-                    expanded.append(h); seen.add(h)
-
-        return {
-            "paths": expanded,
-            "allowed_extensions": data.get("allowed_extensions"),
-            "exclude_dirs": data.get("exclude_dirs"),
-            "exclude_files": data.get("exclude_files"),
-            "recursive": data.get("recursive", True),
-            "overwrite": data.get("overwrite", False),
-        }
-
-    
+    # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---    
     def _collect_hash_cfg_from_param_sources_cli(param_sources):
         """
         Look through param file(s)/dir for entries with `scope: hash`
-        and merge them into a single cfg compatible with _collect_paths_from_yaml_cli.
+        and merge them into a single cfg.
 
         Returns a dict like:
         {
@@ -320,7 +282,7 @@ def main():
         if not merged["include"]:
             return {}
 
-        # Now expand globs just like _collect_paths_from_yaml_cli
+        # Expand globs
         expanded, seen = [], set()
         for pat in _as_list(merged["include"]):
             hits = glob.glob(pat, recursive=True) or [pat]
@@ -412,17 +374,40 @@ def main():
         out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
         os.makedirs(out_dir, exist_ok=True)
         return os.path.join(out_dir, f"{wf_stem}_hash.history")
+
+    
+    def _input_history_path_cli(logs_dir, workflow_path):
+        """
+        Always-written auto history:
+        <logs_dir>/jawm_hashes/<workflow>_input.history
+        """
+        wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
+        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
+        os.makedirs(out_dir, exist_ok=True)
+        return os.path.join(out_dir, f"{wf_stem}_input.history")
+
+
+    def _user_defined_history_path_cli(logs_dir, workflow_path):
+        """
+        Written only when -p contains `scope: hash`:
+        <logs_dir>/jawm_hashes/<workflow>_user_defined.history
+        """
+        wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
+        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
+        os.makedirs(out_dir, exist_ok=True)
+        return os.path.join(out_dir, f"{wf_stem}_user_defined.history")
     
 
-    def _append_hash_history_cli(logs_dir, workflow_path, hash_value, ts=timestamp_iso, log_file=cli_log_file, files_csv="-"):
+    def _append_history_line_cli(history_path, ts, hash_value, log_file, files_csv="-", user_provided=False):
         """
         Append: "<timestamp>\t<hash>\t<cli_log_file>\t<comma_separated_files>"
+        to the given history file path.
         """
-        hist_path = _hash_history_path_cli(logs_dir, workflow_path)
-        with open(hist_path, "a", encoding="utf-8") as f:
+        Path(history_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(history_path, "a", encoding="utf-8") as f:
             f.write(f"{ts}\t{hash_value}\t{log_file}\t{files_csv}\n")
-        logger.info(f"[hash] appended history → {hist_path}")
-
+        if user_provided:
+                logger.info(f"[hash] appended history based on user definitions → {history_path}")
 
 
     def _write_and_compare_hash_cli(hash_value, out_path, overwrite=False):
@@ -503,128 +488,122 @@ def main():
                 break
             time.sleep(1)
 
-        # -------- post-run hashing (always reached, even if workflow sys.exit'ed) --------
-        files_csv = "-"
-        if args.hash is not None:
-            from jawm._utils import hash_content  # canonical hasher
+        # -------- post-run hashing & histories (always reached, even if workflow sys.exit'ed) --------
+        from jawm._utils import hash_content  # canonical hasher
 
-            def _extend_inputs_from_arg(val):
-                if not val:
-                    return []
-                if isinstance(val, list):
-                    return [os.path.abspath(v) for v in val]
-                return [os.path.abspath(val)]
+        def _extend_inputs_from_arg(val):
+            if not val:
+                return []
+            if isinstance(val, list):
+                return [os.path.abspath(v) for v in val]
+            return [os.path.abspath(val)]
 
-            # Use the actually-resolved script we executed (jawm.py/main.py/<only>.py)
-            resolved_workflow_path = workflow_path
-            logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
-            out_path = _default_hash_output_path_cli(logs_dir, resolved_workflow_path)
-            overwrite = False
+        resolved_workflow_path = workflow_path
+        logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
 
-            logger.info(f"[hash] mode={args.hash!r} -> output file: {out_path}")
+        # === A) Always write AUTO INPUT HISTORY =====================================
+        # hash value: same as previous "auto" -> prefix-hash if available, else file-content hash on fallback.
+        # files list: enumerate workflow + -p + -v (even if prefix-mode succeeds).
+        auto_files_csv = "-"
+        auto_history_path = _input_history_path_cli(logs_dir, resolved_workflow_path)
 
-            # If user didn't pass an explicit --hash file, check -p/--parameters for scope: hash
-            param_hash_cfg = {}
-            if args.hash in (None, "auto"):
-                try:
-                    param_hash_cfg = _collect_hash_cfg_from_param_sources_cli(args.parameters)
-                except Exception as e:
-                    logger.warning(f"[hash] failed to read scope: hash from param file(s): {e}")
-                    param_hash_cfg = {}
+        # enumerate candidate inputs (for history files list)
+        auto_inputs = [resolved_workflow_path]
+        auto_inputs += _extend_inputs_from_arg(args.parameters)
+        auto_inputs += _extend_inputs_from_arg(args.variables)
+        auto_files_considered = _enumerate_hash_inputs_cli(
+            auto_inputs,
+            allowed_extensions=None,
+            exclude_dirs=[".git", "__pycache__", ".mypy_cache", ".ipynb_checkpoints"],
+            exclude_files=["*.tmp", "*.swp"],
+            recursive=True,
+        )
+        if auto_files_considered:
+            auto_files_csv = ",".join(auto_files_considered)
 
-            if args.hash not in (None, "auto"):
-                # --- Explicit --hash <yaml> path ---
-                cfg = _collect_paths_from_yaml_cli(os.path.abspath(args.hash))
-                paths = cfg.get("paths") or []
-                overwrite = cfg.get("overwrite", False)
-                if not paths:
-                    logger.warning("[hash] YAML produced no paths to hash")
-                    combined_hash = hashlib.sha256(b"").hexdigest()
-                    files_csv = "-"
-                else:
-                    files_considered = _enumerate_hash_inputs_cli(
-                        paths,
-                        allowed_extensions=cfg.get("allowed_extensions"),
-                        exclude_dirs=cfg.get("exclude_dirs"),
-                        exclude_files=cfg.get("exclude_files"),
-                        recursive=cfg.get("recursive", True),
-                    )
-                    files_csv = ",".join(files_considered) if files_considered else "-"
-                    combined_hash = hash_content(
-                        paths,
-                        allowed_extensions=cfg.get("allowed_extensions"),
-                        exclude_dirs=cfg.get("exclude_dirs"),
-                        exclude_files=cfg.get("exclude_files"),
-                        recursive=cfg.get("recursive", True),
-                    )
-
-            elif param_hash_cfg:
-                # Hash config embedded in -p (scope: hash) ---
-                cfg = param_hash_cfg
-                paths = cfg.get("paths") or []
-                overwrite = cfg.get("overwrite", False)
-                if not paths:
-                    logger.warning("[hash] param_file (scope: hash) produced no paths to hash")
-                    combined_hash = hashlib.sha256(b"").hexdigest()
-                    files_csv = "-"
-                else:
-                    files_considered = _enumerate_hash_inputs_cli(
-                        paths,
-                        allowed_extensions=cfg.get("allowed_extensions"),
-                        exclude_dirs=cfg.get("exclude_dirs"),
-                        exclude_files=cfg.get("exclude_files"),
-                        recursive=cfg.get("recursive", True),
-                    )
-                    files_csv = ",".join(files_considered) if files_considered else "-"
-                    combined_hash = hash_content(
-                        paths,
-                        allowed_extensions=cfg.get("allowed_extensions"),
-                        exclude_dirs=cfg.get("exclude_dirs"),
-                        exclude_files=cfg.get("exclude_files"),
-                        recursive=cfg.get("recursive", True),
-                    )
-
-            else:
-                # --- AUTO: prefix hash; always enumerate potential inputs for history ---
-                combined_hash = _compute_run_hash_from_process_prefixes_cli()
-
-                inputs = [resolved_workflow_path]
-                inputs += _extend_inputs_from_arg(args.parameters)
-                inputs += _extend_inputs_from_arg(args.variables)
-
-                files_considered = _enumerate_hash_inputs_cli(
-                    inputs,
+        # compute auto hash (prefix-mode preferred)
+        auto_hash = _compute_run_hash_from_process_prefixes_cli()
+        if not auto_hash:
+            if auto_inputs:
+                auto_hash = hash_content(
+                    auto_inputs,
                     allowed_extensions=None,
                     exclude_dirs=[".git", "__pycache__", ".mypy_cache", ".ipynb_checkpoints"],
                     exclude_files=["*.tmp", "*.swp"],
                     recursive=True,
                 )
-                files_csv = ",".join(files_considered) if files_considered else "-"
+            else:
+                auto_hash = hashlib.sha256(b"").hexdigest()
 
-                if not combined_hash:
-                    if inputs:
-                        combined_hash = hash_content(
-                            inputs,
-                            allowed_extensions=None,
-                            exclude_dirs=[".git", "__pycache__", ".mypy_cache", ".ipynb_checkpoints"],
-                            exclude_files=["*.tmp", "*.swp"],
-                            recursive=True,
-                        )
-                    else:
-                        combined_hash = hashlib.sha256(b"").hexdigest()
-            
-            # Store the hash
-            logger.info(f"[hash] hash for the current run: {combined_hash}")
-            matched, new = _write_and_compare_hash_cli(combined_hash, out_path, overwrite)
+        # append to <wf>_input.history
+        _append_history_line_cli(
+            history_path=auto_history_path,
+            ts=timestamp_iso,
+            hash_value=auto_hash,
+            log_file=cli_log_file,
+            files_csv=auto_files_csv,
+        )
+
+        # === B) Optional USER-DEFINED HASH from -p (scope: hash) =====================
+        # If present: compute content hash using that policy, write <wf>.hash, and append <wf>_user_defined.history
+        param_hash_cfg = {}
+        try:
+            param_hash_cfg = _collect_hash_cfg_from_param_sources_cli(args.parameters)
+        except Exception as e:
+            logger.warning(f"[hash] failed to read scope: hash from param file(s): {e}")
+            param_hash_cfg = {}
+
+        if param_hash_cfg:
+            cfg = param_hash_cfg
+            paths = cfg.get("paths") or []
+            overwrite = cfg.get("overwrite", False)
+
+            userdef_files_csv = "-"
+            if paths:
+                userdef_files_considered = _enumerate_hash_inputs_cli(
+                    paths,
+                    allowed_extensions=cfg.get("allowed_extensions"),
+                    exclude_dirs=cfg.get("exclude_dirs"),
+                    exclude_files=cfg.get("exclude_files"),
+                    recursive=cfg.get("recursive", True),
+                )
+                if userdef_files_considered:
+                    userdef_files_csv = ",".join(userdef_files_considered)
+
+                userdef_hash = hash_content(
+                    paths,
+                    allowed_extensions=cfg.get("allowed_extensions"),
+                    exclude_dirs=cfg.get("exclude_dirs"),
+                    exclude_files=cfg.get("exclude_files"),
+                    recursive=cfg.get("recursive", True),
+                )
+            else:
+                logger.warning("[hash] no paths found in user hashing definitions")
+                userdef_hash = hashlib.sha256(b"").hexdigest()
+
+            # write <wf>.hash (same as before)
+            hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_workflow_path)
+            logger.info(f"[hash] generated hash from user definitions → {userdef_hash}")
+            matched, new = _write_and_compare_hash_cli(userdef_hash, hash_out_path, overwrite=overwrite)
+
+            # status logging only for user-defined hash
             if matched:
                 if new:
-                    logger.info(f"[hash] STATUS: NEW ✅✅✅")
+                    logger.info("[hash] STATUS: NEW ✅")
                 else:
-                    logger.info(f"[hash] STATUS: MATCHED ✅✅✅")
+                    logger.info("[hash] STATUS: MATCHED ✅")
             else:
-                logger.info(f"[hash] STATUS: MISMATCHED ❌❌❌")
-                
-            _append_hash_history_cli(logs_dir, resolved_workflow_path, combined_hash, ts=timestamp_iso, log_file=cli_log_file, files_csv=files_csv)
+                logger.info("[hash] STATUS: MISMATCHED ❌")
+
+            userdef_history_path = _user_defined_history_path_cli(logs_dir, resolved_workflow_path)
+            _append_history_line_cli(
+                history_path=userdef_history_path,
+                ts=timestamp_iso,
+                hash_value=userdef_hash,
+                log_file=cli_log_file,
+                files_csv=userdef_files_csv,
+                user_provided=True
+            )
 
     except Exception:
         logger.exception("Failed to execute workflow script")
