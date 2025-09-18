@@ -237,6 +237,107 @@ def main():
         }
 
     
+    def _collect_hash_cfg_from_param_sources_cli(param_sources):
+        """
+        Look through param file(s)/dir for entries with `scope: hash`
+        and merge them into a single cfg compatible with _collect_paths_from_yaml_cli.
+
+        Returns a dict like:
+        {
+            "paths": [...],                # from `include` entries (glob/literal)
+            "allowed_extensions": [...],   # or None
+            "exclude_dirs": [...],         # or None
+            "exclude_files": [...],        # or None
+            "recursive": True/False,
+            "overwrite": True/False,
+        }
+        or {} if nothing found.
+        """
+        def _as_list(x):
+            if not x: return []
+            return x if isinstance(x, list) else [x]
+
+        # Gather YAML files from -p (file/dir/list)
+        yaml_files = []
+        if not param_sources:
+            return {}
+        sources = param_sources if isinstance(param_sources, list) else [param_sources]
+        for src in sources:
+            src = os.path.abspath(str(src))
+            if os.path.isdir(src):
+                for f in os.listdir(src):
+                    if f.lower().endswith((".yaml", ".yml")):
+                        yaml_files.append(os.path.join(src, f))
+            elif os.path.isfile(src) and src.lower().endswith((".yaml", ".yml")):
+                yaml_files.append(src)
+
+        if not yaml_files:
+            return {}
+
+        # Merge all scope: hash entries
+        merged = {
+            "include": [],
+            "allowed_extensions": None,
+            "exclude_dirs": None,
+            "exclude_files": None,
+            "recursive": True,
+            "overwrite": False,
+        }
+
+        def _merge_list_field(key, new_val):
+            if new_val is None:
+                return
+            existing = merged.get(key)
+            if existing is None:
+                merged[key] = _as_list(new_val)
+            else:
+                merged[key] = _as_list(existing) + _as_list(new_val)
+
+        def _take_last_scalar(key, new_val):
+            if new_val is not None:
+                merged[key] = new_val
+
+        for yf in yaml_files:
+            try:
+                data = yaml.safe_load(Path(yf).read_text()) or []
+            except Exception:
+                continue
+            # Allow either a single dict or a list of dicts
+            docs = data if isinstance(data, list) else [data]
+            for entry in docs:
+                if not isinstance(entry, dict):
+                    continue
+                if str(entry.get("scope", "")).lower() != "hash":
+                    continue
+                # same schema as --hash YAML
+                _merge_list_field("include", entry.get("include"))
+                _take_last_scalar("allowed_extensions", entry.get("allowed_extensions"))
+                _take_last_scalar("exclude_dirs", entry.get("exclude_dirs"))
+                _take_last_scalar("exclude_files", entry.get("exclude_files"))
+                _take_last_scalar("recursive", entry.get("recursive"))
+                _take_last_scalar("overwrite", entry.get("overwrite"))
+
+        if not merged["include"]:
+            return {}
+
+        # Now expand globs just like _collect_paths_from_yaml_cli
+        expanded, seen = [], set()
+        for pat in _as_list(merged["include"]):
+            hits = glob.glob(pat, recursive=True) or [pat]
+            for h in hits:
+                if h not in seen:
+                    expanded.append(h); seen.add(h)
+
+        return {
+            "paths": expanded,
+            "allowed_extensions": merged["allowed_extensions"],
+            "exclude_dirs": merged["exclude_dirs"],
+            "exclude_files": merged["exclude_files"],
+            "recursive": True if merged["recursive"] is None else bool(merged["recursive"]),
+            "overwrite": False if merged["overwrite"] is None else bool(merged["overwrite"]),
+        }
+
+    
     def _enumerate_hash_inputs_cli(paths, *, allowed_extensions=None, exclude_dirs=None, exclude_files=None, recursive=True):
         """
         Return a sorted list of concrete files that would be considered for hashing,
@@ -422,7 +523,69 @@ def main():
 
             logger.info(f"[hash] mode={args.hash!r} -> output file: {out_path}")
 
-            if args.hash == "auto" or args.hash is None:
+            # If user didn't pass an explicit --hash file, check -p/--parameters for scope: hash
+            param_hash_cfg = {}
+            if args.hash in (None, "auto"):
+                try:
+                    param_hash_cfg = _collect_hash_cfg_from_param_sources_cli(args.parameters)
+                except Exception as e:
+                    logger.warning(f"[hash] failed to read scope: hash from param file(s): {e}")
+                    param_hash_cfg = {}
+
+            if args.hash not in (None, "auto"):
+                # --- Explicit --hash <yaml> path ---
+                cfg = _collect_paths_from_yaml_cli(os.path.abspath(args.hash))
+                paths = cfg.get("paths") or []
+                overwrite = cfg.get("overwrite", False)
+                if not paths:
+                    logger.warning("[hash] YAML produced no paths to hash")
+                    combined_hash = hashlib.sha256(b"").hexdigest()
+                    files_csv = "-"
+                else:
+                    files_considered = _enumerate_hash_inputs_cli(
+                        paths,
+                        allowed_extensions=cfg.get("allowed_extensions"),
+                        exclude_dirs=cfg.get("exclude_dirs"),
+                        exclude_files=cfg.get("exclude_files"),
+                        recursive=cfg.get("recursive", True),
+                    )
+                    files_csv = ",".join(files_considered) if files_considered else "-"
+                    combined_hash = hash_content(
+                        paths,
+                        allowed_extensions=cfg.get("allowed_extensions"),
+                        exclude_dirs=cfg.get("exclude_dirs"),
+                        exclude_files=cfg.get("exclude_files"),
+                        recursive=cfg.get("recursive", True),
+                    )
+
+            elif param_hash_cfg:
+                # Hash config embedded in -p (scope: hash) ---
+                cfg = param_hash_cfg
+                paths = cfg.get("paths") or []
+                overwrite = cfg.get("overwrite", False)
+                if not paths:
+                    logger.warning("[hash] param_file (scope: hash) produced no paths to hash")
+                    combined_hash = hashlib.sha256(b"").hexdigest()
+                    files_csv = "-"
+                else:
+                    files_considered = _enumerate_hash_inputs_cli(
+                        paths,
+                        allowed_extensions=cfg.get("allowed_extensions"),
+                        exclude_dirs=cfg.get("exclude_dirs"),
+                        exclude_files=cfg.get("exclude_files"),
+                        recursive=cfg.get("recursive", True),
+                    )
+                    files_csv = ",".join(files_considered) if files_considered else "-"
+                    combined_hash = hash_content(
+                        paths,
+                        allowed_extensions=cfg.get("allowed_extensions"),
+                        exclude_dirs=cfg.get("exclude_dirs"),
+                        exclude_files=cfg.get("exclude_files"),
+                        recursive=cfg.get("recursive", True),
+                    )
+
+            else:
+                # --- AUTO: prefix hash; always enumerate potential inputs for history ---
                 combined_hash = _compute_run_hash_from_process_prefixes_cli()
 
                 inputs = [resolved_workflow_path]
@@ -449,30 +612,6 @@ def main():
                         )
                     else:
                         combined_hash = hashlib.sha256(b"").hexdigest()
-
-            else:
-                cfg = _collect_paths_from_yaml_cli(os.path.abspath(args.hash))
-                paths = cfg.get("paths") or []
-                overwrite = cfg.get("overwrite", False)
-                if not paths:
-                    logger.warning("[hash] YAML produced no paths to hash")
-                    combined_hash = hashlib.sha256(b"").hexdigest()
-                else:
-                    files_considered = _enumerate_hash_inputs_cli(
-                        paths,
-                        allowed_extensions=cfg.get("allowed_extensions"),
-                        exclude_dirs=cfg.get("exclude_dirs"),
-                        exclude_files=cfg.get("exclude_files"),
-                        recursive=cfg.get("recursive", True),
-                    )
-                    files_csv = ",".join(files_considered) if files_considered else "-"
-                    combined_hash = hash_content(
-                        paths,
-                        allowed_extensions=cfg.get("allowed_extensions"),
-                        exclude_dirs=cfg.get("exclude_dirs"),
-                        exclude_files=cfg.get("exclude_files"),
-                        recursive=cfg.get("recursive", True),
-                    )
             
             # Store the hash
             logger.info(f"[hash] hash for the current run: {combined_hash}")
