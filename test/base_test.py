@@ -14,7 +14,7 @@ failed = 0
 Process.reset_stop()
 
 print(">>> Test 1: Basic Inline Script Execution")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     proc1 = Process(
         name="basic_hello",
@@ -34,7 +34,7 @@ except Exception as e:
 
 
 print("\n>>> Test 2: Dependency Handling")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     proc2a = Process(
         name="step_a",
@@ -64,7 +64,7 @@ except Exception as e:
 
 
 print("\n>>> Test 3: Retry Mechanism")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     proc3 = Process(
         name="retry_test",
@@ -80,7 +80,7 @@ fakecommandddddd
     except RuntimeError:
         pass
     assert not proc3.get_exitcode().startswith("0"), "❌ Retry test unexpectedly succeeded"
-    time.sleep(0.5)
+    time.sleep(0.2)
     print("✅ Passed: Retry Mechanism")
     passed += 1
 except Exception as e:
@@ -92,7 +92,7 @@ Process.reset_stop()
 
 
 print("\n>>> Test 4: Output, Error, and Command Log Check")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     output = proc2b.get_output()
     error = proc2b.get_error()
@@ -108,7 +108,7 @@ except Exception as e:
 
 
 print("\n>>> Test 5: Process Registry Summary")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     all_procs = Process.list_all()
     assert all(p["finished"] for p in all_procs), "❌ Some processes not marked finished"
@@ -120,7 +120,7 @@ except Exception as e:
 
 
 print("\n>>> Test 6: Script Variable Substitution")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     proc6 = Process(
         name="var_subst",
@@ -142,7 +142,7 @@ except Exception as e:
 
 
 print("\n>>> Test 7: Script Variable File Substitution")
-time.sleep(0.5)
+# time.sleep(0.5)
 
 try:
     os.makedirs("data_test", exist_ok=True)
@@ -171,7 +171,7 @@ except Exception as e:
 
 
 print("\n>>> Test 8: Skipped Process using `when=False`")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     proc8 = Process(
         name="skip_this",
@@ -194,7 +194,7 @@ Process.reset_stop()
 
 
 print("\n>>> Test 9: Process Cloning with `copy()`")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     original = Process(
         name="original_proc",
@@ -219,7 +219,7 @@ except Exception as e:
 
 
 print("\n>>> Test 10: Class-Level Defaults with `set_default()`")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     Process.set_default(retries=3, logs_directory="logs_test_default")
 
@@ -241,7 +241,7 @@ Process.default_parameters.clear()
 
 
 print("\n>>> Test 11: Parameter Resolution from YAML (Global and Process)")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     with open("data_test/test_params.yaml", "w") as f:
         f.write("""
@@ -274,7 +274,7 @@ except Exception as e:
 
 
 print("\n>>> Test 12: Validation Logic (Basic vs. Strict)")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     # Valid process with minor warning (unknown key) → should pass in basic mode
     proc12a = Process(
@@ -350,7 +350,7 @@ Process.reset_stop()
 
 
 print("\n>>> Test 13: JAWM CLI Integration ")
-time.sleep(0.5)
+# time.sleep(0.5)
 
 try:
     # Pick how to invoke the CLI: prefer console script, else module
@@ -523,7 +523,7 @@ Process.reset_stop()
 
 
 print("\n>>> Test 14: Hash Prefix Consistency for Identical Parameters")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     proc14a = Process(
         name="hash_test",
@@ -552,7 +552,7 @@ except Exception as e:
 
 
 print("\n>>> Test 15: Resume Skips Execution if Previous Run Succeeded")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     # Step 1: Run the original process
     proc15a = Process(
@@ -586,7 +586,7 @@ except Exception as e:
 
 
 print("\n>>> Test 16: Class-Level Overrides with `set_override()`")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     # Clear any defaults/overrides first
     Process.default_parameters.clear()
@@ -623,7 +623,7 @@ finally:
 
 
 print("\n>>> Test 17: update_vars() supports list of files and YAML directory")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
 
     # ---------- A) List of files ----------
@@ -721,7 +721,7 @@ except Exception as e:
 
 
 print("\n>>> Test 18: Concurrent tail across multiple processes")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     # Two processes that overlap in time and write to both stdout and stderr
     procA = Process(
@@ -780,7 +780,7 @@ except Exception as e:
 
 
 print("\n>>> Test 19: Hash reacts deterministically (same inputs) and to allowed file changes")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     # --- Setup a temp directory with inputs ---
     tmpdir = tempfile.mkdtemp(prefix="hash_inputs_")
@@ -875,7 +875,7 @@ finally:
 
 
 print("\n>>> Test 20: Parallelism True vs False (timing + overlap checks)")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     def parse_epochs(text):
         """
@@ -1041,7 +1041,7 @@ except Exception as e:
 
 
 print("\n>>> Test 22: allow_skipped_deps — default allows skip, strict blocks")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     Process.reset_stop()
 
@@ -1096,7 +1096,7 @@ except Exception as e:
 
 
 print("\n>>> Test 23: Auto mk./map. vars mount for apptainer, docker, kubernetes")
-time.sleep(0.5)
+# time.sleep(0.5)
 try:
     # prepare a simple directory and input file
     tmp_dir = tempfile.mkdtemp(prefix="auto_mount_test_")
@@ -1153,87 +1153,115 @@ except Exception as e:
     failed += 1
 
 
-# print("\n>>> Test 24: CLI --hash <yaml> minimal flow (new → mismatch → overwrite)")
+print("\n>>> Test 24: Hashing via -p (scope: hash): new → mismatch(no overwrite) → overwrite(true) → reference check")
 
-# def cli_cmd(args):
-#     if shutil.which("jawm"):
-#         return ["jawm", *args]
-#     return [sys.executable, "-m", "jawm.cli", *args]
+def cli_cmd(args):
+    if shutil.which("jawm"):
+        return ["jawm", *args]
+    return [sys.executable, "-m", "jawm.cli", *args]
 
-# def run_cli(args, timeout=45, cwd=None):
-#     r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout, cwd=cwd)
-#     return r.returncode, r.stdout, r.stderr, (r.stdout or "") + (r.stderr or "")
+def run_cli(args, timeout=45, cwd=None):
+    r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    both = (r.stdout or "") + (r.stderr or "")
+    return r.returncode, r.stdout, r.stderr, both
 
-# root = tempfile.mkdtemp(prefix="cli_hash_yaml_")
-# try:
-#     wf = os.path.join(root, "wf")
-#     os.makedirs(wf, exist_ok=True)
+def tail(path):
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        lines = [ln for ln in f.read().splitlines() if ln.strip()]
+    return lines[-1] if lines else None
 
-#     # Workflow that writes a predictable output file under logs_yamlhash/
-#     main_py = os.path.join(wf, "main.py")
-#     with open(main_py, "w", encoding="utf-8") as f:
-#         f.write("""from jawm import Process
-# p = Process(
-#     name="demo_yaml_hash",
-#     script='''#!/bin/bash
-# echo "RUN_ID=run1"
-# ''',
-#     logs_directory="logs_yamlhash"
-# )
-# p.execute()
-# Process.wait(p.hash)
-# """)
+try:
+    root = tempfile.mkdtemp(prefix="cli_hash_p_scope_")
+    wf = os.path.join(root, "wf"); os.makedirs(wf, exist_ok=True)
 
-#     # YAML: hash the workflow + all produced .output files
-#     yaml_path = os.path.join(wf, "hash.yaml")
-#     with open(yaml_path, "w", encoding="utf-8") as f:
-#         f.write("""include:
-#   - main.py
-#   - logs_yamlhash/**/*.output
-# allowed_extensions: [py, output]
-# exclude_dirs: [__pycache__, jawm_runs, jawm_hashes]
-# exclude_files: ["*.tmp", "*.swp"]
-# recursive: true
-# """)
+    # trivial workflow
+    main_py = os.path.join(wf, "main.py")
+    with open(main_py, "w", encoding="utf-8") as f:
+        f.write("print('WF RUN v1')\n")
 
-#     # Place CLI logs (and the baseline hash file) under wf/logs
-#     cli_logs_dir = os.path.join(wf, "logs")
-#     hash_dir  = os.path.join(cli_logs_dir, "jawm_hashes")
-#     hash_file = os.path.join(hash_dir, "main.hash")
+    # params with scope: hash
+    params_yaml = os.path.join(wf, "params.yaml")
+    with open(params_yaml, "w", encoding="utf-8") as f:
+        f.write(f"""- scope: hash
+  include:
+    - {main_py}
+  allowed_extensions: ["py"]
+  exclude_dirs: ["__pycache__", ".mypy_cache", ".ipynb_checkpoints", "jawm_runs", "jawm_hashes"]
+  exclude_files: ["*.tmp", "*.swp"]
+  recursive: true
+  overwrite: false
+""")
 
-#     # 1) First run → baseline created
-#     rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
-#     assert rc == 0, f"❌ CLI failed on first YAML hash run:\n{both}"
-#     assert os.path.isfile(hash_file), "❌ main.hash missing after first run"
-#     with open(hash_file, "r", encoding="utf-8") as f: h1 = f.read().strip()
-#     assert re.fullmatch(r"[0-9a-fA-F]{64}", h1), f"❌ hash not hex: {h1}"
+    logs_dir = os.path.join(wf, "logs")
+    hashes_dir = os.path.join(logs_dir, "jawm_hashes")
+    wf_stem = "main"  # from main.py
+    hash_file = os.path.join(hashes_dir, f"{wf_stem}.hash")
+    input_hist = os.path.join(hashes_dir, f"{wf_stem}_input.history")
+    user_hist  = os.path.join(hashes_dir, f"{wf_stem}_user_defined.history")
 
-#     # 2) Change workflow output → expect mismatch (baseline not overwritten)
-#     with open(main_py, "r+", encoding="utf-8") as f:
-#         txt = f.read().replace("run1", "run2")
-#         f.seek(0); f.write(txt); f.truncate()
+    # 24.1 First run — expect:
+    # - input.history appended
+    # - <wf>.hash created from user-defined config
+    # - user_defined.history appended
+    rc, _, _, both = run_cli([wf, "-l", "logs", "-p", "params.yaml"], cwd=wf)
+    assert rc == 0, f"❌ first run failed\n{both}"
+    assert os.path.isfile(input_hist), "❌ <wf>_input.history missing"
+    assert os.path.isfile(hash_file), "❌ <wf>.hash missing after first run"
+    assert os.path.isfile(user_hist), "❌ <wf>_user_defined.history missing"
+    with open(hash_file, "r", encoding="utf-8") as f: h1 = f.read().strip()
+    assert re.fullmatch(r"[0-9a-f]{64}", h1), f"❌ invalid hex in hash file: {h1}"
+    last_user = tail(user_hist); assert last_user, "❌ user_defined.history empty"
+    assert last_user.split("\t")[1] == h1, "❌ user_defined.history hash != stored hash"
 
-#     rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
-#     assert rc == 0, f"❌ CLI failed after change:\n{both}"
-#     with open(hash_file, "r", encoding="utf-8") as f: h2 = f.read().strip()
-#     assert h2 == h1, "❌ baseline should NOT be overwritten by default on mismatch"
+    # 24.2 Change workflow → mismatch (overwrite=false)
+    with open(main_py, "w", encoding="utf-8") as f:
+        f.write("print('WF RUN v2')\n")
+    rc, _, _, both = run_cli([wf, "-l", "logs", "-p", "params.yaml"], cwd=wf)
+    assert rc == 0, f"❌ second run failed (no-overwrite)\n{both}"
+    with open(hash_file, "r", encoding="utf-8") as f: h2_stored = f.read().strip()
+    assert h2_stored == h1, "❌ stored hash changed despite overwrite=false"
+    last_user2 = tail(user_hist); assert last_user2, "❌ user_defined.history not appended"
+    new_run_hash = last_user2.split("\t")[1]
+    assert new_run_hash != h1, "❌ user_defined.history did not capture new computed hash"
 
-#     # 3) Add overwrite:true → baseline MUST update
-#     with open(yaml_path, "a", encoding="utf-8") as f:
-#         f.write("overwrite: true\n")
+    # 24.3 overwrite=true → stored hash must update to new computed value
+    with open(params_yaml, "a", encoding="utf-8") as f:
+        f.write("  overwrite: true\n")
+    rc, _, _, both = run_cli([wf, "-l", "logs", "-p", "params.yaml"], cwd=wf)
+    assert rc == 0, f"❌ third run failed (overwrite)\n{both}"
+    with open(hash_file, "r", encoding="utf-8") as f: h3 = f.read().strip()
+    last_user3 = tail(user_hist); assert last_user3, "❌ user_defined.history not appended (overwrite run)"
+    computed_now = last_user3.split("\t")[1]
+    assert h3 == computed_now, "❌ stored hash not updated to latest computed hash"
+    assert h3 != h1, "❌ stored hash should differ from original after overwrite=true"
 
-#     rc, _, _, both = run_cli([".", "--hash", "hash.yaml", "-l", "logs"], cwd=wf)
-#     assert rc == 0, f"❌ CLI failed on overwrite run:\n{both}"
-#     with open(hash_file, "r", encoding="utf-8") as f: h3 = f.read().strip()
-#     assert h3 != h1, "❌ baseline not updated with overwrite:true"
+    # 24.4 reference check:
+    #   - lock reference to current stored hash (h3) → run ok
+    #   - change workflow again → expect exit code 73 (mismatch)
+    with open(params_yaml, "a", encoding="utf-8") as f:
+        f.write(f"  reference: \"sha256:{h3}\"\n")
+    rc, _, _, both = run_cli([wf, "-l", "logs", "-p", "params.yaml"], cwd=wf)
+    assert rc == 0, f"❌ reference matched run failed\n{both}"
 
-#     print("✅ Passed: CLI --hash <yaml> minimal flow (new → mismatch → overwrite)")
-#     passed += 1
-# except Exception as e:
-#     print(f"❌ Failed: {e}")
-#     failed += 1
-# finally:
-#     shutil.rmtree(root, ignore_errors=True)
+    # change input so new user-defined hash ≠ h3
+    with open(main_py, "w", encoding="utf-8") as f:
+        f.write("print('WF RUN v3')\n")
+    rc, _, _, both = run_cli([wf, "-l", "logs", "-p", "params.yaml"], cwd=wf)
+    assert rc == 73, f"❌ expected exit 73 on reference mismatch, got {rc}\n{both}"
+    # ensure user_defined.history appended even on mismatch
+    last_user4 = tail(user_hist); assert last_user4, "❌ user_defined.history not appended on mismatch"
+    assert last_user4.split("\t")[1] != h3, "❌ mismatch run did not compute a new hash"
+
+    print("✅ Passed: Test 24 (-p scope: hash) new → mismatch → overwrite → reference check")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(root, ignore_errors=True)
 
 
 print("\n>>> Test 25: update_params invalidates cached script (var re-substitution)")
