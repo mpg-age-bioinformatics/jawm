@@ -198,7 +198,11 @@ def main():
         logger.error(f"Invalid workflow path: {source_path}")
         sys.exit(2)
 
-    # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---    
+    # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---
+    # distinct exit code so callers/CI can detect reference mismatches
+    EXIT_HASH_REFERENCE_MISMATCH = 73
+    
+        
     def _collect_hash_cfg_from_param_sources_cli(param_sources):
         """
         Look through param file(s)/dir for entries with `scope: hash`
@@ -212,6 +216,7 @@ def main():
             "exclude_files": [...],        # or None
             "recursive": True/False,
             "overwrite": True/False,
+            "reference": hash string/path
         }
         or {} if nothing found.
         """
@@ -244,6 +249,7 @@ def main():
             "exclude_files": None,
             "recursive": True,
             "overwrite": False,
+            "reference": None
         }
 
         def _merge_list_field(key, new_val):
@@ -278,6 +284,7 @@ def main():
                 _take_last_scalar("exclude_files", entry.get("exclude_files"))
                 _take_last_scalar("recursive", entry.get("recursive"))
                 _take_last_scalar("overwrite", entry.get("overwrite"))
+                _take_last_scalar("reference", entry.get("reference"))
 
         if not merged["include"]:
             return {}
@@ -297,8 +304,44 @@ def main():
             "exclude_files": merged["exclude_files"],
             "recursive": True if merged["recursive"] is None else bool(merged["recursive"]),
             "overwrite": False if merged["overwrite"] is None else bool(merged["overwrite"]),
+            "reference": merged.get("reference"),
         }
 
+
+    def _resolve_reference_hash_cli(ref):
+        """
+        Resolve a reference to a SHA-256 hex string.
+        - If 'ref' is a readable file path, read its first non-empty line.
+        - Else, treat 'ref' as a literal hash string.
+        Returns a normalized lowercase hex string, or None if invalid.
+        """
+        candidate = None
+        try:
+            if isinstance(ref, str) and os.path.isfile(ref):
+                txt = Path(ref).read_text(encoding="utf-8", errors="ignore")
+                for line in txt.splitlines():
+                    line = line.strip()
+                    if line:
+                        candidate = line
+                        break
+            else:
+                candidate = str(ref).strip()
+        except Exception:
+            return None
+
+        if not candidate:
+            return None
+
+        h = candidate.lower().strip()
+        # allow optional "sha256:" prefix
+        if h.startswith("sha256:"):
+            h = h.split(":", 1)[1].strip()
+
+        # minimal validation for sha256
+        import re
+        if re.fullmatch(r"[0-9a-f]{64}", h):
+            return h
+        return None
     
     def _enumerate_hash_inputs_cli(paths, *, allowed_extensions=None, exclude_dirs=None, exclude_files=None, recursive=True):
         """
@@ -366,16 +409,6 @@ def main():
         return os.path.join(out_dir, f"{wf_stem}.hash")
     
 
-    def _hash_history_path_cli(logs_dir, workflow_path):
-        """
-        <logs_dir>/jawm_hashes/<workflow>_hash.history
-        """
-        wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
-        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
-        os.makedirs(out_dir, exist_ok=True)
-        return os.path.join(out_dir, f"{wf_stem}_hash.history")
-
-    
     def _input_history_path_cli(logs_dir, workflow_path):
         """
         Always-written auto history:
@@ -407,7 +440,7 @@ def main():
         with open(history_path, "a", encoding="utf-8") as f:
             f.write(f"{ts}\t{hash_value}\t{log_file}\t{files_csv}\n")
         if user_provided:
-                logger.info(f"[hash] appended history based on user definitions → {history_path}")
+            logger.info(f"[hash] Appended history based on user definitions → {history_path}")
 
 
     def _write_and_compare_hash_cli(hash_value, out_path, overwrite=False):
@@ -425,12 +458,12 @@ def main():
             if stored != hash_value:
                 matched = False
                 # Required: log mismatch to CLI output
-                logger.warning(f"[hash] mismatch for {outp.name}: \nStored={stored} \nComputed={hash_value}")
+                logger.warning(f"[hash] Mismatch for {outp.name}: \nStored={stored} \nComputed={hash_value}")
             else:
-                logger.info(f"[hash] matches existing file {outp.name}")
+                logger.info(f"[hash] Matches existing file {outp.name}")
         if not outp.exists() or overwrite:
             outp.write_text(hash_value + "\n")
-            logger.info(f"[hash] wrote current hash to: {outp}")
+            logger.info(f"[hash] Wrote current hash to: {outp}")
         return matched, new
 
 
@@ -501,8 +534,8 @@ def main():
         resolved_workflow_path = workflow_path
         logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
 
-        # === A) Always write AUTO INPUT HISTORY =====================================
-        # hash value: same as previous "auto" -> prefix-hash if available, else file-content hash on fallback.
+        # === Always write AUTO INPUT HISTORY ====
+        # hash value: prefix-hash if available, else file-content hash on fallback.
         # files list: enumerate workflow + -p + -v (even if prefix-mode succeeds).
         auto_files_csv = "-"
         auto_history_path = _input_history_path_cli(logs_dir, resolved_workflow_path)
@@ -544,19 +577,20 @@ def main():
             files_csv=auto_files_csv,
         )
 
-        # === B) Optional USER-DEFINED HASH from -p (scope: hash) =====================
+        # === Optional USER-DEFINED HASH from -p (scope: hash) ====
         # If present: compute content hash using that policy, write <wf>.hash, and append <wf>_user_defined.history
         param_hash_cfg = {}
         try:
             param_hash_cfg = _collect_hash_cfg_from_param_sources_cli(args.parameters)
         except Exception as e:
-            logger.warning(f"[hash] failed to read scope: hash from param file(s): {e}")
+            logger.warning(f"[hash] Failed to read scope: hash from param file(s): {e}")
             param_hash_cfg = {}
 
         if param_hash_cfg:
             cfg = param_hash_cfg
             paths = cfg.get("paths") or []
             overwrite = cfg.get("overwrite", False)
+            reference = cfg.get("reference")
 
             userdef_files_csv = "-"
             if paths:
@@ -578,22 +612,22 @@ def main():
                     recursive=cfg.get("recursive", True),
                 )
             else:
-                logger.warning("[hash] no paths found in user hashing definitions")
+                logger.warning("[hash] No paths found in user hashing definitions")
                 userdef_hash = hashlib.sha256(b"").hexdigest()
 
             # write <wf>.hash (same as before)
             hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_workflow_path)
-            logger.info(f"[hash] generated hash from user definitions → {userdef_hash}")
+            logger.info(f"[hash] Generated hash from user definitions → {userdef_hash}")
             matched, new = _write_and_compare_hash_cli(userdef_hash, hash_out_path, overwrite=overwrite)
 
             # status logging only for user-defined hash
             if matched:
                 if new:
-                    logger.info("[hash] STATUS: NEW ✅")
+                    logger.info("[hash] STATUS: NEW  ✅")
                 else:
-                    logger.info("[hash] STATUS: MATCHED ✅")
+                    logger.info("[hash] STATUS: MATCHED  ✅")
             else:
-                logger.info("[hash] STATUS: MISMATCHED ❌")
+                logger.info("[hash] STATUS: MISMATCHED  ❌")
 
             userdef_history_path = _user_defined_history_path_cli(logs_dir, resolved_workflow_path)
             _append_history_line_cli(
@@ -604,6 +638,18 @@ def main():
                 files_csv=userdef_files_csv,
                 user_provided=True
             )
+
+            # Reference check (AFTER history append & status logging)
+            if reference:
+                expected = _resolve_reference_hash_cli(reference)
+                if not expected:
+                    logger.error(f"[hash] Invalid reference provided: {reference!r}")
+                    sys.exit(EXIT_HASH_REFERENCE_MISMATCH)
+                if userdef_hash != expected:
+                    logger.error("[hash] ❌  Generated user-defined hash does NOT match reference — aborting with EXITCODE 73  ❌")
+                    sys.exit(EXIT_HASH_REFERENCE_MISMATCH)
+                else:
+                    logger.info("[hash] ✅  Generated user-defined hash matched reference  ✅")
 
     except Exception:
         logger.exception("Failed to execute workflow script")
