@@ -579,6 +579,33 @@ def main():
 
         # === Optional USER-DEFINED HASH from -p (scope: hash) ====
         # If present: compute content hash using that policy, write <wf>.hash, and append <wf>_user_defined.history
+        # hash schema (from yaml)
+        """
+        YAML schema for user-defined hash:
+
+        - scope: hash                         # required marker to activate hashing
+            include:                          # required, list of files/dirs/globs to hash
+                - main.py
+                - logs/**/*.out
+
+            # Optional filters:
+            allowed_extensions: [py, out]     # only include files with these extensions
+            exclude_dirs: [__pycache__]       # skip directories by pattern
+            exclude_files: ["*.tmp", "*.swp"] # skip files by pattern
+            recursive: true                   # default: true
+
+            # Output policies:
+            overwrite: false                  # default: false; overwrite <wf>.hash if true
+            reference: hash str or hash path  # optional; hex hash or path to file with hash
+                                              # mismatch exits with EXIT_HASH_REFERENCE_MISMATCH (73)
+
+        Behavior:
+        - Always writes <wf>_input.history (auto run hash, independent of scope: hash)
+        - If scope: hash present:
+            * writes <wf>.hash (content hash)
+            * appends <wf>_user_defined.history
+            * validates against `reference` if provided
+        """
         param_hash_cfg = {}
         try:
             param_hash_cfg = _collect_hash_cfg_from_param_sources_cli(args.parameters)
