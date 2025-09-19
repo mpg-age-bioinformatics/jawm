@@ -102,7 +102,7 @@ def main():
     parser.add_argument("-V", "--version", action="version", version=f"JAWM {_VERSION}")
 
 
-    args = parser.parse_args()
+    args, unknown_args = parser.parse_known_args()
 
     # normalize -p and -v: single item → string; many → list
     if args.parameters is not None and isinstance(args.parameters, list) and len(args.parameters) == 1:
