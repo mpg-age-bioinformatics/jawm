@@ -637,16 +637,12 @@ def _auto_mounts_from_vars(self):
     """
     Collect auto mounts from self.var:
       - Keys starting with mk.*  → ensure directory exists, mount RW
-      - Keys starting with map.* → mount RW
+      - Keys starting with map.* → mount RW (only if automated_mount=True)
     If value is a file path, mount its parent directory so the file path exists inside.
 
     Returns a list of dicts:
       [{"src": <host_abs>, "dst": <same_abs>, "kind": "mk"|"map"}]
     """
-    # No auto mount if automated_mount is False
-    if not getattr(self, "automated_mount", True):
-        return []
-
     mounts, seen = [], set()
     var = self.var or {}
 
@@ -665,9 +661,17 @@ def _auto_mounts_from_vars(self):
 
         if kind == "mk":
             try:
-                os.makedirs(src, exist_ok=True)
+                if not os.path.exists(src):
+                    os.makedirs(src, exist_ok=True)
+                    self.logger.info(f"mk.* created directory {src}")
+                else:
+                    self.logger.debug(f"mk.* skipped, already exists: {src}")
             except Exception as e:
                 self.logger.warning(f"mk.* could not create {src}: {e}")
+
+        if kind == "map" and not getattr(self, "automated_mount", True):
+            # skip adding map mounts if automated_mount is False
+            continue
 
         dst = src  # same path inside
         key = (src, dst)
