@@ -44,15 +44,29 @@ def _start_global_tee(path, mode="a"):
         def write(self, data):
             # write to both console and file atomically to preserve ordering
             with self.lock:
+                # console side (keep strict)
                 self.stream.write(data)
                 self.stream.flush()
-                self.file.write(data)
-                self.file.flush()
+                # file side (be tolerant at shutdown)
+                try:
+                    if not getattr(self.file, "closed", False):
+                        self.file.write(data)
+                        self.file.flush()
+                except Exception:
+                    pass
             return len(data)
+
         def flush(self):
             with self.lock:
-                self.stream.flush()
-                self.file.flush()
+                try:
+                    self.stream.flush()
+                except Exception:
+                    pass
+                try:
+                    if not getattr(self.file, "closed", False):
+                        self.file.flush()
+                except Exception:
+                    pass
         def isatty(self):
             # preserve TTY semantics for libraries that check this
             return getattr(self.stream, "isatty", lambda: False)()
