@@ -1117,6 +1117,33 @@ cat {{map.infile}}
 
     ran = False
 
+    # --------- mk.* should mkdir regardless of automated_mount ----------
+    mk_dir_true = os.path.join(tmp_dir, "out_auto_true")
+    p_local_true = Process(
+        name="mk_always_true",
+        script="#!/bin/bash\necho {{mk.outdir}}\n",
+        var={"mk.outdir": mk_dir_true},
+        logs_directory="logs_test_auto_mount",
+        automated_mount=True
+    )
+    p_local_true.execute()
+    time.sleep(5)
+    Process.wait(p_local_true.hash)
+    assert os.path.isdir(mk_dir_true), "❌ mk.* did not create dir with automated_mount=True"
+
+    mk_dir_false = os.path.join(tmp_dir, "out_auto_false")
+    p_local_false = Process(
+        name="mk_always_false",
+        script="#!/bin/bash\necho ok\n",
+        var={"mk.outdir": mk_dir_false},
+        logs_directory="logs_test_auto_mount",
+        automated_mount=False
+    )
+    p_local_false.execute()
+    Process.wait(p_local_false.hash)
+    assert os.path.isdir(mk_dir_false), "❌ mk.* did not create dir with automated_mount=False"
+    # -------------------------------------------------------------------------
+
     if utils.docker_available():
         print("   [docker] running...")
         pD = Process(**{**common, "environment": "docker", "container": "ubuntu:22.04"})
@@ -1144,9 +1171,9 @@ cat {{map.infile}}
         ran = True
 
     if not ran:
-        print("   Skipped (no container backend available)")
+        print("   Skipped container runs (no container backend available)")
 
-    print("✅ Passed: Auto mk./map. vars mount")
+    print("✅ Passed: Auto mk./map. vars mount + mk.* mkdir independent of automated_mount")
     passed += 1
 except Exception as e:
     print(f"❌ Failed: {e}")
