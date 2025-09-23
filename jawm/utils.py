@@ -523,7 +523,12 @@ def parse_workflow(available_workflows=None, exit=1):
     # - via jawm/runpy: ['/abs/script.py','script.py', ...]     -> start=2
     b0 = os.path.basename(argv[0]) if len(argv) >= 1 else ""
     b1 = os.path.basename(argv[1]) if len(argv) >= 2 else ""
-    start = 2 if (b0.endswith(".py") and b1.endswith(".py")) else 1
+    a1 = argv[1] if len(argv) >= 2 else ""
+    start = 2 if (
+        (b0.endswith(".py") and b1.endswith(".py"))  # jawm runpy pattern
+        or (a1 == ".")                               # jawm . main
+        or (a1 and os.path.isdir(a1))                # jawm <dir> main
+    ) else 1
 
     if len(argv) <= start:
         msg = f"[WORKFLOW ERROR] No workflow specified! Available: {', '.join(available_workflows)}"
