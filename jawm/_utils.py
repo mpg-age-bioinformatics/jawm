@@ -1,8 +1,8 @@
 """
-_internal utility functions for JAWM
+_internal utility functions for jawm
 ====================================
 
-This module contains internal helper functions used across the JAWM system.
+This module contains internal helper functions used across the jawm system.
 These are not part of the public API and are intended for use within core modules
 like `process.py`, `jutils.py`, and others.
 

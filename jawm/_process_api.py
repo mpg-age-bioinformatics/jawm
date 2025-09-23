@@ -294,7 +294,7 @@ def is_valid(self, mode="strict"):
     found_keys = set(placeholder_pattern.findall(script_source))
 
     for key in found_keys:
-        if key.startswith("JAWM.Process."):
+        if key.startswith("jawm.Process."):
             continue
         if key not in combined_vars:
             warnings.append(f"Unresolved placeholder variables in Process script: {key}")

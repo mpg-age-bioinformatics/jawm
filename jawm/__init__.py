@@ -1,9 +1,9 @@
 """
-JAWM - Just Another Workflow Manager
+jawm - Just Another Workflow Manager
 
-Why JAWM?
+Why jawm?
 ---------
-JAWM is a lightweight, flexible, and Python-native workflow manager designed to
+jawm is a lightweight, flexible, and Python-native workflow manager designed to
 orchestrate reproducible, dependency-aware processes in both local and HPC environments.
 
 ✔ Python-based — fully written in Python, easy to extend and embed in any project.  
@@ -42,7 +42,7 @@ process_hw.execute()
 
 Documentation:
 --------------
-Use `jhelp()` or visit https://github.com/mpg-age-bioinformatics/JAWM for details.
+Use `jhelp()` or visit https://github.com/mpg-age-bioinformatics/jawm for details.
 """
 
 from .process import Process

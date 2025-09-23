@@ -70,7 +70,7 @@
             <mxPoint x="440" y="560" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="-SBzEQ2v962yMYUCH0SV-15" value="&lt;b&gt;JAWM / package structure&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+        <mxCell id="-SBzEQ2v962yMYUCH0SV-15" value="&lt;b&gt;jawm / package structure&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
           <mxGeometry x="70" y="550" width="180" height="30" as="geometry" />
         </mxCell>
         <mxCell id="-SBzEQ2v962yMYUCH0SV-16" value="&lt;b&gt;Workflow structure&lt;/b&gt;&lt;div&gt;(how would the user develop a workflow)&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
@@ -169,7 +169,7 @@
         <mxCell id="Vi_VrK3SQ6VkeFBKDZxk-17" value="&lt;div&gt;&lt;b&gt;Monitoring&lt;/b&gt;&lt;/div&gt;&lt;div&gt;(how would we monitor all running events)&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
           <mxGeometry x="1320" y="550" width="239" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="Vi_VrK3SQ6VkeFBKDZxk-18" value="monitoring (central folder for all JAWM runs)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+        <mxCell id="Vi_VrK3SQ6VkeFBKDZxk-18" value="monitoring (central folder for all jawm runs)" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
           <mxGeometry x="1260" y="620" width="290" height="30" as="geometry" />
         </mxCell>
         <mxCell id="Vi_VrK3SQ6VkeFBKDZxk-19" value="completed" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">

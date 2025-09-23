@@ -112,7 +112,7 @@ process_file = Process(
     name="python_file",
     script_file="scripts/hello.py",
     var={
-        "APPNAME": "JAWM",
+        "APPNAME": "jawm",
         "BYEMSG": "GOOD BYE!",
         "FRUITLIST": "['Apple', 'Banana', 'Orange']"
     }
@@ -126,7 +126,7 @@ process_file = Process(
   name: "python_file"
   script_file: "scripts/hello.py"
   var:
-    APPNAME: "JAWM"
+    APPNAME: "jawm"
     BYEMSG: "GOOD BYE!"
     FRUITLIST: "['Apple', 'Banana', 'Orange']"
 ```

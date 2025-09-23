@@ -118,7 +118,7 @@ def _generate_k8s_manifest(self):
     # 3) Pull K8s options from manager_kubernetes (safe defaults)
     mk = dict(self.manager_kubernetes or {})
     namespace = mk.pop("namespace", None)
-    backoffLimit = int(mk.pop("backoffLimit", 0))              # let JAWM handle retries
+    backoffLimit = int(mk.pop("backoffLimit", 0))              # let jawm handle retries
     ttlSecondsAfterFinished = mk.pop("ttlSecondsAfterFinished", 600)
     restartPolicy = mk.pop("restartPolicy", "Never")
     resources = mk.pop("resources", None)

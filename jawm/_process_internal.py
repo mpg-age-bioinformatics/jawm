@@ -184,8 +184,8 @@ def _log_error_summary(self, error_message, type_text="Error"):
 def _script_placeholders_and_mkdir(self, script_content):
     """
     Replace placeholders in the script content with parameters or object attribute values.
-    Supports flat {{KEY}} and object attributes like {{JAWM.Process.logs_directory}} → self.logs_directory.
-    If the provided parameter values is not found, then {{JAWM.Process.*}} would replaced by empty string.
+    Supports flat {{KEY}} and object attributes like {{jawm.Process.logs_directory}} → self.logs_directory.
+    If the provided parameter values is not found, then {{jawm.Process.*}} would replaced by empty string.
     {{VAR}} would stay the same in case of missing placeholder value.
     This can fail a scipt if not used properly. user needs to be cautios with the use of {{VAR}} in the script.
     :param script_content: The content of the script file.
@@ -234,7 +234,7 @@ def _script_placeholders_and_mkdir(self, script_content):
     except Exception as e:
         self.logger.warning(f"mk.* directory setup failed: {e}")
 
-    # Resolve nested attribute like JAWM.Process.logs_directory → self.logs_directory
+    # Resolve nested attribute like jawm.Process.logs_directory → self.logs_directory
     def resolve_placeholder(key):
         if key in parameters:
             val = parameters[key]

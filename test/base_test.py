@@ -19,7 +19,7 @@ try:
     proc1 = Process(
         name="basic_hello",
         script="""#!/usr/bin/env python3
-print('Hello JAWM!')
+print('Hello jawm!')
 """,
         logs_directory="logs_test"
     )
@@ -127,13 +127,13 @@ try:
         script="""#!/usr/bin/env python3
 print("Job name is {{APPNAME}}")
 """,
-        var={"APPNAME": "JAWM-Test"},
+        var={"APPNAME": "jawm-Test"},
         logs_directory="logs_test"
     )
     proc6.execute()
     Process.wait(proc6.hash)
     out6 = proc6.get_output()
-    assert "JAWM-Test" in out6, "❌ var not substituted correctly"
+    assert "jawm-Test" in out6, "❌ var not substituted correctly"
     print("✅ Passed: Script Variable Substitution")
     passed += 1
 except Exception as e:
@@ -349,7 +349,7 @@ except Exception as e:
 Process.reset_stop()
 
 
-print("\n>>> Test 13: JAWM CLI Integration ")
+print("\n>>> Test 13: jawm CLI Integration ")
 # time.sleep(0.5)
 
 try:
@@ -468,9 +468,9 @@ try:
         with open(os.path.join(g_dir, "main.py"), "w") as f:
             f.write("print('RUN_MAIN')\n")
         with open(os.path.join(g_dir, "jawm.py"), "w") as f:
-            f.write("print('RUN_JAWM')\n")
+            f.write("print('RUN_jawm')\n")
         rc, out, err, both = run_cli([g_dir])
-        assert rc == 0 and "RUN_JAWM" in both and "RUN_MAIN" not in both, "❌ Did not prefer jawm.py over main.py"
+        assert rc == 0 and "RUN_jawm" in both and "RUN_MAIN" not in both, "❌ Did not prefer jawm.py over main.py"
 
         # -------------------------
         # H) Path resolution: directory with single .py (not main/jawm)

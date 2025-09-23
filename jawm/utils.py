@@ -1,8 +1,8 @@
 """
-JAWM Utility Functions
+jawm Utility Functions
 ======================
 
-This module provides utility functions to support common operations in JAWM workflows.
+This module provides utility functions to support common operations in jawm workflows.
 Can be called with `jawm.utils.method_name()`.
 
 """
@@ -39,7 +39,7 @@ def batch_process_file(
     """
     Create (and optionally execute) a Process per file in a directory.
 
-    This utility simplifies batch creation of JAWM Process instances from input files in a folder.
+    This utility simplifies batch creation of jawm Process instances from input files in a folder.
     Each file will generate its own Process with a unique name and script variable `INPUT_FILE`.
 
     Parameters
@@ -142,7 +142,7 @@ def batch_process_file(
 
 
 # ------------------------------------------------------------
-#   Convert a script into a JAWM parameter YAML entry
+#   Convert a script into a jawm parameter YAML entry
 # ------------------------------------------------------------
 
 def script_to_yaml(
@@ -158,7 +158,7 @@ def script_to_yaml(
     **kwargs
 ):
     """
-    Convert a Python/R/Shell script into a JAWM parameter YAML entry.
+    Convert a Python/R/Shell script into a jawm parameter YAML entry.
 
     By default, the script is embedded inline as a literal block (script: | …)
     with proper indentation so you can use the result directly as a param_file.

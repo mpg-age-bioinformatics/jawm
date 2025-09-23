@@ -1,4 +1,4 @@
-name: JAWM Smoke Tests for Local Cases
+name: jawm Smoke Tests for Local Cases
 
 on: [push, pull_request]
 
@@ -20,10 +20,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: 📦 Install JAWM as editable package
+      - name: 📦 Install jawm as editable package
         run: |
           pip install -e .
 
-      - name: 🧪 Run JAWM smoke tests for local cases
+      - name: 🧪 Run jawm smoke tests for local cases
         run: |
           python test/base_test.py

@@ -60,12 +60,12 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "note": "Parameter values will substitute the placeholder(s) in the script. Please be caution as any wrong use of paramters can break the script.",
         "type": "dict",
         "example": """var={
-    "APPNAME": "JAWM",
+    "APPNAME": "jawm",
     "BYEMSG": "GOOD BYE!",
     "FRUITLIST": "['Apple', 'Banana', 'Orange']"
 }""",
         "yaml_example": """var:
-    APPNAME: "JAWM"
+    APPNAME: "jawm"
     BYEMSG: "GOOD BYE!"
     FRUITLIST: "['Apple', 'Banana', 'Orange']"
 """
@@ -339,7 +339,7 @@ print(2 + 2)
     name="python_file",
     script_file="scripts/hello.py",
     var={
-        "APPNAME": "JAWM",
+        "APPNAME": "jawm",
         "BYEMSG": "GOOD BYE!",
         "FRUITLIST": "['Apple', 'Banana', 'Orange']"
     }
@@ -350,7 +350,7 @@ print(2 + 2)
     name: "python_file"
     script_file: "scripts/hello.py"
     var:
-        APPNAME: "JAWM"
+        APPNAME: "jawm"
         BYEMSG: "GOOD BYE!"
         FRUITLIST: "['Apple', 'Banana', 'Orange']"
     """
@@ -550,7 +550,7 @@ fastqc -o output/ input/reads.fastq
 
     "howto_set_monitoring": {
         "category": "howto",
-        "description": "A global JAWM monitoring directory can be set with setting up `JAWM_MONITORING_DIRECTORY` environment varriable",
+        "description": "A global jawm monitoring directory can be set with setting up `JAWM_MONITORING_DIRECTORY` environment varriable",
         "note": "This directory would store the tracking info of different jobs with Job ID, log location, current state, etc. It can comes handy, if JAWM job management requires to be visualized.",
         "example": """# With shell commands, can be kept permanantly if added to something like ~/.bashrc
 export JAWM_MONITORING_DIRECTORY="/path/monitoring"
