@@ -17,6 +17,7 @@ import subprocess
 import hashlib
 import os
 import fnmatch
+import sys
 
 
 __all__ = ["read_variables", "hash_content", "batch_process_file", "script_to_yaml", "docker_available", "apptainer_available", "write_hash_file"]
@@ -470,3 +471,77 @@ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256,
         if v:
             print(f"Hash written to: {hash_file}")
         return True
+
+
+def parse_workflow(available_workflows=None, exit=1):
+    """
+    Parse command-line arguments to determine which workflows to run.
+
+    This method reads a positional argument `workflows` from the command line.
+    The argument can be a single workflow name or a comma-separated list of workflows.
+    It validates the input against a list of available workflows and exits if any invalid
+    workflows are provided.
+
+    Parse workflow name(s) from sys.argv for both:
+      - python script.py <workflow>[,workflow2...]
+      - jawm script.py <workflow>[,workflow2...]
+
+    Parameters
+    ----------
+    available_workflows : list[str]
+        List of allowed workflow names. Defaults to ["main"].
+    exit : int | None | False
+        - int → exit code to use on error (default=1)
+        - None or False → raise ValueError instead of exiting
+
+    Returns
+    -------
+    list of str
+        A list of submodule names that were specified in the command line
+        and validated against `available_workflows`.
+    
+    Raises
+    ------
+    SystemExit
+        If no or invalid workflows are specified and `exit` is an integer.
+    ValueError
+        If no or invalid workflows are specified and `exit` is None or False.
+
+    Examples
+    --------
+    $ python script.py main
+    $ jawm script.py main,fastqc
+
+    >>> from jawm import utils
+    >>> utils.parse_workflow(["main", "fastqc"])
+    """
+    available_workflows = available_workflows or ["main"]
+    argv = sys.argv
+
+    # Decide offset purely by pattern:
+    # - direct python: ['script.py', <workflow>, ...]           -> start=1
+    # - via jawm/runpy: ['/abs/script.py','script.py', ...]     -> start=2
+    b0 = os.path.basename(argv[0]) if len(argv) >= 1 else ""
+    b1 = os.path.basename(argv[1]) if len(argv) >= 2 else ""
+    start = 2 if (b0.endswith(".py") and b1.endswith(".py")) else 1
+
+    if len(argv) <= start:
+        msg = f"[WORKFLOW ERROR] No workflow specified! Available: {', '.join(available_workflows)}"
+        if exit in (None, False):
+            raise ValueError(msg)
+        print(msg)
+        sys.exit(exit if isinstance(exit, int) else 1)
+
+    workflows = [w.strip() for w in argv[start].split(",") if w.strip()]
+
+    not_found = [w for w in workflows if w not in available_workflows]
+    if not_found:
+        msg = (f"[WORKFLOW ERROR] Invalid workflows: {', '.join(not_found)} ! "
+               f"Available: {', '.join(available_workflows)}")
+        if exit in (None, False):
+            raise ValueError(msg)
+        print(msg)
+        sys.exit(exit if isinstance(exit, int) else 1)
+
+    return workflows
+
