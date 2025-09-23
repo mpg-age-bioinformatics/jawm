@@ -107,9 +107,9 @@ def _start_global_tee(path, mode="a"):
 def main():
     # --- Parse CLI arguments ---
     parser = argparse.ArgumentParser(description="JAWM - Just Another Workflow Manager")
-    parser.add_argument("workflow", nargs="?", default=".", help="Path to a jawm Python script or directory containing the jawm workflow script with single .py or main.py (default: current directory)")
+    parser.add_argument("module", nargs="?", default=".", help="Path to a jawm Python script or directory containing the jawm module script with single .py or main.py (default: current directory)")
     parser.add_argument("-p", "--parameters", nargs="+", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
-    parser.add_argument("-v", "--variables", nargs="+", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the workflow script.")
+    parser.add_argument("-v", "--variables", nargs="+", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the module script.")
     parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_runs (default: ./logs/jawm_runs).")
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
     parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
@@ -124,8 +124,8 @@ def main():
     if args.variables is not None and isinstance(args.variables, list) and len(args.variables) == 1:
         args.variables = args.variables[0]
 
-    # --- Workflow label and timestamp ---
-    workflow_label = os.path.basename(os.path.abspath(args.workflow)).replace(".py", "")
+    # --- Module label and timestamp ---
+    module_label = os.path.basename(os.path.abspath(args.module)).replace(".py", "")
     now = datetime.datetime.now()
     timestamp = now.strftime('%Y%m%d_%H%M%S')
     timestamp_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
@@ -134,7 +134,7 @@ def main():
     base_logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
     run_logs_dir = os.path.join(base_logs_dir, "jawm_runs")
     os.makedirs(run_logs_dir, exist_ok=True)
-    cli_log_file = os.path.join(run_logs_dir, f"{workflow_label}_{timestamp}.log")
+    cli_log_file = os.path.join(run_logs_dir, f"{module_label}_{timestamp}.log")
 
     # --- Start global tee BEFORE any prints/logging so we catch everything ---
     _start_global_tee(cli_log_file, mode="w")
@@ -152,8 +152,8 @@ def main():
     console_handler.setFormatter(log_formatter)
     root_logger.addHandler(console_handler)
 
-    logger = logging.getLogger(f"jawm.cli|{workflow_label}")
-    logger.info("Initiating JAWM workflow script from jawm command")
+    logger = logging.getLogger(f"jawm.cli|{module_label}")
+    logger.info("Initiating JAWM module script from jawm command")
     logger.info(f"Logging terminal output to: {cli_log_file}")
 
     # --- Import Process and set defaults or overrides ---
@@ -193,23 +193,23 @@ def main():
             logger.error(f"Failed to load variables from {args.variables} — {e}")
             sys.exit(2)
 
-    # --- Resolve workflow path ---
-    source_path = os.path.abspath(args.workflow)
+    # --- Resolve module path ---
+    source_path = os.path.abspath(args.module)
     if os.path.isfile(source_path) and source_path.endswith(".py"):
-        workflow_path = source_path
+        module_path = source_path
     elif os.path.isdir(source_path):
         py_files = [f for f in os.listdir(source_path) if f.endswith(".py")]
         if "jawm.py" in py_files:
-            workflow_path = os.path.join(source_path, "jawm.py")
+            module_path = os.path.join(source_path, "jawm.py")
         elif "main.py" in py_files:
-            workflow_path = os.path.join(source_path, "main.py")
+            module_path = os.path.join(source_path, "main.py")
         elif len(py_files) == 1:
-            workflow_path = os.path.join(source_path, py_files[0])
+            module_path = os.path.join(source_path, py_files[0])
         else:
             logger.error(f"Directory {source_path} must contain only one .py file or a main.py")
             sys.exit(2)
     else:
-        logger.error(f"Invalid workflow path: {source_path}")
+        logger.error(f"Invalid module path: {source_path}")
         sys.exit(2)
 
     # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---
@@ -412,34 +412,34 @@ def main():
         return sorted(set(collected))
 
 
-    def _default_hash_output_path_cli(logs_dir, workflow_path):
+    def _default_hash_output_path_cli(logs_dir, module_path):
         """
-        Default hash file under <logs_dir>/jawm_hashes/<workflow_stem>.hash
+        Default hash file under <logs_dir>/jawm_hashes/<module_stem>.hash
         (single canonical location to compare runs).
         """
-        wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
+        wf_stem = os.path.splitext(os.path.basename(module_path))[0]
         out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
         os.makedirs(out_dir, exist_ok=True)
         return os.path.join(out_dir, f"{wf_stem}.hash")
     
 
-    def _input_history_path_cli(logs_dir, workflow_path):
+    def _input_history_path_cli(logs_dir, module_path):
         """
         Always-written auto history:
-        <logs_dir>/jawm_hashes/<workflow>_input.history
+        <logs_dir>/jawm_hashes/<module>_input.history
         """
-        wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
+        wf_stem = os.path.splitext(os.path.basename(module_path))[0]
         out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
         os.makedirs(out_dir, exist_ok=True)
         return os.path.join(out_dir, f"{wf_stem}_input.history")
 
 
-    def _user_defined_history_path_cli(logs_dir, workflow_path):
+    def _user_defined_history_path_cli(logs_dir, module_path):
         """
         Written only when -p contains `scope: hash`:
-        <logs_dir>/jawm_hashes/<workflow>_user_defined.history
+        <logs_dir>/jawm_hashes/<module>_user_defined.history
         """
-        wf_stem = os.path.splitext(os.path.basename(workflow_path))[0]
+        wf_stem = os.path.splitext(os.path.basename(module_path))[0]
         out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
         os.makedirs(out_dir, exist_ok=True)
         return os.path.join(out_dir, f"{wf_stem}_user_defined.history")
@@ -512,17 +512,17 @@ def main():
         return hashlib.sha256(payload).hexdigest()
 
 
-    # --- Run the workflow script ---
+    # --- Run the module script ---
     exit_code_from_script = None
     exit_code_def = 0
     try:
-        logger.info(f"Running workflow: {workflow_path}")
+        logger.info(f"Running jawm module: {module_path}")
         try:
-            runpy.run_path(workflow_path, run_name="__main__", init_globals=exec_namespace)
+            runpy.run_path(module_path, run_name="__main__", init_globals=exec_namespace)
         except SystemExit as e:
             # Defer exiting until after we perform cleanup + hashing
             exit_code_from_script = e.code if isinstance(e.code, int) else 0
-            logger.info(f"Workflow ended with exitcode ({exit_code_from_script}); Initiating post run procedures.")
+            logger.info(f"Module ended with exitcode ({exit_code_from_script}); Initiating post run procedures.")
 
         exit_code_def = 0 if exit_code_from_script is None else exit_code_from_script
 
@@ -535,7 +535,7 @@ def main():
                 break
             time.sleep(1)
 
-        # -------- post-run hashing & histories (always reached, even if workflow sys.exit'ed) --------
+        # -------- post-run hashing & histories (always reached, even if module sys.exit'ed) --------
         from jawm._utils import hash_content  # canonical hasher
 
         def _extend_inputs_from_arg(val):
@@ -545,17 +545,17 @@ def main():
                 return [os.path.abspath(v) for v in val]
             return [os.path.abspath(val)]
 
-        resolved_workflow_path = workflow_path
+        resolved_module_path = module_path
         logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
 
         # === Always write AUTO INPUT HISTORY ====
         # hash value: prefix-hash if available, else file-content hash on fallback.
-        # files list: enumerate workflow + -p + -v (even if prefix-mode succeeds).
+        # files list: enumerate module + -p + -v (even if prefix-mode succeeds).
         auto_files_csv = "-"
-        auto_history_path = _input_history_path_cli(logs_dir, resolved_workflow_path)
+        auto_history_path = _input_history_path_cli(logs_dir, resolved_module_path)
 
         # enumerate candidate inputs (for history files list)
-        auto_inputs = [resolved_workflow_path]
+        auto_inputs = [resolved_module_path]
         auto_inputs += _extend_inputs_from_arg(args.parameters)
         auto_inputs += _extend_inputs_from_arg(args.variables)
         auto_files_considered = _enumerate_hash_inputs_cli(
@@ -657,7 +657,7 @@ def main():
                 userdef_hash = hashlib.sha256(b"").hexdigest()
 
             # write <wf>.hash (same as before)
-            hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_workflow_path)
+            hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_module_path)
             logger.info(f"[hash] Generated hash from user definitions → {userdef_hash}")
             matched, new = _write_and_compare_hash_cli(userdef_hash, hash_out_path, overwrite=overwrite)
 
@@ -670,7 +670,7 @@ def main():
             else:
                 logger.info("[hash] STATUS: MISMATCHED  ❌")
 
-            userdef_history_path = _user_defined_history_path_cli(logs_dir, resolved_workflow_path)
+            userdef_history_path = _user_defined_history_path_cli(logs_dir, resolved_module_path)
             _append_history_line_cli(
                 history_path=userdef_history_path,
                 ts=timestamp_iso,
@@ -693,14 +693,14 @@ def main():
                     logger.info("[hash] ✅  Generated user-defined hash matched reference  ✅")
 
     except Exception:
-        logger.exception("Failed to execute workflow script")
-        # If workflow raised SystemExit, prefer that code; else generic failure
+        logger.exception("Failed to execute module script")
+        # If module raised SystemExit, prefer that code; else generic failure
         sys.exit(exit_code_from_script if exit_code_from_script is not None else 1)
     finally:
         if exit_code_def == 0:
-            logger.info("Ending JAWM workflow script from jawm command")
+            logger.info("Ending JAWM module script from jawm command")
         else:
-            logger.error(f"Ending JAWM workflow script from jawm command with exit code {exit_code_def}")
+            logger.error(f"Ending JAWM module script from jawm command with exit code {exit_code_def}")
         # Now, if the script wanted to exit with a specific code, honor it
         if exit_code_from_script is not None:
             sys.exit(exit_code_from_script)
