@@ -107,7 +107,7 @@ def _start_global_tee(path, mode="a"):
 def main():
     # --- Parse CLI arguments ---
     parser = argparse.ArgumentParser(description="jawm - Just Another Workflow Manager")
-    parser.add_argument("module", nargs="?", default=".", help="Path to a jawm Python script or directory containing the jawm module script with single .py or main.py (default: current directory)")
+    parser.add_argument("module", help="Path to a jawm Python script or directory containing the jawm module script with jawm.py or main.py or single .py ('.' for current directory)")
     parser.add_argument("-p", "--parameters", nargs="+", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
     parser.add_argument("-v", "--variables", nargs="+", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the module script.")
     parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_runs (default: ./logs/jawm_runs).")
