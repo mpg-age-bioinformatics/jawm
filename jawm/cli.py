@@ -57,9 +57,37 @@ def _looks_like_sha(s: str) -> bool:
     return bool(_SHA_RE.match(s or ""))
 
 def _is_git_target(s: str) -> bool:
+    if os.path.exists(s):            # never treat existing paths as git
+        return False
+    # # --- local offline: file://absolute/path/to/repo(.git)[@ref][//subdir] ---
+    # return s.startswith("file://") or bool(GIT_PAT.match(s))
+    # # --- local offline: end ---
     return bool(GIT_PAT.match(s))
 
 def _normalize_git_url(target: str):
+    # # --- local offline: file://absolute/path/to/repo(.git)[@ref][//subdir] ---
+    # if target.startswith("file://"):
+    #     rest = target[len("file://"):]  # '/tmp/.../origin.git[@ref][//subdir]'
+    #     # split off //subdir first (so we don't pass it to 'git clone')
+    #     subdir = ""
+    #     if "//" in rest:
+    #         path_plus_ref, subdir = rest.split("//", 1)
+    #     else:
+    #         path_plus_ref = rest
+    #     # now split @ref from the path
+    #     if "@" in path_plus_ref:
+    #         path_part, ref = path_plus_ref.split("@", 1)
+    #     else:
+    #         path_part, ref = path_plus_ref, None
+
+    #     # ensure it's absolute after the scheme
+    #     if not path_part.startswith("/"):
+    #         path_part = os.path.abspath(path_part)
+
+    #     url = "file://" + path_part
+    #     return url, ref, (subdir or "").strip("/")
+    # # --- fall through to your existing https/ssh/gh handling below ---
+
     m = GIT_PAT.match(target)
     if not m:
         return None
