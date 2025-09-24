@@ -557,3 +557,57 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
         sys.exit(1)
 
     return workflows, args, unknown_args
+
+
+from collections.abc import Iterable
+
+def workflow(select=None, workflows=None):
+    """
+    Filter a list of workflows, returning only those that match the selected ones.
+
+    Parameters
+    ----------
+    select : str or list, optional
+        A single workflow name (string) or a list of workflow names (strings) 
+        that should be kept. Defaults to an empty list if not provided.
+    workflows : list, optional
+        A list of available workflows to be filtered. 
+        Defaults to an empty list if not provided.
+
+    Returns
+    -------
+    list
+        A list containing only the workflows that are present in both
+        `workflows` and `select`.
+
+    Notes
+    -----
+    - If `select` is a string, it will be converted into a single-element list.
+    - This implementation avoids mutable default arguments (`[]`) to prevent 
+      side effects across calls.
+    - The order of the returned list follows the order of `workflows`.
+    - Both arguments should ideally contain hashable elements (e.g., strings).
+
+    Examples
+    --------
+    >>> workflow(select="wf1", workflows=["wf1", "wf2", "wf3"])
+    ['wf1']
+
+    >>> workflow(select=["wf1", "wf3"], workflows=["wf1", "wf2", "wf3"])
+    ['wf1', 'wf3']
+
+    >>> workflow(select="wfX", workflows=["wf1", "wf2"])
+    []
+
+    >>> workflow()
+    []
+    """
+    if select is None:
+        select = []
+    elif isinstance(select, str):
+        select = [select]
+
+    if workflows is None:
+        workflows = []
+
+    return [s for s in workflows if s in select]
