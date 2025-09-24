@@ -40,13 +40,13 @@ GIT_PAT = re.compile(
     ^(?P<scheme>(?:https://|git@|ssh://|gh:))?
     (?P<host_repo>
         (?:
-            github\.com[:/][\w\-.]+/[\w\-.]+(?:\.git)?
-          | [\w\-.]+:[\w\-.]+/[\w\-.]+(?:\.git)?   # generic git@host:org/repo
-          | gh:[\w\-.]+/[\w\-.]+                   # gh:org/repo
+            [\w\-.]+(?:\.[\w\-.]+)+[:/][\w\-.]+/[\w\-.]+(?:\.git)?   # any host via https:// or host/ 
+          | [\w\-.]+:[\w\-.]+/[\w\-.]+(?:\.git)?                    # SCP: host:org/repo
+          | gh:[\w\-.]+/[\w\-.]+                                    # gh:org/repo
         )
     )
-    (?:@(?P<ref>[\w./\-]+))?                       # @ref (branch/tag/sha)
-    (?:\/\/(?P<subdir>.*))?                        # //subdir
+    (?:@(?P<ref>[\w./\-]+))?
+    (?:\/\/(?P<subdir>.*))?
     $""",
     re.X,
 )
@@ -171,9 +171,23 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
                 _git("fetch", "--depth=1", "origin", ref, cwd=tmp)
                 sha = _git("rev-parse", "FETCH_HEAD", cwd=tmp).stdout.strip()
         else:
-            # Default remote HEAD
             _git("fetch", "--depth=1", "origin", cwd=tmp)
-            sha = _git("rev-parse", "origin/HEAD^{commit}", cwd=tmp).stdout.strip()
+            # Try to resolve origin/HEAD; fall back to main/master
+            r = subprocess.run(["git", "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"],
+                            cwd=tmp, text=True, capture_output=True)
+            if r.returncode == 0 and r.stdout.strip():
+                head_ref = r.stdout.strip()            # e.g. "origin/main"
+                sha = _git("rev-parse", f"{head_ref}^{{commit}}", cwd=tmp).stdout.strip()
+            else:
+                for candidate in ("origin/main", "origin/master"):
+                    rr = subprocess.run(["git", "rev-parse", f"{candidate}^{{commit}}"],
+                                        cwd=tmp, text=True, capture_output=True)
+                    if rr.returncode == 0 and rr.stdout.strip():
+                        sha = rr.stdout.strip()
+                        break
+                else:
+                    raise RuntimeError("Could not determine default remote HEAD (tried origin/HEAD, origin/main, origin/master).")
+
 
         safe_repo = re.sub(r"[^A-Za-z0-9_.-]+", "_", url)
         dest = cache_root / safe_repo / sha
@@ -255,11 +269,10 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
         # --- Tree (directory) -------------------------------------------------
         if objtype == "tree" or objtype is None:
             proc = subprocess.run(
-                ["git", "archive", "--format=tar", f"{sha}:{subpath}"],
+                ["git", "archive", "--format=tar", f"--prefix={subpath.rstrip('/')}/", f"{sha}:{subpath}"],
                 cwd=tmp, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             if proc.returncode != 0:
-                # clear, combined error message
                 raise RuntimeError(
                     f"git export failed for {subpath!r} at {sha[:12]}:\n"
                     f"  cat-file: {probe.stderr.strip() if probe.stderr else '(no stderr)'}\n"
@@ -267,7 +280,7 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
                 )
             with tarfile.open(fileobj=io.BytesIO(proc.stdout), mode="r:") as tf:
                 tf.extractall(path=dest)
-            return target_path  # now a directory
+            return target_path
 
         raise RuntimeError(f"Unsupported git object type for {subpath!r}: {objtype}")
 
