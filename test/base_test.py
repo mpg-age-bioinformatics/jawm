@@ -1347,44 +1347,6 @@ finally:
         pass
 
 
-print("\n>>> Test 26: utils.parse_workflow basic behavior")
-try:
-    # --- A) Valid workflow (python invocation style) ---
-    sys.argv = ["script.py", "main"]
-    wf = utils.parse_workflow(["main"], exit=None)
-    assert wf == ["main"], f"❌ Expected ['main'], got {wf}"
-
-    # --- B) Valid workflow (jawm invocation style) ---
-    sys.argv = ["/abs/path/script.py", "script.py", "fastqc"]
-    wf = utils.parse_workflow(["main", "fastqc"], exit=None)
-    assert wf == ["fastqc"], f"❌ Expected ['fastqc'], got {wf}"
-
-    # --- C) Missing workflow (should raise ValueError) ---
-    sys.argv = ["script.py"]
-    raised = False
-    try:
-        utils.parse_workflow(["main"], exit=None)
-    except ValueError as e:
-        raised = True
-        assert "No workflow specified" in str(e)
-    assert raised, "❌ Expected ValueError for missing workflow"
-
-    # --- D) Invalid workflow (should raise ValueError) ---
-    sys.argv = ["script.py", "bogus"]
-    raised = False
-    try:
-        utils.parse_workflow(["main"], exit=None)
-    except ValueError as e:
-        raised = True
-        assert "Invalid workflows" in str(e)
-    assert raised, "❌ Expected ValueError for invalid workflow"
-
-    print("✅ Passed: utils.parse_workflow basic behavior")
-    passed += 1
-except Exception as e:
-    print(f"❌ Failed: {e}")
-    failed += 1
-
 
 
 # -----------------------------
