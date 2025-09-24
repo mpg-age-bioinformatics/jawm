@@ -12,6 +12,12 @@ import threading
 import time
 import yaml
 import fnmatch
+import re
+import subprocess
+import tempfile
+import tarfile
+import shutil
+import traceback
 from pathlib import Path
 
 
@@ -27,6 +33,229 @@ try:
     _VERSION = md.version(_PKG_NAME)
 except md.PackageNotFoundError:
     _VERSION = "dev"  
+
+# ---  Git related vars and methods --- #
+GIT_PAT = re.compile(
+    r"""
+    ^(?P<scheme>(?:https://|git@|ssh://|gh:))?
+    (?P<host_repo>
+        (?:
+            github\.com[:/][\w\-.]+/[\w\-.]+(?:\.git)?
+          | [\w\-.]+:[\w\-.]+/[\w\-.]+(?:\.git)?   # generic git@host:org/repo
+          | gh:[\w\-.]+/[\w\-.]+                   # gh:org/repo
+        )
+    )
+    (?:@(?P<ref>[\w./\-]+))?                       # @ref (branch/tag/sha)
+    (?:\/\/(?P<subdir>.*))?                        # //subdir
+    $""",
+    re.X,
+)
+
+_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
+
+def _looks_like_sha(s: str) -> bool:
+    return bool(_SHA_RE.match(s or ""))
+
+def _is_git_target(s: str) -> bool:
+    return bool(GIT_PAT.match(s))
+
+def _normalize_git_url(target: str):
+    m = GIT_PAT.match(target)
+    if not m:
+        return None
+
+    scheme   = m.group("scheme") or ""          # "https://", "git@", "ssh://", "gh:" or ""
+    host_repo = m.group("host_repo")            # e.g. "github.com:org/repo.git"
+    ref      = m.group("ref")                   # may accidentally include "//subdir"
+    subdir   = (m.group("subdir") or "").strip("/")
+
+    # If ref accidentally captured the //subdir, split it here.
+    if ref and "//" in ref:
+        ref, extra = ref.split("//", 1)
+        subdir = (extra + ("/" + subdir if subdir else "")).strip("/")
+
+    # gh: shortcut → https
+    if host_repo.startswith("gh:") or scheme == "gh:":
+        org_repo = host_repo.split(":", 1)[1] if host_repo.startswith("gh:") else host_repo
+        url = f"https://github.com/{org_repo}"
+        if not url.endswith(".git"):
+            url += ".git"
+        return url, ref, subdir
+
+    # SSH / SCP forms
+    if scheme == "git@":
+        url = f"git@{host_repo}"
+        return url, ref, subdir
+    if scheme == "ssh://":
+        url = f"ssh://{host_repo}"
+        return url, ref, subdir
+
+    # SCP-like without explicit scheme (e.g., "gitlab.com:group/repo")
+    if (":" in host_repo) and (not host_repo.startswith("http")) and (not host_repo.startswith("ssh://")):
+        return host_repo, ref, subdir
+
+    # Default to HTTPS
+    url = host_repo
+    if not url.startswith("https://"):
+        url = "https://" + url
+    if not url.endswith(".git"):
+        url += ".git"
+    return url, ref, subdir
+
+
+def _git(*args, cwd=None, check=True):
+    r = subprocess.run(["git", *args], cwd=cwd, text=True, capture_output=True)
+    if check and r.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)}\n{r.stderr or r.stdout}")
+    return r
+
+def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
+    url, ref, subpath = _normalize_git_url(target)
+
+    tmp = Path(tempfile.mkdtemp(prefix="jawm_git_"))
+    try:
+        _git("clone", "--filter=blob:none", "--no-checkout", "--depth=1", url, str(tmp))
+
+        if ref:
+            if _looks_like_sha(ref):
+                # User passed a commit hash → pin to it and fetch it
+                sha = ref
+                # Try to fetch that commit; GitHub supports fetch by SHA if reachable
+                r = subprocess.run(
+                    ["git", "fetch", "--depth=1", "origin", sha],
+                    cwd=tmp, text=True, capture_output=True
+                )
+                # If that fails, fall back to fetching the default refs
+                if r.returncode != 0:
+                    _git("fetch", "--depth=1", "origin", cwd=tmp)
+                # Verify we actually have the commit object
+                v = subprocess.run(
+                    ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                    cwd=tmp
+                )
+                if v.returncode != 0:
+                    raise RuntimeError(
+                        f"Commit not found or unreachable on remote: {sha}\n"
+                        f"(Did you mistype it, or is it not reachable from any remote ref?)"
+                    )
+            else:
+                # Branch/Tag → fetch and use FETCH_HEAD
+                _git("fetch", "--depth=1", "origin", ref, cwd=tmp)
+                sha = _git("rev-parse", "FETCH_HEAD", cwd=tmp).stdout.strip()
+        else:
+            # Default remote HEAD
+            _git("fetch", "--depth=1", "origin", cwd=tmp)
+            sha = _git("rev-parse", "origin/HEAD^{commit}", cwd=tmp).stdout.strip()
+
+        safe_repo = re.sub(r"[^A-Za-z0-9_.-]+", "_", url)
+        dest = cache_root / safe_repo / sha
+        dest.mkdir(parents=True, exist_ok=True)
+
+        subpath = (subpath or "").strip("/")
+        if subpath:
+            norm = os.path.normpath(subpath).replace("\\", "/")
+            if norm.startswith(".."):
+                raise RuntimeError(f"Unsafe subpath: {subpath!r}")
+            subpath = norm
+
+        # === No subpath → full tree snapshot =================================
+        if not subpath:
+            # already exported?
+            if any(dest.iterdir()):
+                return dest
+            # export whole tree
+            proc = subprocess.run(
+                ["git", "archive", "--format=tar", sha],
+                cwd=tmp, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            if proc.returncode != 0:
+                raise RuntimeError(f"git archive failed: {proc.stderr.decode().strip() or proc.stdout.decode().strip()}")
+            with tarfile.open(fileobj=io.BytesIO(proc.stdout), mode="r:") as tf:
+                tf.extractall(path=dest)
+            return dest
+
+        # === Subpath present → return cached result if it already exists ======
+        target_path = dest / subpath
+        if target_path.exists():
+            return target_path
+
+        # Fast existence probe: does <sha>:<subpath> exist at all?
+        exists_probe = subprocess.run(
+            ["git", "cat-file", "-e", f"{sha}:{subpath}"],
+            cwd=tmp
+        )
+        if exists_probe.returncode != 0:
+            # Build a helpful message listing near matches under the same directory (if any)
+            parent = os.path.dirname(subpath)
+            ls_cmd = ["git", "ls-tree", "--name-only", sha]
+            if parent:
+                ls_cmd = ["git", "ls-tree", "--name-only", f"{sha}:{parent}"]
+            ls = subprocess.run(ls_cmd, cwd=tmp, text=True, capture_output=True)
+            hint_list = ""
+            if ls.returncode == 0 and ls.stdout.strip():
+                lines = [ln.strip() for ln in ls.stdout.splitlines() if ln.strip()]
+                # re-prefix with parent for clarity if we listed a directory
+                if parent:
+                    lines = [f"{parent}/{ln}" for ln in lines]
+                hint_list = "\n  - " + "\n  - ".join(lines[:50])  # cap for safety
+            raise RuntimeError(
+                f"Path not found at commit {sha[:12]}: {subpath}\n"
+                f"Check the exact path and whether it existed at that commit."
+                f"{hint_list}"
+            )
+
+        # === Detect object type (blob or tree) ================================
+        probe = subprocess.run(
+            ["git", "cat-file", "-t", f"{sha}:{subpath}"],
+            cwd=tmp, text=True, capture_output=True
+        )
+        objtype = probe.stdout.strip() if probe.returncode == 0 else None
+
+        # --- Blob (single file) ----------------------------------------------
+        if objtype == "blob":
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            r = subprocess.run(
+                ["git", "show", f"{sha}:{subpath}"],
+                cwd=tmp, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            if r.returncode != 0:
+                raise RuntimeError(f"git show failed: {r.stderr.decode().strip() or r.stdout.decode().strip()}")
+            with open(target_path, "wb") as f:
+                f.write(r.stdout)
+            return target_path
+
+        # --- Tree (directory) -------------------------------------------------
+        if objtype == "tree" or objtype is None:
+            proc = subprocess.run(
+                ["git", "archive", "--format=tar", f"{sha}:{subpath}"],
+                cwd=tmp, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            if proc.returncode != 0:
+                # clear, combined error message
+                raise RuntimeError(
+                    f"git export failed for {subpath!r} at {sha[:12]}:\n"
+                    f"  cat-file: {probe.stderr.strip() if probe.stderr else '(no stderr)'}\n"
+                    f"  archive:  {proc.stderr.decode().strip() or proc.stdout.decode().strip()}"
+                )
+            with tarfile.open(fileobj=io.BytesIO(proc.stdout), mode="r:") as tf:
+                tf.extractall(path=dest)
+            return target_path  # now a directory
+
+        raise RuntimeError(f"Unsupported git object type for {subpath!r}: {objtype}")
+
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+def _git_cache_root(cli_flag_path=None):
+    # precedence: CLI flag > env > default
+    if cli_flag_path:
+        return Path(cli_flag_path).expanduser().resolve()
+    env = os.getenv("JAWM_GIT_CACHE")
+    if env:
+        return Path(env).expanduser().resolve()
+    return Path("~/.jawm/git").expanduser()
+
+# ---  End of git related vars and methods --- #
 
 
 def _start_global_tee(path, mode="a"):
@@ -89,7 +318,6 @@ def _start_global_tee(path, mode="a"):
 
     # Make sure unhandled exceptions in threads are printed to stderr (captured by tee)
     def _thread_excepthook(args):
-        import traceback
         traceback.print_exception(args.exc_type, args.exc_value, args.exc_traceback)
     threading.excepthook = _thread_excepthook
 
@@ -113,10 +341,21 @@ def main():
     parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_runs (default: ./logs/jawm_runs).")
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
     parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
+    parser.add_argument("--git-cache", help="Path for jawm's git cache (default: ~/.jawm/git)")
     parser.add_argument("-V", "--version", action="version", version=f"jawm {_VERSION}")
 
 
     args, unknown_args = parser.parse_known_args()
+
+    # If module is a git repo target, clone/cache and rewrite args.module to local 
+    _git_info_line = None
+    _original_module = args.module
+    if _is_git_target(args.module):
+        cache_root = _git_cache_root(getattr(args, "git_cache", None))
+        cache_root.mkdir(parents=True, exist_ok=True)
+        resolved = _resolve_git_to_local(args.module, cache_root)
+        args.module = str(resolved)
+        _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}'"
 
     # normalize -p and -v: single item → string; many → list
     if args.parameters is not None and isinstance(args.parameters, list) and len(args.parameters) == 1:
@@ -154,6 +393,8 @@ def main():
 
     logger = logging.getLogger(f"jawm.cli|{module_label}")
     logger.info("Initiating jawm module script from jawm command")
+    if _git_info_line:
+        logger.info(_git_info_line)
     logger.info(f"Logging terminal output to: {cli_log_file}")
 
     # --- Import Process and set defaults or overrides ---
@@ -352,7 +593,6 @@ def main():
             h = h.split(":", 1)[1].strip()
 
         # minimal validation for sha256
-        import re
         if re.fullmatch(r"[0-9a-f]{64}", h):
             return h
         return None
