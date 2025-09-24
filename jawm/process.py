@@ -18,7 +18,7 @@ from . import _process_api, _process_internal, _process_local, _process_slurm, _
 @add_methods_from(_process_api, _process_internal, _process_local, _process_slurm, _process_kubernetes)
 class Process:
     """
-    A JAWM Process represents a step in a workflow with full support for:
+    A jawm Process represents a step in a workflow with full support for:
 
     - Script execution of different languages
     - Local, Slurm, or Kubernetes execution (with container support)
@@ -115,7 +115,7 @@ class Process:
     reserved_keys = {
         "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
-        "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed"
+        "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed", "_mk_dirs_created"
     }
     # Supported managers by the jawm
     supported_managers = {"local", "slurm", "kubernetes"}
@@ -755,7 +755,7 @@ class Process:
         Register cleanup behavior for interrupt signals (e.g., Ctrl+C).
 
         This method sets up a SIGINT (interrupt signal) handler that ensures
-        all currently running JAWM processes are terminated cleanly if the user
+        all currently running jawm processes are terminated cleanly if the user
         manually interrupts execution (e.g., via Ctrl+C).
         """
         if getattr(cls, "_cleanup_hooks_registered", False):
@@ -773,7 +773,7 @@ class Process:
                 os._exit(130)
 
             cls._sigint_fired = True
-            print("\nCtrl+C detected — terminating running JAWM jobs...")
+            print("\nCtrl+C detected — terminating running jawm jobs...")
 
             try:
                 cls.kill_all()

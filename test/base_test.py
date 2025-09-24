@@ -19,7 +19,7 @@ try:
     proc1 = Process(
         name="basic_hello",
         script="""#!/usr/bin/env python3
-print('Hello JAWM!')
+print('Hello jawm!')
 """,
         logs_directory="logs_test"
     )
@@ -127,13 +127,13 @@ try:
         script="""#!/usr/bin/env python3
 print("Job name is {{APPNAME}}")
 """,
-        var={"APPNAME": "JAWM-Test"},
+        var={"APPNAME": "jawm-Test"},
         logs_directory="logs_test"
     )
     proc6.execute()
     Process.wait(proc6.hash)
     out6 = proc6.get_output()
-    assert "JAWM-Test" in out6, "❌ var not substituted correctly"
+    assert "jawm-Test" in out6, "❌ var not substituted correctly"
     print("✅ Passed: Script Variable Substitution")
     passed += 1
 except Exception as e:
@@ -349,7 +349,7 @@ except Exception as e:
 Process.reset_stop()
 
 
-print("\n>>> Test 13: JAWM CLI Integration ")
+print("\n>>> Test 13: jawm CLI Integration ")
 # time.sleep(0.5)
 
 try:
@@ -468,9 +468,9 @@ try:
         with open(os.path.join(g_dir, "main.py"), "w") as f:
             f.write("print('RUN_MAIN')\n")
         with open(os.path.join(g_dir, "jawm.py"), "w") as f:
-            f.write("print('RUN_JAWM')\n")
+            f.write("print('RUN_jawm')\n")
         rc, out, err, both = run_cli([g_dir])
-        assert rc == 0 and "RUN_JAWM" in both and "RUN_MAIN" not in both, "❌ Did not prefer jawm.py over main.py"
+        assert rc == 0 and "RUN_jawm" in both and "RUN_MAIN" not in both, "❌ Did not prefer jawm.py over main.py"
 
         # -------------------------
         # H) Path resolution: directory with single .py (not main/jawm)
@@ -1117,6 +1117,33 @@ cat {{map.infile}}
 
     ran = False
 
+    # --------- mk.* should mkdir regardless of automated_mount ----------
+    mk_dir_true = os.path.join(tmp_dir, "out_auto_true")
+    p_local_true = Process(
+        name="mk_always_true",
+        script="#!/bin/bash\necho {{mk.outdir}}\n",
+        var={"mk.outdir": mk_dir_true},
+        logs_directory="logs_test_auto_mount",
+        automated_mount=True
+    )
+    p_local_true.execute()
+    time.sleep(5)
+    Process.wait(p_local_true.hash)
+    assert os.path.isdir(mk_dir_true), "❌ mk.* did not create dir with automated_mount=True"
+
+    mk_dir_false = os.path.join(tmp_dir, "out_auto_false")
+    p_local_false = Process(
+        name="mk_always_false",
+        script="#!/bin/bash\necho ok\n",
+        var={"mk.outdir": mk_dir_false},
+        logs_directory="logs_test_auto_mount",
+        automated_mount=False
+    )
+    p_local_false.execute()
+    Process.wait(p_local_false.hash)
+    assert os.path.isdir(mk_dir_false), "❌ mk.* did not create dir with automated_mount=False"
+    # -------------------------------------------------------------------------
+
     if utils.docker_available():
         print("   [docker] running...")
         pD = Process(**{**common, "environment": "docker", "container": "ubuntu:22.04"})
@@ -1144,9 +1171,9 @@ cat {{map.infile}}
         ran = True
 
     if not ran:
-        print("   Skipped (no container backend available)")
+        print("   Skipped container runs (no container backend available)")
 
-    print("✅ Passed: Auto mk./map. vars mount")
+    print("✅ Passed: Auto mk./map. vars mount + mk.* mkdir independent of automated_mount")
     passed += 1
 except Exception as e:
     print(f"❌ Failed: {e}")
@@ -1318,6 +1345,45 @@ finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
     except Exception:
         pass
+
+
+print("\n>>> Test 26: utils.parse_workflow basic behavior")
+try:
+    # --- A) Valid workflow (python invocation style) ---
+    sys.argv = ["script.py", "main"]
+    wf = utils.parse_workflow(["main"], exit=None)
+    assert wf == ["main"], f"❌ Expected ['main'], got {wf}"
+
+    # --- B) Valid workflow (jawm invocation style) ---
+    sys.argv = ["/abs/path/script.py", "script.py", "fastqc"]
+    wf = utils.parse_workflow(["main", "fastqc"], exit=None)
+    assert wf == ["fastqc"], f"❌ Expected ['fastqc'], got {wf}"
+
+    # --- C) Missing workflow (should raise ValueError) ---
+    sys.argv = ["script.py"]
+    raised = False
+    try:
+        utils.parse_workflow(["main"], exit=None)
+    except ValueError as e:
+        raised = True
+        assert "No workflow specified" in str(e)
+    assert raised, "❌ Expected ValueError for missing workflow"
+
+    # --- D) Invalid workflow (should raise ValueError) ---
+    sys.argv = ["script.py", "bogus"]
+    raised = False
+    try:
+        utils.parse_workflow(["main"], exit=None)
+    except ValueError as e:
+        raised = True
+        assert "Invalid workflows" in str(e)
+    assert raised, "❌ Expected ValueError for invalid workflow"
+
+    print("✅ Passed: utils.parse_workflow basic behavior")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
 
 
 

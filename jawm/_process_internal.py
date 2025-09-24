@@ -181,11 +181,11 @@ def _log_error_summary(self, error_message, type_text="Error"):
 
 
 @register
-def _script_placeholders(self, script_content):
+def _script_placeholders_and_mkdir(self, script_content):
     """
     Replace placeholders in the script content with parameters or object attribute values.
-    Supports flat {{KEY}} and object attributes like {{JAWM.Process.logs_directory}} → self.logs_directory.
-    If the provided parameter values is not found, then {{JAWM.Process.*}} would replaced by empty string.
+    Supports flat {{KEY}} and object attributes like {{jawm.Process.logs_directory}} → self.logs_directory.
+    If the provided parameter values is not found, then {{jawm.Process.*}} would replaced by empty string.
     {{VAR}} would stay the same in case of missing placeholder value.
     This can fail a scipt if not used properly. user needs to be cautios with the use of {{VAR}} in the script.
     :param script_content: The content of the script file.
@@ -207,7 +207,34 @@ def _script_placeholders(self, script_content):
         except Exception as e:
             self.logger.warning(f"Failed to load var_file '{str(self.var_file)}': {e}")
 
-    # Resolve nested attribute like JAWM.Process.logs_directory → self.logs_directory
+    # Ensure mk.* directories exist once per process instance ---
+    try:
+        created = getattr(self, "_mk_dirs_created", set())
+
+        def _abs_path(p):
+            p = os.path.expanduser(str(p))
+            if os.path.isabs(p):
+                return os.path.abspath(p)
+            base = getattr(self, "project_directory", os.getcwd())
+            return os.path.abspath(os.path.join(base, p))
+
+        for k, v in (parameters or {}).items():
+            if isinstance(k, str) and k.startswith("mk.") and v:
+                path = _abs_path(v)
+                try:
+                    if not os.path.exists(path):
+                        os.makedirs(path, exist_ok=True)
+                        self.logger.info(f"mk.* created directory {path}")
+                        created.add(path)
+                    else:
+                        self.logger.info(f"mk.* skipped, already exists: {path}")
+                except Exception as e:
+                    self.logger.warning(f"mk.* could not create {path}: {e}")
+        self._mk_dirs_created = created
+    except Exception as e:
+        self.logger.warning(f"mk.* directory setup failed: {e}")
+
+    # Resolve nested attribute like jawm.Process.logs_directory → self.logs_directory
     def resolve_placeholder(key):
         if key in parameters:
             val = parameters[key]
@@ -276,7 +303,7 @@ def _generate_base_script(self):
         raise ValueError("Invalid script type or missing script content.")
 
     # Replace placeholders with provided parameters
-    script_content = self._script_placeholders(script_content)
+    script_content = self._script_placeholders_and_mkdir(script_content)
 
     # Write the updated script to the base script file
     with open(self.base_script_path, "w") as script_file:
@@ -636,13 +663,18 @@ def _check_resume_success(self):
 def _auto_mounts_from_vars(self):
     """
     Collect auto mounts from self.var:
-      - Keys starting with mk.*  → ensure directory exists, mount RW
-      - Keys starting with map.* → mount RW (only if automated_mount=True)
+      - mk.*  → mount RW (dirs already ensured in _script_placeholders_and_mkdir)
+      - map.* → mount RW
     If value is a file path, mount its parent directory so the file path exists inside.
 
-    Returns a list of dicts:
-      [{"src": <host_abs>, "dst": <same_abs>, "kind": "mk"|"map"}]
+    Returns
+    -------
+    list[dict]
+        [{"src": <host_abs>, "dst": <same_abs>, "kind": "mk"|"map"}]
     """
+    if not getattr(self, "automated_mount", True):
+        return []
+
     mounts, seen = [], set()
     var = self.var or {}
 
@@ -659,21 +691,7 @@ def _auto_mounts_from_vars(self):
         kind = "mk" if k.startswith("mk.") else "map"
         src = _norm(v)
 
-        if kind == "mk":
-            try:
-                if not os.path.exists(src):
-                    os.makedirs(src, exist_ok=True)
-                    self.logger.info(f"mk.* created directory {src}")
-                else:
-                    self.logger.debug(f"mk.* skipped, already exists: {src}")
-            except Exception as e:
-                self.logger.warning(f"mk.* could not create {src}: {e}")
-
-        if kind == "map" and not getattr(self, "automated_mount", True):
-            # skip adding map mounts if automated_mount is False
-            continue
-
-        dst = src  # same path inside
+        dst = src
         key = (src, dst)
         if key in seen:
             continue

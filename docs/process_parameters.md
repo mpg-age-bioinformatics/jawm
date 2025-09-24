@@ -1,7 +1,7 @@
 # Process Parameters Reference
 
 
-> This reference reflects the current JAWM `Process` parameters and defaults. Values are merged in this order (lowest → highest): class `default_parameters` < YAML `global` < YAML process block < `**kwargs` < explicit args < class `override_parameters`.
+> This reference reflects the current jawm `Process` parameters and defaults. Values are merged in this order (lowest → highest): class `default_parameters` < YAML `global` < YAML process block < `**kwargs` < explicit args < class `override_parameters`.
 
 
 ### `name`
@@ -108,7 +108,7 @@ Key–value pairs to substitute into `{{PLACEHOLDER}}` occurrences in the script
 **Example:**
 ```python
 var={
-  "APPNAME": "JAWM",
+  "APPNAME": "jawm",
   "THREADS": "4"
 }
 ```
@@ -116,7 +116,7 @@ var={
 **YAML Example:**
 ```yaml
 var:
-  APPNAME: "JAWM"
+  APPNAME: "jawm"
   THREADS: "4"
 ```
 
@@ -303,9 +303,9 @@ env:
 - **Category**: `parameter`
 - **Type**: `dict`
 
-Optional metadata to describe inputs. Not interpreted by JAWM at runtime (for readability or external tooling).
+Optional metadata to describe inputs. Not interpreted by jawm at runtime (for readability or external tooling).
 
-_**Note**_: Can be used in script with `{{JAWM.Process.inputs}}`
+_**Note**_: Can be used in script with `{{jawm.Process.inputs}}`
 
 ---
 
@@ -314,9 +314,9 @@ _**Note**_: Can be used in script with `{{JAWM.Process.inputs}}`
 - **Category**: `parameter`
 - **Type**: `dict`
 
-Optional metadata to describe outputs. Not interpreted by JAWM at runtime.
+Optional metadata to describe outputs. Not interpreted by jawm at runtime.
 
-_**Note**_: Can be used in script with `{{JAWM.Process.outputs}}`
+_**Note**_: Can be used in script with `{{jawm.Process.outputs}}`
 
 ---
 
@@ -383,7 +383,7 @@ retry_overrides:
 - **Default**: `retry`
 - **Allowed**: `retry`, `fail`
 
-What to do on failure. If set to `fail`, any non-zero exit stops immediately and JAWM forces `retries=0`.
+What to do on failure. If set to `fail`, any non-zero exit stops immediately and jawm forces `retries=0`.
 
 **Example:**
 ```python
@@ -452,7 +452,7 @@ _**Supported keys**_:
 
 - **`backoffLimit`** *(int, default: `0`)*  
   Number of retries for failed pods at the Kubernetes Job level.  
-  Recommended to keep at `0` since JAWM handles retries itself.
+  Recommended to keep at `0` since jawm handles retries itself.
 
 - **`ttlSecondsAfterFinished`** *(int, default: `600`)*  
   Time in seconds before Kubernetes cleans up the finished Job.
@@ -492,7 +492,7 @@ _**Supported keys**_:
 
 - **`labels`** *(dict)*  
   Extra labels merged into Job and Pod metadata.  
-  JAWM always adds:  
+  jawm always adds:  
   - `jawm-name: <process_name>`  
   - `jawm-hash: <hash>`
 

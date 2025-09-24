@@ -2,7 +2,7 @@ from ._docs_param import PROCESS_PARAM_DOCS
 
 def jhelp(class_name: str = "Process", param: str = None):
     """
-    Display documentation for JAWM classes, parameters, examples, or usage guides.
+    Display documentation for jawm classes, parameters, examples, or usage guides.
 
     By default, this function shows all available parameters, how-to guides, and
     usage examples for the Process class.

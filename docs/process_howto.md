@@ -1,13 +1,13 @@
-# JAWM Process: How-To Guide
+# jawm Process: How-To Guide
 
-This document provides guidance on using diffeent features and internal behavior of the `Process` class in the JAWM workflow manager.
+This document provides guidance on using diffeent features and internal behavior of the `Process` class in the jawm workflow manager.
 
 ---
 
 ### 🔧 How to Set Global Monitoring Directory
 
 **Description:**  
-A global JAWM monitoring directory can be set using the `JAWM_MONITORING_DIRECTORY` environment variable.
+A global jawm monitoring directory can be set using the `JAWM_MONITORING_DIRECTORY` environment variable.
 
 **Note:**  
 This directory stores tracking info of different jobs (Job ID, log location, current state, etc.). It is useful for visualization or external job monitoring tools. If nothing is set, the default value is `~/.jawm/monitoring`.
@@ -20,7 +20,7 @@ export JAWM_MONITORING_DIRECTORY="/path/monitoring"
 ```
 
 ```python
-# Set in Python script before importing or using JAWM
+# Set in Python script before importing or using jawm
 import os
 os.environ["JAWM_MONITORING_DIRECTORY"] = "/path/monitoring"
 ```
