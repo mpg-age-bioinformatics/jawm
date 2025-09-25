@@ -291,12 +291,28 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
         shutil.rmtree(tmp, ignore_errors=True)
 
 def _git_cache_root(cli_flag_path=None):
-    # precedence: CLI flag > env > default
-    if cli_flag_path:
-        return Path(cli_flag_path).expanduser().resolve()
+    """
+    Return the cache root:
+      - If CLI flag is ".", use "<cwd>/git".
+      - Else if CLI flag is set, use it as-is (resolved).
+      - Else if env JAWM_GIT_CACHE is ".", use "<cwd>/git".
+      - Else if env JAWM_GIT_CACHE is set, use it as-is (resolved).
+      - Else default to "~/.jawm/git".
+    """
+    def _normalize(p: Path) -> Path:
+        # treat "." or "./" specially → <cwd>/git
+        s = str(p)
+        if s in (".", "./"):
+            return Path.cwd() / "git"
+        return p.expanduser().resolve()
+
+    if cli_flag_path is not None:
+        return _normalize(Path(cli_flag_path))
+
     env = os.getenv("JAWM_GIT_CACHE")
     if env:
-        return Path(env).expanduser().resolve()
+        return _normalize(Path(env))
+
     return Path("~/.jawm/git").expanduser()
 
 # ---  End of git related vars and methods --- #
