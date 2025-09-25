@@ -40,9 +40,12 @@ GIT_PAT = re.compile(
     ^(?P<scheme>(?:https://|git@|ssh://|gh:))?
     (?P<host_repo>
         (?:
-            [\w\-.]+(?:\.[\w\-.]+)+[:/][\w\-.]+/[\w\-.]+(?:\.git)?   # any host via https:// or host/ 
-          | [\w\-.]+:[\w\-.]+/[\w\-.]+(?:\.git)?                    # SCP: host:org/repo
-          | gh:[\w\-.]+/[\w\-.]+                                    # gh:org/repo
+            # HTTPS (or bare host after scheme): host[:port]/seg/seg[/seg...] (.git optional)
+            [\w\-.]+(?:\.[\w\-.]+)+(?::\d+)?(?:/[~\w\-.]+){2,}(?:\.git)?
+          | # SCP-like: host:seg[/seg...]
+            [\w\-.]+:(?:[~\w\-.]+/){1,}[~\w\-.]+(?:\.git)?
+          | # gh:org/repo
+            gh:[\w\-.]+/[\w\-.]+
         )
     )
     (?:@(?P<ref>[\w./\-]+))?
