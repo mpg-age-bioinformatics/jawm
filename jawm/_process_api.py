@@ -336,8 +336,36 @@ def update_params(self, param_file=None):
     process_params = yaml_params["process"].get(self.name, {})
     global_params = yaml_params["global"]
 
+    # Snapshot previous dict values for mergeable keys (before shallow update)
+    prev_snap = {}
+    for key in self._merge_keys():
+        val = self.params.get(key)
+        prev_snap[key] = (val.copy() if isinstance(val, dict) else None)
+
     # Update self.params in-place
     self.params.update({**global_params, **process_params})
+
+    # Deep-merge prev + base(new global+process) + cur(shallow-updated)
+    for key in self._merge_keys():
+        gv = global_params.get(key, {})
+        pv = process_params.get(key, {})
+        any_dict = isinstance(gv, dict) or isinstance(pv, dict)
+
+        if not any_dict:
+            # nothing to do for non-dict values on this key
+            continue
+
+        base = self._deep_merge_dicts(gv or {}, pv or {})
+        prev = prev_snap.get(key) or {}
+        cur  = self.params.get(key) or {}
+
+        # Only merge dict types; if cur/prev are not dicts, ignore them
+        merged = prev if isinstance(prev, dict) else {}
+        merged = self._deep_merge_dicts(merged, base)
+        if isinstance(cur, dict):
+            merged = self._deep_merge_dicts(merged, cur)
+
+        self.params[key] = merged
 
     # Reapply updated params as attributes (skip reserved keys)
     for k, v in self.params.items():

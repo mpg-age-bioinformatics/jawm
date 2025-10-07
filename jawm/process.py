@@ -315,8 +315,25 @@ class Process:
         process_params = yaml_params["process"].get(name, {})
         global_params = yaml_params["global"]
 
+        # Compute merged baselines for these keys (global + process)
+        merged_baselines = {}
+        for key in self._merge_keys():
+            gv = global_params.get(key, {})
+            pv = process_params.get(key, {})
+            if isinstance(gv, dict) or isinstance(pv, dict):
+                merged_baselines[key] = self._deep_merge_dicts(gv or {}, pv or {})
+
         # Merge in priority order: default_parameters < global < process < kwargs < explicit arguments < override_parameters
         self.params = {**self.__class__.default_parameters, **global_params, **process_params, **kwargs, **explicit_args, **self.__class__.override_parameters}
+
+        # Inject deep-merged baselines beneath higher-precedence layers ---
+        for key, base in merged_baselines.items():
+            cur = self.params.get(key, None)
+            if cur is None:
+                self.params[key] = base
+            elif isinstance(cur, dict):
+                # keep later/higher layers (cur) on top of the baseline
+                self.params[key] = self._deep_merge_dicts(base, cur)
 
         # Set up the hash (with 6 characters params based and 4 characters suffix) and logger
         # If there is a callable in the instance, hash_params would produce diffeent hash every time
@@ -439,6 +456,42 @@ class Process:
 
 
 
+    # ----------------------------------------------------------
+    #   Static methods with namespaced helper functions
+    # ----------------------------------------------------------
+    
+    @staticmethod
+    def _deep_merge_dicts(a: dict, b: dict) -> dict:
+        """
+        Recursively merge two dicts.
+
+        Values from `b` override those from `a` unless both are dicts,
+        in which case the merge continues recursively.
+
+        Returns a new merged dict without modifying either input.
+        """
+        if not isinstance(a, dict) or not isinstance(b, dict):
+            return b
+        out = dict(a)
+        for k, v in b.items():
+            if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+                out[k] = __class__._deep_merge_dicts(out[k], v)
+            else:
+                out[k] = v
+        return out
+
+
+    @staticmethod
+    def _merge_keys():
+        """
+        Return set of mergeable keys (dict-like Process params).
+        """
+        return {
+            "var", "env", "manager_local", "manager_slurm", "manager_kubernetes", "inputs",
+            "outputs", "environment_docker", "environment_apptainer", "retry_overrides",
+        }
+    
+    
     # ----------------------------------------------------------
     #   Class methods with Process Lifecycle and Runtime Control
     # ----------------------------------------------------------
