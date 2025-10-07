@@ -678,9 +678,16 @@ def _auto_mounts_from_vars(self):
     mounts, seen = [], set()
     var = self.var or {}
 
+    def _to_abs(p):
+        p = os.path.expanduser(str(p))
+        if os.path.isabs(p):
+            return os.path.abspath(p)
+        base = getattr(self, "project_directory", os.getcwd())
+        return os.path.abspath(os.path.join(base, p))
+
     def _norm(p):
-        p = os.path.abspath(str(p))
-        return os.path.dirname(p) if os.path.isfile(p) else p
+        ap = _to_abs(p)
+        return os.path.dirname(ap) if os.path.isfile(ap) else ap
 
     for k, v in var.items():
         if not isinstance(k, str) or not isinstance(v, (str, os.PathLike)):
