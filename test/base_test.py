@@ -1348,6 +1348,136 @@ finally:
 
 
 
+print("\n>>> Test 26: Deep-merge (constructor) for var/env/manager_slurm/environment_docker")
+
+tmp = None
+try:
+    tmp = tempfile.mkdtemp(prefix="merge_ctor_")
+    params_yaml = os.path.join(tmp, "params.yaml")
+
+    with open(params_yaml, "w") as f:
+        f.write("""
+- scope: global
+  var: { A: 1, B: 2, mk.output: "./out" }
+  env: { X: "globalX" }
+  manager_slurm: { "-p": "cluster", "--mem": "4G" }
+  environment_docker: { "--cpus": "1.0" }
+
+- scope: process
+  name: "merge_ctor_proc"
+  var: { B: 20, C: 3 }
+  env: { Y: "procY" }
+  manager_slurm: { "--mem": "8G", "-t": "00:05:00" }
+  environment_docker: { "--cpus": "2.0", "--uts": "host" }
+""")
+
+    p = Process(
+        name="merge_ctor_proc",
+        param_file=params_yaml,
+        script="#!/bin/bash\necho ok\n",
+        logs_directory=os.path.join(tmp, "logs"),
+    )
+
+    # var merged (process overrides B, keeps A and adds C, preserves global mk.output)
+    assert p.var == {"A": 1, "B": 20, "C": 3, "mk.output": "./out"}, f"var merge wrong: {p.var}"
+
+    # env merged
+    assert p.env.get("X") == "globalX" and p.env.get("Y") == "procY", f"env merge wrong: {p.env}"
+
+    # manager_slurm merged (global -p kept, --mem overridden, -t added)
+    ms = p.manager_slurm or {}
+    assert ms.get("-p") == "cluster", f"slurm -p lost: {ms}"
+    assert ms.get("--mem") == "8G", f"slurm --mem override not applied: {ms}"
+    assert ms.get("-t") == "00:05:00", f"slurm -t missing: {ms}"
+
+    # environment_docker merged (global --cpus overridden to 2.0, --uts added)
+    ed = p.environment_docker or {}
+    assert ed.get("--cpus") == "2.0" and ed.get("--uts") == "host", f"docker env merge wrong: {ed}"
+
+    print("✅ Passed: Deep-merge at constructor for multiple dict fields")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    if tmp and os.path.isdir(tmp):
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+
+print("\n>>> Test 27: Deep-merge on update_params() without clobbering existing dicts")
+
+tmp = None
+try:
+    tmp = tempfile.mkdtemp(prefix="merge_update_")
+
+    # Initial params (simulate first load)
+    params1 = os.path.join(tmp, "params1.yaml")
+    with open(params1, "w") as f:
+        f.write("""
+- scope: global
+  var: { G: "g", KEEP: "k" }
+  manager_slurm: { "-p": "gcluster", "--mem": "2G" }
+
+- scope: process
+  name: "merge_up_proc"
+  var: { PONLY: 1 }
+  manager_slurm: { "-t": "00:02:00" }
+""")
+
+    p = Process(
+        name="merge_up_proc",
+        param_file=params1,
+        script="#!/bin/bash\necho ok\n",
+        logs_directory=os.path.join(tmp, "logs"),
+    )
+
+    # Sanity on initial merge
+    assert p.var.get("G") == "g" and p.var.get("KEEP") == "k" and p.var.get("PONLY") == 1, f"initial var wrong: {p.var}"
+    ms = p.manager_slurm or {}
+    assert ms.get("-p") == "gcluster" and ms.get("--mem") == "2G" and ms.get("-t") == "00:02:00", f"initial slurm wrong: {ms}"
+
+    # Now update with params2: add/override some keys; ensure deep-merge, not replace
+    params2 = os.path.join(tmp, "params2.yaml")
+    with open(params2, "w") as f:
+        f.write("""
+- scope: global
+  var: { G: "g2", NEWG: "ng" }
+  manager_slurm: { "--mem": "6G" }
+
+- scope: process
+  name: "merge_up_proc"
+  var: { PONLY: 99, PNEW: "pn" }
+  manager_slurm: { "-t": "00:10:00" }
+""")
+
+    p.update_params(params2)
+
+    # var after update: global(G->g2, adds NEWG), process(PONLY->99 keeps), KEEP remains from first load
+    assert p.var == {"G": "g2", "KEEP": "k", "PONLY": 99, "PNEW": "pn", "NEWG": "ng"}, f"var deep-merge after update wrong: {p.var}"
+
+    # manager_slurm after update: -p kept, --mem overridden to 6G (global), -t overridden to 00:10:00 (process)
+    ms2 = p.manager_slurm or {}
+    assert ms2.get("-p") == "gcluster", f"slurm -p lost after update: {ms2}"
+    assert ms2.get("--mem") == "6G", f"slurm --mem not updated: {ms2}"
+    assert ms2.get("-t") == "00:10:00", f"slurm -t not updated: {ms2}"
+
+    print("✅ Passed: Deep-merge on update_params() preserves/overrides as expected")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    if tmp and os.path.isdir(tmp):
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+
+
 
 # -----------------------------
 # Cleanup created directories
