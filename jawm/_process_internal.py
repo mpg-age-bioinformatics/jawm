@@ -6,6 +6,7 @@ import shlex
 import hashlib
 from functools import reduce
 from datetime import datetime
+from urllib.parse import urlparse
 
 # Setup method registration for dynamic injection into the main Process class
 from ._method_lib import register_method
@@ -392,6 +393,8 @@ def _build_apptainer_command(self, script_path):
             # apptainer_command.extend(["--env", f'{key}="{val}"'])
             apptainer_command.extend(["--env", f'{key}="{val}"' if " " in val else f"{key}={val}"])
 
+    image_ref = self._normalize_apptainer_image(self.container)
+
     # Add container and script
     if self.container_before_script or self.container_after_script:
         command_parts = []
@@ -402,9 +405,9 @@ def _build_apptainer_command(self, script_path):
             command_parts.append(self.container_after_script.strip())
 
         wrapped_command = shlex.quote(" && ".join(command_parts))
-        apptainer_command.extend([self.container, "/bin/bash", "-c", wrapped_command])
+        apptainer_command.extend([image_ref, "/bin/bash", "-c", wrapped_command])
     else:
-        apptainer_command.extend([self.container, script_path])
+        apptainer_command.extend([image_ref, script_path])
 
     return apptainer_command
 
@@ -708,6 +711,46 @@ def _auto_mounts_from_vars(self):
     return mounts
 
 
+@register
+def _normalize_apptainer_image(self, ref):
+    """
+    Normalize Apptainer image reference.
+
+    Rules:
+      - If ref has '://', leave it as-is (docker://, oras://, library://, shub://, file://…).
+      - If ref looks like a local path / .sif file and exists, leave it as-is.
+      - Else, treat it as a registry reference and prefix with 'docker://'.
+
+    Examples:
+      "ubuntu:22.04"       -> "docker://ubuntu:22.04"
+      "ghcr.io/org/img:1"  -> "docker://ghcr.io/org/img:1"
+      "/data/my.sif"       -> "/data/my.sif" (unchanged)
+      "my.sif" (exists)    -> "my.sif"       (unchanged)
+      "oras://repo/img:1"  -> unchanged
+    """
+    if not ref:
+        return ref
+
+    # Already has a scheme
+    if "://" in ref:
+        return ref
+
+    # Local path or existing file?
+    try:
+        # Heuristic: if it exists, don't touch it
+        if os.path.exists(ref):
+            return ref
+        # Obvious absolute/relative paths (even if they don't exist yet)
+        if ref.startswith(("/", "./", "../", "~/")) or ref.lower().endswith(".sif"):
+            return ref
+    except Exception:
+        pass
+
+    # Default: assume registry reference → docker://
+    self.logger.info(f"Apptainer image had no scheme; assuming Docker registry and using 'docker://{ref}'")
+    return f"docker://{ref}"
+
+
 
 
 # --------------------------------------------
@@ -729,7 +772,7 @@ def _normalize_mount_spec(val):
     return str(val)
 
 
-def _normalize_user_bind(spec: str) -> str:
+def _normalize_user_bind(spec):
     """
     Normalize a user '--bind'/'-v' spec:
       - Make host/src absolute.
