@@ -1520,6 +1520,96 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 29: CLI var injection sanitizes mk./map. and Process still resolves originals")
+try:
+    import shutil, tempfile, os, sys, subprocess
+
+    # --- Helper functions ---
+    def cli_cmd(args):
+        if shutil.which("jawm"):
+            return ["jawm", *args]
+        return [sys.executable, "-m", "jawm.cli", *args]
+
+    def run_cli(args, timeout=60):
+        r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout)
+        both = (r.stdout or "") + (r.stderr or "")
+        return r.returncode, r.stdout, r.stderr, both
+
+    # --- Temporary working directory ---
+    tmp_root = tempfile.mkdtemp(prefix="cli_sanitize_")
+    try:
+        mod_dir = os.path.join(tmp_root, "mod")
+        os.makedirs(mod_dir, exist_ok=True)
+
+        # Variables file containing mk.* and map.* keys (and a normal key)
+        vars_path = os.path.join(mod_dir, "vars.yaml")
+        with open(vars_path, "w") as f:
+            f.write(
+                "- scope: global\n"
+                "  var:\n"
+                "    mk.output: \"cli_out_dir\"\n"
+                "    map.infile: \"cli_input.txt\"\n"
+                "    NORMAL: \"NVAL\"\n"
+            )
+
+        # Create the referenced input file
+        in_file = os.path.join(mod_dir, "cli_input.txt")
+        with open(in_file, "w") as f:
+            f.write("DATA\n")
+
+        # Module script that prints injected vars and runs a Process
+        main_py = os.path.join(mod_dir, "main.py")
+        with open(main_py, "w") as f:
+            f.write(
+                "from jawm import Process\n"
+                "print('SAN_OUT=', output)\n"
+                "print('SAN_INFILE=', infile)\n"
+                "print('NORMAL=', NORMAL)\n"
+                "p = Process(\n"
+                "    name='cli_sanitize_proc',\n"
+                "    script='''#!/bin/bash\\n"
+                "echo \"P_OUT={{mk.output}}\"\\n"
+                "echo \"P_IN={{map.infile}}\"\\n"
+                "''',\n"
+                "    logs_directory='logs_cli_sanitize'\n"
+                ")\n"
+                "p.execute()\n"
+                "Process.wait(p.hash)\n"
+                "print('P_STDOUT_BEGIN')\n"
+                "print(p.get_output())\n"
+                "print('P_STDOUT_END')\n"
+            )
+
+        # --- Run CLI ---
+        rc, out, err, both = run_cli([mod_dir, "-v", vars_path])
+
+        # --- Assertions ---
+        assert rc == 0, f"❌ CLI failed (rc={rc})\nSTDOUT:\n{out}\nSTDERR:\n{err}"
+
+        # 1) Sanitized variables visible in executed module's globals
+        assert "SAN_OUT= cli_out_dir" in both, "❌ Sanitized 'output' not injected"
+        assert "SAN_INFILE= cli_input.txt" in both, "❌ Sanitized 'infile' not injected"
+        assert "NORMAL= NVAL" in both, "❌ Normal variable not injected"
+
+        # 2) Process still resolves original placeholders
+        start = both.find("P_STDOUT_BEGIN")
+        end = both.find("P_STDOUT_END", start)
+        assert start != -1 and end != -1, "❌ Missing Process stdout markers"
+        proc_stdout = both[start:end]
+        assert "P_OUT=cli_out_dir" in proc_stdout, "❌ {{mk.output}} not resolved"
+        assert "P_IN=cli_input.txt" in proc_stdout, "❌ {{map.infile}} not resolved"
+
+        print("✅ Passed: CLI sanitation (mk./map.) + Process placeholder resolution")
+        passed += 1
+
+    finally:
+        shutil.rmtree(tmp_root, ignore_errors=True)
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
 
 
 
