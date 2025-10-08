@@ -536,6 +536,9 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
             
     workflows=args.workflows
 
+
+    var=read_variables(args.p+args.v, output_type="var")
+
     script_name = os.path.basename(sys.argv[0])
     workflows=[ s for s in workflows if s != script_name ]
     if not workflows :
@@ -557,7 +560,7 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
         print("Available workflows:", ",".join(available_workflows) )
         sys.exit(1)
 
-    return workflows, args, unknown_args
+    return workflows, var, args, unknown_args
 
 
 from collections.abc import Iterable
