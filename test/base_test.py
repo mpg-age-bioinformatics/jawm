@@ -193,7 +193,7 @@ except Exception as e:
 Process.reset_stop()
 
 
-print("\n>>> Test 9: Process Cloning with `copy()`")
+print("\n>>> Test 9: Process Cloning with `clone()`")
 # time.sleep(0.5)
 try:
     original = Process(
@@ -203,7 +203,7 @@ echo 'Original'
 """,
         logs_directory="logs_test"
     )
-    clone = original.copy(name="cloned_proc", script="""#!/bin/bash
+    clone = original.clone(name="cloned_proc", script="""#!/bin/bash
 echo 'Cloned'
 """)
     original.execute()
@@ -566,7 +566,7 @@ try:
     assert proc15a.get_exitcode().startswith("0"), "❌ First run did not finish successfully"
 
     # Step 2: Clone the process
-    proc15b = proc15a.copy()
+    proc15b = proc15a.clone()
     proc15b.resume = True
     proc15b.execute()
 
@@ -1476,6 +1476,50 @@ finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+print("\n>>> Test 28: clone — same hash prefix when unchanged; different when a param is modified")
+try:
+    # Create a minimal process
+    p0 = Process(
+        name="clone_hash_src0",
+        script="#!/bin/bash\necho hi",
+        var={"A": 1},
+        logs_directory="logs_test_clone_hash"
+    )
+
+    p1 = p0.clone(name="clone_hash_src_norm")
+
+    # Direct clone without changing anything → same 6-char prefix
+    p2 = p1.clone()
+    prefix1 = p1.hash[:6]
+    prefix2 = p2.hash[:6]
+    assert prefix1 == prefix2, (
+        f"❌ Expected identical hash prefixes for unchanged clone, "
+        f"got {prefix1} vs {prefix2}"
+    )
+
+    # Modify a declared param after init → different 6-char prefix
+    p1.manager = "slurm"  # tracked via __setattr__/_touched_params
+    p3 = p1.clone(name="clone_hash_copy_changed")
+    prefix3 = p3.hash[:6]
+    assert prefix3 != prefix1, (
+        f"❌ Expected different hash prefix after changing 'manager', "
+        f"but got same prefix {prefix3}"
+    )
+
+    # Values carried as intended
+    assert p2.manager == "local", "❌ Unchanged clone should keep default manager"
+    assert p3.manager == "slurm", "❌ Changed 'manager' not carried to clone"
+
+    print(
+        f"✅ Passed: prefixes — unchanged {prefix1} == {prefix2}; "
+        f"changed {prefix1} != {prefix3}"
+    )
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
 
 
 
@@ -1486,7 +1530,7 @@ for d in [
     "logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
     "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test",
     "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test",
-    "logs", "logs_ar", "logs_allow_skip", "logs_test_auto_mount"
+    "logs", "logs_ar", "logs_allow_skip", "logs_test_auto_mount", "logs_test_clone_hash"
 ]:
     if d == "logs":
         if os.path.isdir("logs"):

@@ -115,7 +115,8 @@ class Process:
     reserved_keys = {
         "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
-        "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed", "_mk_dirs_created"
+        "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed", "_mk_dirs_created",
+        "_init_done", "_touched_params"
     }
     # Supported managers by the jawm
     supported_managers = {"local", "slurm", "kubernetes"}
@@ -453,6 +454,39 @@ class Process:
             self.retries = 0
             self.params["retries"] = 0
 
+        # To track the changed values manually
+        self._init_done = True
+        self._touched_params = set()
+
+
+
+
+    # ----------------------------------------------------------
+    #   Other special dunder methods
+    # ----------------------------------------------------------
+
+    def __setattr__(self, name, value):
+        prev = self.__dict__.get(name, None)
+        object.__setattr__(self, name, value)
+
+        # Track only after __init__ finished
+        if not getattr(self, "_init_done", False):
+            return
+
+        # Skip reserved/runtime keys (includes _touched_params, _init_done, etc.)
+        if name in getattr(self, "reserved_keys", set()):
+            return
+
+        # Only track declared parameters
+        ptypes = getattr(self, "parameter_types", {})
+        if name not in ptypes:
+            return
+
+        # Record user change
+        if prev != value:
+            touched = getattr(self, "_touched_params", None)
+            if touched is not None:
+                touched.add(name)
 
 
 

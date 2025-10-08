@@ -2,6 +2,7 @@ import threading
 import os
 import time
 import re
+from copy import deepcopy
 from datetime import datetime
 
 # Setup method registration for dynamic injection into the main Process class
@@ -171,7 +172,7 @@ def execute(self):
 
 
 @register
-def copy(self, name=None, param_file=None, **overrides):
+def clone(self, name=None, param_file=None, **overrides):
     """
     Clone the current Process instance to create a new one with optional modifications.
 
@@ -182,17 +183,27 @@ def copy(self, name=None, param_file=None, **overrides):
     Returns: A new Process instance with copied and/or overridden parameters.
 
     """
-    # Start with a shallow copy of current parameters
-    new_params = self.params.copy()
+    # Start from current params (exclude reserved)
+    base = {
+        k: deepcopy(v)
+        for k, v in (self.params or {}).items()
+        if k not in self.reserved_keys
+    }
 
-    # Avoid duplicate keyword arguments
-    new_params.pop("name", None)
-    new_params.pop("param_file", None)
+    # Overlay only the attributes the user touched post-init (declared params)
+    for k in (getattr(self, "_touched_params", set()) or set()):
+        base[k] = deepcopy(getattr(self, k))
 
-    # Apply any additional overrides
-    new_params.update(overrides)
+    # Don’t pass name/param_file in kwargs
+    base.pop("name", None)
+    base.pop("param_file", None)
 
-    return self.__class__(name=name or self.name, param_file=param_file or self.param_file, **new_params)
+    # Apply overrides (filter reserved)
+    clean_overrides = {k: v for k, v in overrides.items() if k not in self.reserved_keys}
+    base.update(clean_overrides)
+
+    # Return cloned instance
+    return self.__class__(name=name or self.name, param_file=param_file or self.param_file, **base)
 
 
 @register
