@@ -12,7 +12,7 @@ import yaml
 import fnmatch
 import inspect
 from pathlib import Path
-from ._utils import read_variables, hash_content
+from ._utils import read_variables, hash_content, _sanitize_vars
 import subprocess
 import hashlib
 import fnmatch
@@ -537,7 +537,7 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
     workflows=args.workflows
 
 
-    var=read_variables(args.p+args.v, output_type="var")
+    var=_sanitize_vars(read_variables(args.p+args.v, output_type="dict"))
 
     script_name = os.path.basename(sys.argv[0])
     workflows=[ s for s in workflows if s != script_name ]
