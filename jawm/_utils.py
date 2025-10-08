@@ -195,3 +195,20 @@ def hash_content(paths, hash_func=hashlib.sha256,
             continue
 
     return h.hexdigest()
+
+
+def _sanitize_vars(d, prefixes=("mk.", "map.")):
+    """
+    Return a copy suitable for injecting into a Python exec namespace:
+    - For keys starting with any of `prefixes`, drop the first segment (e.g., mk.output -> output).
+    - Leave other keys as-is.
+    """
+    out = {}
+    for k, v in (d or {}).items():
+        for p in prefixes:
+            if isinstance(k, str) and k.startswith(p):
+                out[k.split(".", 1)[-1]] = v
+                break
+        else:
+            out[k] = v
+    return out

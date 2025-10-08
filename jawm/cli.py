@@ -485,9 +485,9 @@ def main():
     exec_namespace = {}
     if args.variables:
         try:
-            from jawm._utils import read_variables
+            from jawm._utils import read_variables, _sanitize_vars
             injected_vars = read_variables(args.variables, output_type="dict")
-            exec_namespace.update(injected_vars)
+            exec_namespace.update(_sanitize_vars(injected_vars))
             logger.info(f"Injected {len(injected_vars)} variable(s) from: {args.variables} to the script")
             _apply_param("var_file", args.variables)
         except Exception as e:
