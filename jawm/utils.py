@@ -18,6 +18,7 @@ import hashlib
 import fnmatch
 import sys
 import argparse
+import glob
 
 __all__ = ["read_variables", "hash_content", "batch_process_file", "script_to_yaml", "docker_available", "apptainer_available", "write_hash_file"]
 
@@ -611,3 +612,31 @@ def workflow(select=None, workflows=None):
         workflows = []
 
     return [s for s in workflows if s in select]
+
+def from_file_pairs(data_folder, read1_suffix=".READ_1.fastq.gz", read2_suffix=".READ_2.fastq.gz"):
+    """
+    Mimics Nextflow's Channel.fromFilePairs for paired FASTQ files.
+
+    Args:
+        data_folder (str): path to folder with raw FASTQ data
+        read1_suffix (str): suffix for read 1 files (default ".READ_1.fastq.gz")
+        read2_suffix (str): suffix for read 2 files (default ".READ_2.fastq.gz")
+
+    Returns:
+        dict: {sample_name: [read1_path, read2_path]}
+    """
+    pattern_r1 = os.path.join(data_folder, f"*{read1_suffix}")
+    pattern_r2 = os.path.join(data_folder, f"*{read2_suffix}")
+
+    files_r1 = glob.glob(pattern_r1)
+    files_r2 = glob.glob(pattern_r2)
+
+    pairs = {}
+    for f in files_r1:
+        sample = os.path.basename(f).replace(read1_suffix, "")
+        r2_match = os.path.join(data_folder, sample + read2_suffix)
+        if r2_match in files_r2:
+            pairs[sample] = [f, r2_match]
+
+    return pairs
+
