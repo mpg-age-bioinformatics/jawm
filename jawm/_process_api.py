@@ -19,7 +19,7 @@ register = register_method(__methods__)
 
 
 @register
-def execute(self):
+def execute(self, depends_on=None):
     """
     Launch the process execution, handling dependencies, conditions, and execution environment.
 
@@ -28,6 +28,12 @@ def execute(self):
     - Dependency resolution via `depends_on`
     - Execution using the selected manager (`local`, `slurm`)
     - Optional container environments (Docker, Apptainer)
+
+    Parameters
+    ----------
+    depends_on : list[str] | str | None, optional
+        A list of upstream process names or hashes that this process depends on.
+        If provided, it overrides the process’s existing `self.depends_on` value
 
     Execution Flow:
     ---------------
@@ -52,6 +58,10 @@ def execute(self):
 
     # Make the process active by clearing finished_event in case of instance re-use
     self.finished_event.clear()
+
+    # Override dependencies if provided
+    if depends_on is not None:
+        self.depends_on = depends_on
 
     # Skip execution if resume is enabled and a matching successful process already exists
     if self.resume:

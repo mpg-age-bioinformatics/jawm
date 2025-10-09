@@ -1731,6 +1731,54 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 31: execute(depends_on=...) — runtime dependency override")
+try:
+    tmp = tempfile.mkdtemp(prefix="exec_dep_override_")
+    try:
+        # Step A (upstream)
+        pA = Process(
+            name="exec_dep_up",
+            script="""#!/bin/bash
+echo "Step A complete"
+""",
+            logs_directory=os.path.join(tmp, "logs")
+        )
+
+        # Step B (downstream, no static depends_on)
+        pB = Process(
+            name="exec_dep_dn",
+            script="""#!/bin/bash
+echo "Step B complete"
+""",
+            logs_directory=os.path.join(tmp, "logs")
+        )
+
+        # 1️⃣ Run upstream normally
+        pA.execute()
+        Process.wait(pA.hash)
+        assert pA.get_exitcode().startswith("0"), "❌ Upstream process failed unexpectedly"
+
+        # 2️⃣ Now call execute() on downstream with runtime dependency override
+        pB.execute(["exec_dep_up"])
+        Process.wait(pB.hash)
+
+        # Ensure downstream was registered and executed after dependency completion
+        assert pB.get_exitcode().startswith("0"), "❌ Downstream process did not run successfully"
+        assert "Step B complete" in pB.get_output(), "❌ Downstream output missing"
+
+        # 3️⃣ Confirm that the runtime override actually took effect
+        assert pB.depends_on == ["exec_dep_up"], f"❌ Runtime depends_on override not applied: {pB.depends_on}"
+
+        print("✅ Passed: execute(depends_on=...) overrides dependencies at runtime")
+        passed += 1
+
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+except Exception as e:
+    print(f"❌ Failed: Test 31 — {e}")
+    failed += 1
+
+
 
 
 # -----------------------------
