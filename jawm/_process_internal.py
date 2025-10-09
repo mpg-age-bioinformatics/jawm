@@ -751,6 +751,18 @@ def _normalize_apptainer_image(self, ref):
     return f"docker://{ref}"
 
 
+@register
+def var(self, key, str = ""):
+    """
+    Retrieve a variable value from `self.var`, or return a default.
+    - Fast, safe, and type-consistent.
+    - Use inside any Python lambda or logic instead of {{key}}.
+
+    Example:
+        when=lambda self: not os.path.isfile(os.path.join(self.V("mk.output"), "demo.txt"))
+    """
+    v = self.var or {}
+    return str(v.get(key, default))
 
 
 # --------------------------------------------

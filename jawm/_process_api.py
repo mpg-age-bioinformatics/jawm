@@ -2,6 +2,7 @@ import threading
 import os
 import time
 import re
+import inspect
 from copy import deepcopy
 from datetime import datetime
 
@@ -62,8 +63,22 @@ def execute(self):
             self.finished_event.set()
             return
 
-    # If the user condition says "skip," mark finished and return.
-    run_condition = self.when() if callable(self.when) else self.when
+    # Process when with the callables
+    try:
+        if callable(self.when):
+            sig = inspect.signature(self.when)
+            if len(sig.parameters) == 1:
+                run_condition = bool(self.when(self))
+            elif len(sig.parameters) == 0:
+                run_condition = bool(self.when())
+            else:
+                raise TypeError("Process.when must accept 0 or 1 parameters")
+        else:
+            run_condition = bool(self.when)
+    except Exception as e:
+        self.logger.error(f"'when' evaluation failed for {self.name}: {e}")
+        run_condition = False
+    
     if not run_condition:
         self.logger.info(f"Process {self.name} skipped because 'when' condition was not fulfilled!")
         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
