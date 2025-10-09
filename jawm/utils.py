@@ -543,8 +543,7 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
             
     workflows=args.workflows
 
-
-    var=_sanitize_vars(read_variables(args.p+args.v, output_type="dict"))
+    var=_sanitize_vars( read_variables(args.parameters+args.variables, output_type="dict") )
 
     script_name = os.path.basename(sys.argv[0])
     workflows=[ s for s in workflows if s != script_name ]
