@@ -62,6 +62,8 @@ def execute(self, depends_on=None):
     # Override dependencies if provided
     if depends_on is not None:
         self.depends_on = depends_on
+        if isinstance(self.depends_on, str):
+            self.depends_on = [self.depends_on]
 
     # Skip execution if resume is enabled and a matching successful process already exists
     if self.resume:
