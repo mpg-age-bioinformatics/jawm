@@ -1611,7 +1611,7 @@ except Exception as e:
     failed += 1
 
 
-print("\n>>> Test 30: mk./map. aliasing — mkdir, placeholder resolution, and update_vars consistency")
+print("\n>>> Test 30: mk./map. aliasing — mkdir, placeholder resolution, and update_vars consistency (no YAML import)")
 time.sleep(0.5)
 try:
     tmp = tempfile.mkdtemp(prefix="aliasing_test_")
@@ -1648,15 +1648,16 @@ echo "INFILE=$(cat {{infile}})"
 
         print("✅ Subtest 1 (inline var) passed")
 
-        # ---------- 2️⃣ var_file YAML with mk./map. ----------
+        # ---------- 2️⃣ var_file YAML (written manually) ----------
         outdir_yaml = os.path.join(tmp, "out_yaml")
         infile_yaml = os.path.join(tmp, "in_yaml.txt")
         with open(infile_yaml, "w") as f:
             f.write("YAML_DATA\n")
 
         var_yaml = os.path.join(tmp, "vars.yaml")
+        # Simple YAML text — no yaml import required
         with open(var_yaml, "w") as f:
-            yaml.safe_dump({"mk.dir": outdir_yaml, "map.file": infile_yaml}, f)
+            f.write(f"mk.dir: {outdir_yaml}\nmap.file: {infile_yaml}\n")
 
         p_yaml = Process(
             name="alias_varfile_proc",
@@ -1700,7 +1701,7 @@ echo "UPD={{upd}}"
 
         var_yaml_upd = os.path.join(tmp, "upd_vars.yaml")
         with open(var_yaml_upd, "w") as f:
-            yaml.safe_dump({"mk.upd": upd_dir}, f)
+            f.write(f"mk.upd: {upd_dir}\n")
 
         # update_vars should merge, add alias, and trigger mk.*
         p_upd.update_vars(var_yaml_upd)
