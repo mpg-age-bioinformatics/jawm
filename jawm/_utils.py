@@ -212,3 +212,20 @@ def _sanitize_vars(d, prefixes=("mk.", "map.")):
         else:
             out[k] = v
     return out
+
+
+def _add_prefix_aliases(d, prefixes=("mk.", "map.")):
+    """
+    In-place: for each key starting with any prefix, also add an alias
+    without the first segment (e.g., mk.output -> output) if missing.
+    """
+    if not isinstance(d, dict):
+        return d
+    for k in list(d.keys()):
+        if isinstance(k, str):
+            for p in prefixes:
+                if k.startswith(p):
+                    short = k.split(".", 1)[-1]
+                    d.setdefault(short, d[k])
+                    break
+    return d

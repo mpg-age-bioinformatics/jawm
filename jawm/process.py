@@ -13,6 +13,7 @@ from datetime import datetime
 # Extend the Process class with methods from modular backend implementations
 from ._method_lib import add_methods_from
 from . import _process_api, _process_internal, _process_local, _process_slurm, _process_kubernetes
+from ._utils import _add_prefix_aliases
 
 
 @add_methods_from(_process_api, _process_internal, _process_local, _process_slurm, _process_kubernetes)
@@ -359,6 +360,8 @@ class Process:
         self.script_file = self.params.get("script_file", None)
         self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
         self.var = self.params.get("var", None)
+        if isinstance(self.var, dict):
+            _add_prefix_aliases(self.var)       # add aliases for prefixed var
         self.var_file = self.params.get("var_file", None)
 
         # Directory parameters

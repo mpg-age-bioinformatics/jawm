@@ -198,13 +198,14 @@ def _script_placeholders_and_mkdir(self, script_content):
     # Load additional parameters from file if provided
     if self.var_file:
         try:
-            from ._utils import read_variables
+            from ._utils import read_variables, _add_prefix_aliases
             loaded = read_variables(
                 self.var_file,
                 process_name=self.name,
                 output_type="dict"
             ) or {}
             parameters.update(loaded)
+            _add_prefix_aliases(parameters)
         except Exception as e:
             self.logger.warning(f"Failed to load var_file '{str(self.var_file)}': {e}")
 
@@ -750,19 +751,6 @@ def _normalize_apptainer_image(self, ref):
     self.logger.info(f"Apptainer image had no scheme; assuming Docker registry and using 'docker://{ref}'")
     return f"docker://{ref}"
 
-
-@register
-def var(self, key, str = ""):
-    """
-    Retrieve a variable value from `self.var`, or return a default.
-    - Fast, safe, and type-consistent.
-    - Use inside any Python lambda or logic instead of {{key}}.
-
-    Example:
-        when=lambda self: not os.path.isfile(os.path.join(self.V("mk.output"), "demo.txt"))
-    """
-    v = self.var or {}
-    return str(v.get(key, default))
 
 
 # --------------------------------------------

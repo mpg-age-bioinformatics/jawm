@@ -294,7 +294,7 @@ def is_valid(self, mode="strict"):
                 errors.append(f"Could not read script_file to check shebang: {e}")
 
     # --- Validate unresolved placeholders ---
-    from ._utils import read_variables
+    from ._utils import read_variables, _add_prefix_aliases
     placeholder_pattern = re.compile(r"\{\{([^}]+)\}\}")
     combined_vars = self.var.copy() if isinstance(self.var, dict) else {}
 
@@ -306,6 +306,7 @@ def is_valid(self, mode="strict"):
                 output_type="dict"
             )
             combined_vars.update(vars_from_file)
+            _add_prefix_aliases(combined_vars)
         except Exception as e:
             warnings.append(f"Failed to load var_file via read_variables()")
 
@@ -397,6 +398,10 @@ def update_params(self, param_file=None):
     for k, v in self.params.items():
         if k not in self.reserved_keys:
             setattr(self, k, v)
+    
+    if isinstance(getattr(self, "var", None), dict):
+        from ._utils import _add_prefix_aliases
+        _add_prefix_aliases(self.var)
 
     # Track param_file(s) as list
     if self.param_file is None:
@@ -437,7 +442,7 @@ def update_vars(self, var_file):
         return
 
     try:
-        from ._utils import read_variables
+        from ._utils import read_variables, _add_prefix_aliases
 
         loaded = read_variables(
             var_file,
@@ -449,6 +454,7 @@ def update_vars(self, var_file):
         current = self.var.copy() if isinstance(self.var, dict) else {}
         current.update(loaded)
         self.var = current
+        _add_prefix_aliases(self.var)
 
         # Track var_file(s)
         if self.var_file is None:
@@ -568,4 +574,13 @@ def get_values(self):
             values[key] = getattr(self, key, None)
 
     return values
+
+
+@register
+def get_var(self, key, default = ""):
+    """
+    Return a variable value from `self.var`, or the default if not found.
+    """
+    v = self.var or {}
+    return str(v.get(key, default))
 
