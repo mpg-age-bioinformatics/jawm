@@ -1378,8 +1378,11 @@ try:
         logs_directory=os.path.join(tmp, "logs"),
     )
 
-    # var merged (process overrides B, keeps A and adds C, preserves global mk.output)
-    assert p.var == {"A": 1, "B": 20, "C": 3, "mk.output": "./out"}, f"var merge wrong: {p.var}"
+    # var merged: process overrides B, keeps A and adds C, preserves global mk.output
+    exp = {"A": 1, "B": 20, "C": 3, "mk.output": "./out"}
+    assert all(p.var.get(k) == v for k, v in exp.items()), f"var merge wrong (missing/incorrect): {p.var}"
+    # alias must also be present now
+    assert p.var.get("output") == "./out", f"alias 'output' missing or wrong: {p.var}"
 
     # env merged
     assert p.env.get("X") == "globalX" and p.env.get("Y") == "procY", f"env merge wrong: {p.env}"
@@ -1522,8 +1525,6 @@ except Exception as e:
 
 print("\n>>> Test 29: CLI var injection sanitizes mk./map. and Process still resolves originals")
 try:
-    import shutil, tempfile, os, sys, subprocess
-
     # --- Helper functions ---
     def cli_cmd(args):
         if shutil.which("jawm"):
@@ -1609,6 +1610,124 @@ except Exception as e:
     print(f"❌ Failed: {e}")
     failed += 1
 
+
+print("\n>>> Test 30: mk./map. aliasing — mkdir, placeholder resolution, and update_vars consistency")
+time.sleep(0.5)
+try:
+    tmp = tempfile.mkdtemp(prefix="aliasing_test_")
+    try:
+        # ---------- 1️⃣ Inline mk./map. ----------
+        outdir = os.path.join(tmp, "out_inline")
+        infile = os.path.join(tmp, "in_inline.txt")
+        with open(infile, "w") as f:
+            f.write("INLINE_DATA\n")
+
+        p_inline = Process(
+            name="alias_inline_proc",
+            script="""#!/bin/bash
+echo "OUTDIR={{outdir}}"
+echo "INFILE=$(cat {{infile}})"
+""",
+            var={"mk.outdir": outdir, "map.infile": infile},
+            logs_directory="logs_test_alias"
+        )
+        p_inline.execute()
+        Process.wait(p_inline.hash)
+
+        # mk.* created dir
+        assert os.path.isdir(outdir), "❌ mk.* directory not created for inline var"
+
+        # short aliases resolved
+        out_inline = p_inline.get_output()
+        assert f"OUTDIR={outdir}" in out_inline, "❌ {{outdir}} alias not resolved"
+        assert "INFILE=INLINE_DATA" in out_inline.replace("\r", "").replace("\n", ""), "❌ {{infile}} alias not resolved"
+
+        # both alias and prefixed keys accessible
+        assert p_inline.var["outdir"] == outdir, "❌ alias key missing in proc.var"
+        assert p_inline.var["mk.outdir"] == outdir, "❌ prefixed mk.* key missing in proc.var"
+
+        print("✅ Subtest 1 (inline var) passed")
+
+        # ---------- 2️⃣ var_file YAML with mk./map. ----------
+        outdir_yaml = os.path.join(tmp, "out_yaml")
+        infile_yaml = os.path.join(tmp, "in_yaml.txt")
+        with open(infile_yaml, "w") as f:
+            f.write("YAML_DATA\n")
+
+        var_yaml = os.path.join(tmp, "vars.yaml")
+        with open(var_yaml, "w") as f:
+            yaml.safe_dump({"mk.dir": outdir_yaml, "map.file": infile_yaml}, f)
+
+        p_yaml = Process(
+            name="alias_varfile_proc",
+            script="""#!/bin/bash
+echo "DIR={{dir}}"
+echo "FILE=$(cat {{file}})"
+""",
+            var_file=var_yaml,
+            logs_directory="logs_test_alias"
+        )
+        p_yaml.execute()
+        Process.wait(p_yaml.hash)
+
+        # mk.* created dir from YAML
+        assert os.path.isdir(outdir_yaml), "❌ mk.* directory not created from var_file"
+
+        out_yaml = p_yaml.get_output()
+        assert f"DIR={outdir_yaml}" in out_yaml, "❌ {{dir}} alias not resolved from YAML"
+        assert "FILE=YAML_DATA" in out_yaml.replace("\r", "").replace("\n", ""), "❌ {{file}} alias not resolved from YAML"
+
+        # alias and prefixed keys coexist
+        assert p_yaml.var["dir"] == outdir_yaml, "❌ alias 'dir' missing in proc.var after var_file"
+        assert p_yaml.var["mk.dir"] == outdir_yaml, "❌ prefixed 'mk.dir' missing in proc.var after var_file"
+
+        print("✅ Subtest 2 (var_file YAML) passed")
+
+        # ---------- 3️⃣ update_vars() adds aliases ----------
+        base_dir = os.path.join(tmp, "base_dir")
+        upd_dir = os.path.join(tmp, "upd_dir")
+        os.makedirs(base_dir, exist_ok=True)
+
+        p_upd = Process(
+            name="alias_update_proc",
+            script="""#!/bin/bash
+echo "BASE={{base}}"
+echo "UPD={{upd}}"
+""",
+            var={"base": base_dir},
+            logs_directory="logs_test_alias"
+        )
+
+        var_yaml_upd = os.path.join(tmp, "upd_vars.yaml")
+        with open(var_yaml_upd, "w") as f:
+            yaml.safe_dump({"mk.upd": upd_dir}, f)
+
+        # update_vars should merge, add alias, and trigger mk.*
+        p_upd.update_vars(var_yaml_upd)
+        p_upd.execute()
+        Process.wait(p_upd.hash)
+
+        # directory creation from mk.*
+        assert os.path.isdir(upd_dir), "❌ mk.* directory not created after update_vars"
+
+        out_upd = p_upd.get_output()
+        assert f"BASE={base_dir}" in out_upd, "❌ base var not resolved after update_vars"
+        assert f"UPD={upd_dir}" in out_upd, "❌ alias 'upd' not resolved after update_vars"
+
+        # alias and prefixed key must both exist
+        assert p_upd.var["upd"] == upd_dir, "❌ alias 'upd' missing after update_vars"
+        assert p_upd.var["mk.upd"] == upd_dir, "❌ prefixed 'mk.upd' missing after update_vars"
+
+        print("✅ Subtest 3 (update_vars) passed")
+
+        print("✅ Passed: Test 30 — mk./map. aliasing works across inline var, YAML, and update_vars")
+        passed += 1
+
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+except Exception as e:
+    print(f"❌ Failed: Test 30 — {e}")
+    failed += 1
 
 
 

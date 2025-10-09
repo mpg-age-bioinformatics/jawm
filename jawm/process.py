@@ -13,7 +13,7 @@ from datetime import datetime
 # Extend the Process class with methods from modular backend implementations
 from ._method_lib import add_methods_from
 from . import _process_api, _process_internal, _process_local, _process_slurm, _process_kubernetes
-from ._utils import _add_prefix_aliases
+from ._utils import _add_prefix_aliases, read_variables
 
 
 @add_methods_from(_process_api, _process_internal, _process_local, _process_slurm, _process_kubernetes)
@@ -363,6 +363,19 @@ class Process:
         if isinstance(self.var, dict):
             _add_prefix_aliases(self.var)       # add aliases for prefixed var
         self.var_file = self.params.get("var_file", None)
+        # If a var_file is provided, preload it into self.var so proc.var has everything
+        if self.var_file:
+            try:
+                vf_loaded = read_variables(self.var_file, process_name=self.name, output_type="dict") or {}
+                if isinstance(self.var, dict):
+                    merged = dict(vf_loaded)
+                    merged.update(self.var)
+                    self.var = merged
+                else:
+                    self.var = dict(vf_loaded)
+                _add_prefix_aliases(self.var)
+            except Exception:
+                pass  
 
         # Directory parameters
         self.project_directory = os.path.abspath(self.params.get("project_directory", "."))
