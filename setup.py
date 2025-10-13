@@ -10,6 +10,7 @@ setup(
     entry_points={
         'console_scripts': [
             'jawm = jawm.cli:main',
+            'jawm-dev = jawm.cli_dev:main',
         ],
     },   
 )
