@@ -54,7 +54,7 @@ def _generate_hash_params(self):
 
     # Hash the parameters themselves (stable ordering)
     h = hashlib.sha256()
-    ignored_params = {"resume"}
+    ignored_params = {"resume", "when"}
     filtered_params = {k: v for k, v in (self.params or {}).items() if k not in ignored_params}
     base_items = sorted(filtered_params.items())
     h.update(repr(base_items).encode())
