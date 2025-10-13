@@ -589,10 +589,10 @@ def get_values(self):
 
 
 @register
-def get_var(self, key, default = ""):
+def get_var(self, key, default = None):
     """
     Return a variable value from `self.var`, or the default if not found.
     """
     v = self.var or {}
-    return str(v.get(key, default))
+    return v.get(key, default)
 
