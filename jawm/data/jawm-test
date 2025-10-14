@@ -324,50 +324,77 @@ fi
 ############################################################
 # install different jawm versions
 ############################################################
-for PYTHON_VERSION in ${PYTHON_VERSIONS} ; 
-    do
-        for JAWM_VERSION in ${JAWM_VERSIONS} ;
-            do
-                ENV_NAME="py${PYTHON_VERSION}-jawm.${JAWM_VERSION}"
+for PYTHON_VERSION in ${PYTHON_VERSIONS}; do
+    for JAWM_VERSION in ${JAWM_VERSIONS}; do
 
-                if pyenv virtualenvs --bare | grep -qx "$ENV_NAME"; then
-                    echo "Virtual environment '$ENV_NAME' already exists."
+        # Handle 'system' Python separately
+        if [[ "${PYTHON_VERSION}" == "system" ]]; then
+            echo "Using system Python for jawm@${JAWM_VERSION}"
+
+            ENV_NAME="system-jawm.${JAWM_VERSION}"
+            PYTHON_BIN="$(command -v python3 || command -v python)"
+
+            if [[ -z "${PYTHON_BIN}" ]]; then
+                echo "❌ No system Python found! Please install python3."
+                exit 1
+            fi
+
+            echo "System Python detected: ${PYTHON_BIN}"
+
+            # Use system pip path
+            export PATH="$(python3 -m site --user-base)/bin:$PATH"
+
+            # Install jawm in system Python (not inside pyenv)
+            if [[ "${JAWM_VERSION}" == "local" ]]; then
+                if [[ -d "${JAWM_REPO}" ]]; then
+                    echo "Installing local jawm from ${JAWM_REPO} (system Python)"
+                    pip install --user --force-reinstall "${JAWM_REPO}"
+                fi
+            else
+                if pip show jawm >/dev/null 2>&1; then
+                    echo "'jawm@${JAWM_VERSION}' already installed (system Python)"
                 else
-                    echo "Creating virtual environment '$ENV_NAME'"
-                    pyenv virtualenv "$PYTHON_VERSION" "$ENV_NAME"
+                    echo "Installing 'jawm@${JAWM_VERSION}' (system Python)"
+                    pip install --user "git+ssh://git@${JAWM_REPO}@${JAWM_VERSION}"
                 fi
+            fi
 
-                #pyenv prefix "$ENV_NAME"
+            echo "✅ System jawm install complete."
+            continue  # skip pyenv handling
+        fi
 
-                pyenv activate "$ENV_NAME"
+        ############################################################
+        # Handle pyenv-based Pythons
+        ############################################################
+        ENV_NAME="py${PYTHON_VERSION}-jawm.${JAWM_VERSION}"
 
-                export PATH=~/.pyenv/versions/${ENV_NAME}/bin/:${PATH}
+        if pyenv virtualenvs --bare | grep -qx "$ENV_NAME"; then
+            echo "Virtual environment '$ENV_NAME' already exists."
+        else
+            echo "Creating virtual environment '$ENV_NAME'"
+            pyenv virtualenv "$PYTHON_VERSION" "$ENV_NAME"
+        fi
 
-                if [[ "${JAWM_VERSION}" == "local" ]] ; then 
+        pyenv activate "$ENV_NAME"
+        export PATH=~/.pyenv/versions/${ENV_NAME}/bin/:${PATH}
 
-                    if [[ -d "${JAWM_REPO}" ]] ; then
+        if [[ "${JAWM_VERSION}" == "local" ]]; then
+            if [[ -d "${JAWM_REPO}" ]]; then
+                echo "Installing jawm from ${JAWM_REPO} in $ENV_NAME."
+                pip install --force-reinstall "${JAWM_REPO}"
+            fi
+        else
+            if pyenv shell "$ENV_NAME" >/dev/null 2>&1 && pyenv exec pip show jawm >/dev/null 2>&1; then
+                echo "'jawm@${JAWM_VERSION}' is already installed in $ENV_NAME."
+            else
+                echo "Installing 'jawm@${JAWM_VERSION}' in $ENV_NAME."
+                pip install "git+ssh://git@${JAWM_REPO}@${JAWM_VERSION}"
+            fi
+        fi
 
-                        echo "Installing jawm from ${JAWM_REPO} in $ENV_NAME."
-                        pip install --force-reinstall ${JAWM_REPO}
-
-                    fi
-
-                else 
-
-                    if pyenv shell "$ENV_NAME" >/dev/null 2>&1 && pyenv exec pip show jawm >/dev/null 2>&1; then
-                        echo "'jawm@${JAWM_VERSION}' is already installed in $ENV_NAME."
-                    else
-                        echo "Installing 'jawm@${JAWM_VERSION}' in $ENV_NAME."
-                        pip install git+ssh://git@${JAWM_REPO}@${JAWM_VERSION}
-                    fi
-
-                fi
-
-                echo $(which jawm)
-
-                pyenv deactivate
-
-        done
+        echo "Installed jawm binary: $(which jawm)"
+        pyenv deactivate
+    done
 done
 
 
@@ -435,9 +462,16 @@ fi
 for PYTHON_VERSION in ${PYTHON_VERSIONS} ; do
     for JAWM_VERSION in ${JAWM_VERSIONS} ; do
 
-        ENV_NAME="py${PYTHON_VERSION}-jawm.${JAWM_VERSION}"
-        pyenv activate "$ENV_NAME"
-        export PATH=~/.pyenv/versions/${ENV_NAME}/bin/:${PATH}
+        if [[ "${PYTHON_VERSION}" == "system" ]]; then
+            echo "Skipping pyenv activation for system Python (${JAWM_VERSION})"
+            # For system Python, just ensure the PATH includes user site executables
+            export PATH="$(python3 -m site --user-base)/bin:$PATH"
+        else
+            ENV_NAME="py${PYTHON_VERSION}-jawm.${JAWM_VERSION}"
+            pyenv activate "$ENV_NAME"
+            export PATH=~"/.pyenv/versions/${ENV_NAME}/bin/:${PATH}"
+        fi
+
 
         for MODULE_VERSION in ${MODULE_VERSIONS} ; do
             # OUTPUT_PATH=${TESTPATH%/}/test-output/py${PYTHON_VERSION}_jawm${JAWM_VERSION}_mod${MODULE_VERSION}
@@ -545,7 +579,8 @@ for PYTHON_VERSION in ${PYTHON_VERSIONS} ; do
    
         done
 
-        pyenv deactivate
-
+        if [[ "${PYTHON_VERSION}" != "system" ]]; then
+            pyenv deactivate
+        fi
     done
 done
