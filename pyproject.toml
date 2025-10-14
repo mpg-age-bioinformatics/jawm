@@ -1,4 +1,4 @@
-# pyproject.toml (minimal)
+# pyproject.toml
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -7,14 +7,25 @@ build-backend = "setuptools.build_meta"
 name = "jawm"
 version = "0.1.0"
 description = "just another workflow manager"
-authors = [ { email = "bioinformatics@age.mpg.de" } ]
 readme = "README.md"
 license = { text = "MIT" }
+authors = [{ email = "bioinformatics@age.mpg.de" }]
 requires-python = ">=3.8"
+dependencies = [
+  "PyYAML>=5.4.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/mpg-age-bioinformatics/jawm"
 
 [project.scripts]
 jawm = "jawm.cli:main"
 jawm-dev = "jawm.cli_dev:main"
 
-[tool.setuptools.data-files]
-"bin" = ["jawm/data/jawm-test"]
+# Package discovery
+[tool.setuptools.packages.find]
+include = ["jawm*"]
+
+# Include data files shipped inside the package (e.g., jawm/data/jawm-test)
+[tool.setuptools.package-data]
+jawm = ["data/*"]
