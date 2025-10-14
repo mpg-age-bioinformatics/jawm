@@ -2,7 +2,7 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-
+from importlib import resources
 
 # ----------------------------------------------------------
 #   Version detection (module scope)
@@ -25,23 +25,7 @@ except md.PackageNotFoundError:
 #  Helper var and methods for jawm-dev command
 # ----------------------------------------------------------
 
-_VALID_CMDS = {"init", "download", "test"}
-
-def _run_test(script_path, extra_args):
-    script_path = Path(script_path).resolve()
-    if not script_path.exists():
-        print(f"❌ test script not found at {script_path}")
-        sys.exit(1)
-
-    print(f"Running test script: {script_path}")
-    print(f"Passing args: {' '.join(extra_args)}" if extra_args else "No extra args")
-
-    try:
-        subprocess.run(["bash", str(script_path), *extra_args], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Test script failed with exit code {e.returncode}")
-        sys.exit(e.returncode)
-
+_VALID_CMDS = {"init" }
 
 # ----------------------------------------------------------
 #  Main method for jawm-dev command
