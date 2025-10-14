@@ -457,6 +457,20 @@ def main():
         logger.info(_git_info_line)
     logger.info(f"Logging terminal output to: {cli_log_file}")
 
+    # --- Validate paths for -p / --parameters and -v / --variables ---
+    def _validate_paths(label, paths):
+        if not paths:
+            return
+        # Normalize into a list for consistent checking
+        items = paths if isinstance(paths, (list, tuple)) else [paths]
+        for p in items:
+            if not os.path.exists(p):
+                logger.error(f"{label} path not found: {p} (*** TRIGGERING EXIT ***)")
+                sys.exit(2)
+
+    _validate_paths("Parameter", args.parameters)
+    _validate_paths("Variable", args.variables)
+
     # --- Import Process and set defaults or overrides ---
     from jawm import Process
 
