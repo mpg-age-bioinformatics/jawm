@@ -149,6 +149,9 @@ Examples:
   # Run specific Python version
   $(basename "$0") -p 3.13.7
 
+  # Run specific Python version and local jawm source
+  $(basename "$0") -p 3.13.7 --jawm_repo ~/jawm
+
   # Use system Python and local jawm source
   $(basename "$0") -p system --jawm_repo ~/jawm
 
