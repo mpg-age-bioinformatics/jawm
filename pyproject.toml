@@ -28,4 +28,4 @@ include = ["jawm*"]
 
 # Include data files shipped inside the package (e.g., jawm/data/jawm-test)
 [tool.setuptools.package-data]
-jawm = ["data/*"]
+jawm = ["data/jawm-test"]
