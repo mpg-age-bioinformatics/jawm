@@ -898,6 +898,29 @@ class Process:
         """
         cls.stop_future_event.clear()
 
+    
+    @classmethod
+    def reset_runtime(cls):
+        """
+        Reset the global runtime state of all Process instances.
+
+        This is primarily intended for interactive environments (e.g., Jupyter notebooks)
+        where the Python interpreter persists across multiple workflow runs.
+        It only resets internal in-memory state, so it is safe to call between tests
+        or repeated invocations within a single Python session.
+        """
+        try:
+            cls.stop_future_event.clear()
+        except Exception:
+            pass
+        # mark any lingering processes as finished so nobody waits on them
+        for p in list(cls.registry.values()):
+            try:
+                p.finished_event.set()
+            except Exception:
+                pass
+        cls.registry.clear()
+
 
     @classmethod
     def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5):

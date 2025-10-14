@@ -1779,6 +1779,196 @@ except Exception as e:
     failed += 1
 
 
+# ======================================================
+# Test for dependency scheduling including parallel
+# ======================================================
+
+print("\n>>> Test 32: Non-blocking deps with parallel=True (loop should not serialize)")
+
+tmp_root = tempfile.mkdtemp(prefix="nbdeps_")
+try:
+    N = 3
+    mapping_sleep = 2  # seconds
+    mappings, flagstats = [], []
+
+    def mapping_script(i, root):
+        return f"""#!/bin/bash
+echo "M_START {i} $(date +%s)"
+sleep {mapping_sleep}
+echo "done" > "{root}/done_{i}.txt"
+echo "M_END {i} $(date +%s)"
+"""
+
+    def flagstat_script(i, root):
+        return f"""#!/bin/bash
+echo "F_START {i} $(date +%s)"
+if [ ! -f "{root}/done_{i}.txt" ]; then
+  echo "MARKER_MISSING {i}"
+  exit 2
+fi
+cat "{root}/done_{i}.txt"
+echo "F_END {i} $(date +%s)"
+"""
+
+    t0 = time.time()
+    for i in range(1, N + 1):
+        m = Process(
+            name=f"nbdep_map_{i}",
+            script=mapping_script(i, tmp_root),
+            logs_directory="logs_nbdeps"
+        )
+        f = Process(
+            name=f"nbdep_flag_{i}",
+            script=flagstat_script(i, tmp_root),
+            logs_directory="logs_nbdeps"
+        )
+        m.execute()
+        f.execute(depends_on=m.hash)
+        mappings.append(m)
+        flagstats.append(f)
+
+    # Ensure the loop returns quickly (non-blocking)
+    schedule_elapsed = time.time() - t0
+    assert schedule_elapsed < (N * mapping_sleep * 0.7), (
+        f"❌ Scheduling loop took too long ({schedule_elapsed:.2f}s)"
+    )
+
+    Process.wait([p.hash for p in (mappings + flagstats)])
+
+    # Validate all succeeded and marker files were read
+    for i, (m, f) in enumerate(zip(mappings, flagstats), start=1):
+        assert m.get_exitcode().startswith("0"), f"❌ mapping_{i} failed"
+        assert f.get_exitcode().startswith("0"), f"❌ flagstat_{i} failed"
+        assert "done" in (f.get_output() or ""), f"❌ flagstat_{i} missing marker"
+
+    print(f"✅ Passed: Non-blocking deps (parallel=True). Schedule time={schedule_elapsed:.2f}s")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(tmp_root, ignore_errors=True)
+
+
+print("\n>>> Test 33: parallel=False blocks caller until completion (with dependency)")
+try:
+    tmpdir = tempfile.mkdtemp(prefix="pfalse_")
+
+    m = Process(
+        name="pfalse_map",
+        script=f"""#!/bin/bash
+echo "MAP_START $(date +%s)"
+sleep 1
+echo "done" > {tmpdir}/marker.txt
+echo "MAP_END $(date +%s)"
+""",
+        logs_directory="logs_pfalse"
+    )
+    m.execute()
+
+    f = Process(
+        name="pfalse_flag",
+        script=f"""#!/bin/bash
+echo "FLAG_START $(date +%s)"
+sleep 1
+if [ ! -f {tmpdir}/marker.txt ]; then
+  echo "MARKER_MISSING"
+  exit 2
+fi
+echo "FLAG_END $(date +%s)"
+""",
+        logs_directory="logs_pfalse",
+        parallel=False
+    )
+
+    t0 = time.time()
+    f.execute(depends_on=m.hash)
+    t1 = time.time()
+    elapsed = t1 - t0
+
+    assert elapsed >= 0.8, f"❌ parallel=False did not block (elapsed={elapsed:.2f}s)"
+    assert f.get_exitcode().startswith("0"), "❌ flagstat failed"
+    print(f"✅ Passed: parallel=False blocks caller (elapsed={elapsed:.2f}s)")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+print("\n>>> Test 34: allow_skipped_deps=False blocks downstream when upstream is skipped")
+try:
+    tmpdir = tempfile.mkdtemp(prefix="skip_strict_")
+    Process.reset_stop()
+
+    up = Process(
+        name="skip_up_strict",
+        script="#!/bin/bash\necho UP\n",
+        when=False,
+        logs_directory=tmpdir
+    )
+    up.execute()
+
+    dn = Process(
+        name="skip_dn_strict",
+        script="#!/bin/bash\necho DN\n",
+        depends_on=["skip_up_strict"],
+        allow_skipped_deps=False,
+        logs_directory=tmpdir
+    )
+    dn.execute()
+    Process.wait([dn.hash])
+
+    assert dn.finished_event.is_set(), "❌ downstream not marked finished"
+    assert dn.get_exitcode() is None, "❌ downstream should be skipped (no exit code)"
+    print("✅ Passed: strict skipped-deps handling")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+print("\n>>> Test 35: depends_on normalization (string vs list) still works")
+Process.reset_runtime()
+try:
+    tmpdir = tempfile.mkdtemp(prefix="normdep_")
+
+    m2 = Process(
+        name="norm_map",
+        script=f"#!/bin/bash\necho ok > {tmpdir}/marker.txt\n",
+        logs_directory="logs_norm"
+    )
+    m2.execute()
+
+    f2 = Process(
+        name="norm_flag",
+        script=f"""#!/bin/bash
+test -f {tmpdir}/marker.txt || (echo MISS && exit 3)
+echo HIT
+""",
+        logs_directory="logs_norm"
+    )
+    f2.execute(depends_on=m2.hash)
+
+    Process.wait([f2.hash])
+
+    assert f2.get_exitcode().startswith("0"), "❌ normalization failed"
+    assert "HIT" in (f2.get_output() or ""), "❌ downstream did not run properly"
+    print("✅ Passed: depends_on normalization (string -> list)")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
 
 
 # -----------------------------
