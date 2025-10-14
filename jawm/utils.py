@@ -670,17 +670,38 @@ def from_file_pairs(data_folder, read1_suffix=".READ_1.fastq.gz", read2_suffix="
     return pairs
 
 
-def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
+def load_modules(
+    paths,
+    *,
+    address="github.com",
+    user="mpg-age-bioinformatics",
+    modules_root=None,
+):
     """
     Dynamically imports Python modules or folders, safely.
 
     - Accepts paths or specs like "repo@ref".
-    - Clones missing repos into ./modules/<repo>.
+    - Clones missing repos into <modules_root>/<repo>.
     - Skips re-cloning if repo exists.
     - Avoids re-importing modules already in sys.modules.
     - HTTPS→SSH fallback cloning (non-interactive).
+
+    Parameters
+    ----------
+    paths : list[str] | str
+        Repositories or module paths to import (can include @ref).
+    address : str
+        Git host address (default: github.com).
+    user : str
+        Default organization or user name on the git host.
+    modules_root : str | Path, optional
+        Root directory where modules are cloned or searched.
+        Priority:
+          1. Explicit argument (this parameter)
+          2. Environment variable JAWM_MODULES_PATH
+          3. Default: ./modules
     """
-    logger = logging.getLogger("jawm.utils")
+    logger = logging.getLogger("jawm.utils|load_modules")
 
     if not isinstance(paths, (list, tuple)):
         paths = [paths]
@@ -689,7 +710,19 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
     seen_paths = set()
     py_files = []
 
-    modules_root = pathlib.Path("./modules").resolve()
+    # ⭐ Determine module root priority
+    if modules_root is not None:
+        modules_root = pathlib.Path(modules_root).expanduser().resolve()
+        logger.info(f"📦 Using modules_root argument: {modules_root}")
+    else:
+        env_modules_path = os.getenv("JAWM_MODULES_PATH")
+        if env_modules_path:
+            modules_root = pathlib.Path(env_modules_path).expanduser().resolve()
+            logger.info(f"📦 Using JAWM_MODULES_PATH from environment: {modules_root}")
+        else:
+            modules_root = pathlib.Path("./modules").resolve()
+            logger.info(f"📦 Using default modules directory: {modules_root}")
+
     modules_root.mkdir(parents=True, exist_ok=True)
 
     # ---------------- helpers ---------------- #
@@ -704,19 +737,50 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
             return repo.strip(), ref.strip()
         return spec_str.strip(), None
 
-    def _run_git_command(args, cwd):
+    def _run_git_command(args, cwd=None):
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
         env["GIT_ASKPASS"] = "echo"
         env["SSH_ASKPASS"] = "echo"
-        subprocess.run(
+        result = subprocess.run(
             args,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=str(cwd),
+            cwd=str(cwd) if cwd else None,
             env=env,
+            text=True,
         )
+        return result.stdout.strip()
+
+    # ⭐ NEW: helper to get latest tag from remote
+    def _get_latest_tag(https_url):
+        try:
+            logger.info(f"🔍 Fetching latest tag from {https_url} ...")
+            output = _run_git_command(["git", "ls-remote", "--tags", https_url])
+            tags = []
+            for line in output.splitlines():
+                if "refs/tags/" in line:
+                    tag = line.split("refs/tags/")[-1]
+                    # ignore dereferenced tags like v1.0.0^{}
+                    if tag.endswith("^{}"):
+                        tag = tag[:-3]
+                    tags.append(tag)
+            if not tags:
+                logger.warning(f"No tags found for {https_url}; using default branch.")
+                return None
+
+            # sort semver-like tags naturally (fallback to lexicographic)
+            import re
+            def version_key(tag):
+                nums = re.findall(r"\d+", tag)
+                return tuple(map(int, nums)) if nums else (0,)
+            latest = sorted(tags, key=version_key, reverse=True)[0]
+            logger.info(f"🕓 Latest tag detected: {latest}")
+            return latest
+        except Exception as e:
+            logger.warning(f"Failed to fetch latest tag for {https_url}: {e}")
+            return None
 
     def _try_clone_repo(repo_name, ref=None):
         """Clone repo into ./modules/<repo_name> and optionally checkout ref."""
@@ -724,11 +788,55 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
         https_url = f"https://{address}/{user}/{repo_name}.git"
         ssh_url = f"git@{address}:{user}/{repo_name}.git"
 
+        # ⭐ Resolve "latest" into actual tag before cloning
+        if ref == "latest":
+            ref = _get_latest_tag(https_url)
+            if not ref:
+                logger.warning(f"Falling back to default branch for '{repo_name}' (no tags).")
+
         # ✅ If already cloned, skip clone entirely
         if dest_dir.exists():
             logger.warning(
                 f"Repository '{repo_name}' already exists at {dest_dir}. Skipping clone."
             )
+
+            try:
+                # ⭐ Get current branch
+                branch_name = _run_git_command(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=dest_dir)
+                # ⭐ Get current HEAD commit
+                head_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
+                logger.info(f"📍 '{repo_name}' on branch '{branch_name}' at commit {head_commit[:10]}")
+
+                # ⭐ Check for local uncommitted changes
+                status_output = _run_git_command(["git", "status", "--porcelain"], cwd=dest_dir)
+                if status_output.strip():
+                    logger.info(f"⚠️  Local modifications detected in '{repo_name}' (not clean).")
+                else:
+                    logger.info(f"✅ '{repo_name}' is clean (no local changes).")
+
+                # ⭐ Fetch latest from remote
+                _run_git_command(["git", "fetch"], cwd=dest_dir)
+
+                # ⭐ Compare local vs remote
+                behind_ahead = _run_git_command(
+                    ["git", "rev-list", "--left-right", "--count", "HEAD...@{u}"], cwd=dest_dir
+                ).split()
+                behind, ahead = map(int, behind_ahead)
+                if behind > 0 and ahead == 0:
+                    logger.info(f"⬇️  '{repo_name}' is behind remote by {behind} commit(s).")
+                elif ahead > 0 and behind == 0:
+                    logger.info(f"⬆️  '{repo_name}' is ahead of remote by {ahead} commit(s).")
+                elif ahead > 0 and behind > 0:
+                    logger.info(f"⚠️  '{repo_name}' has diverged: {ahead} ahead, {behind} behind.")
+                else:
+                    logger.info(f"✅ '{repo_name}' is up to date with remote.")
+
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"Failed to determine repo state for '{repo_name}': {e}")
+            except Exception as e:
+                logger.warning(f"Unexpected error while checking '{repo_name}' state: {e}")
+
+            # optionally verify ref or update
             if ref:
                 try:
                     _run_git_command(["git", "fetch", "--all"], cwd=dest_dir)
@@ -738,8 +846,10 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
                     logger.warning(
                         f"Could not checkout '{ref}' in existing repo '{repo_name}': {e}"
                     )
+
             return dest_dir
 
+        # --- otherwise, clone fresh as before ---
         logger.info(f"🌀 Cloning '{repo_name}' via HTTPS: {https_url}")
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
@@ -780,11 +890,17 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
 
         return dest_dir
 
+
     # ---------------- main logic ---------------- #
 
     for item in paths:
         repo_name, ref = _parse_repo_spec(item)
         repo_path = pathlib.Path(repo_name).expanduser().resolve()
+
+        # ⭐ If this module is already loaded, skip early
+        if repo_name in sys.modules:
+            logger.info(f"🧩 Module '{repo_name}' already loaded — skipping repository and import.")
+            continue
 
         # Clone if missing
         if not repo_path.exists():
@@ -794,9 +910,12 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
                 logger.error(f"Path not found and cloning failed: {repo_name}")
                 raise FileNotFoundError(f"Path not found and cloning failed: {repo_name}")
             repo_path = cloned
+        else:
+            logger.info(f"📁 Repository '{repo_name}' already exists locally at {repo_path}")
 
+        # skip scanning same repo twice
         if repo_path in seen_paths:
-            logger.debug(f"Skipping duplicate path: {repo_path}")
+            logger.info(f"ℹ️  Repository '{repo_name}' already processed — skipping.")
             continue
         seen_paths.add(repo_path)
 
@@ -811,12 +930,13 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
             logger.error(f"Invalid path type: {repo_path}")
             raise ValueError(f"Invalid path: {repo_path}")
 
+
     # ---------------- import phase ---------------- #
 
     for file_path in py_files:
         module_name = _compute_module_name(file_path)
         if module_name in sys.modules:
-            logger.debug(f"Module already loaded: {module_name} — skipping import.")
+            logger.warning(f"Module already loaded: {module_name} — skipping import.")
             continue
 
         try:
@@ -824,7 +944,6 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             sys.modules[module_name] = module
-            # Inject into the caller's global namespace instead of utils.py
             caller_globals = inspect.currentframe().f_back.f_globals
             caller_globals[module_name] = module
             imported_modules.append(module_name)
@@ -834,4 +953,5 @@ def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
 
     logger.info(f"📦 Successfully loaded {len(imported_modules)} module(s): {', '.join(imported_modules)}")
     return imported_modules
+
 
