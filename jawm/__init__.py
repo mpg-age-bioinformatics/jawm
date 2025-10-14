@@ -48,5 +48,7 @@ Use `jhelp()` or visit https://github.com/mpg-age-bioinformatics/jawm for detail
 from .process import Process
 from .docs import jhelp
 from . import utils
+import logging
+logging.getLogger("jawm").addHandler(logging.NullHandler())
 
 __all__ = ["Process", "jhelp", "utils"]

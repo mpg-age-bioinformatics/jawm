@@ -19,8 +19,19 @@ import fnmatch
 import sys
 import argparse
 import glob
+import importlib.util
+import pathlib
+import warnings
+import logging
+
 
 __all__ = ["read_variables", "hash_content", "batch_process_file", "script_to_yaml", "docker_available", "apptainer_available", "write_hash_file"]
+
+
+# logger = logging.getLogger("jawm.utils")
+# print("Handlers:", logger.handlers)
+# print("Propagate:", logger.propagate)
+# logger.info("This should appear in the CLI log!")
 
 
 # ------------------------------------------------------------
@@ -657,4 +668,170 @@ def from_file_pairs(data_folder, read1_suffix=".READ_1.fastq.gz", read2_suffix="
             pairs[sample] = [f, r2_match]
 
     return pairs
+
+
+def load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics"):
+    """
+    Dynamically imports Python modules or folders, safely.
+
+    - Accepts paths or specs like "repo@ref".
+    - Clones missing repos into ./modules/<repo>.
+    - Skips re-cloning if repo exists.
+    - Avoids re-importing modules already in sys.modules.
+    - HTTPS→SSH fallback cloning (non-interactive).
+    """
+    logger = logging.getLogger("jawm.utils")
+
+    if not isinstance(paths, (list, tuple)):
+        paths = [paths]
+
+    imported_modules = []
+    seen_paths = set()
+    py_files = []
+
+    modules_root = pathlib.Path("./modules").resolve()
+    modules_root.mkdir(parents=True, exist_ok=True)
+
+    # ---------------- helpers ---------------- #
+
+    def _compute_module_name(file_path):
+        return file_path.stem
+
+    def _parse_repo_spec(spec):
+        spec_str = str(spec)
+        if "@" in spec_str:
+            repo, ref = spec_str.rsplit("@", 1)
+            return repo.strip(), ref.strip()
+        return spec_str.strip(), None
+
+    def _run_git_command(args, cwd):
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_ASKPASS"] = "echo"
+        env["SSH_ASKPASS"] = "echo"
+        subprocess.run(
+            args,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=str(cwd),
+            env=env,
+        )
+
+    def _try_clone_repo(repo_name, ref=None):
+        """Clone repo into ./modules/<repo_name> and optionally checkout ref."""
+        dest_dir = modules_root / repo_name
+        https_url = f"https://{address}/{user}/{repo_name}.git"
+        ssh_url = f"git@{address}:{user}/{repo_name}.git"
+
+        # ✅ If already cloned, skip clone entirely
+        if dest_dir.exists():
+            logger.warning(
+                f"Repository '{repo_name}' already exists at {dest_dir}. Skipping clone."
+            )
+            if ref:
+                try:
+                    _run_git_command(["git", "fetch", "--all"], cwd=dest_dir)
+                    _run_git_command(["git", "checkout", ref], cwd=dest_dir)
+                    logger.info(f"🔖 Updated '{repo_name}' to ref '{ref}'")
+                except subprocess.CalledProcessError as e:
+                    logger.warning(
+                        f"Could not checkout '{ref}' in existing repo '{repo_name}': {e}"
+                    )
+            return dest_dir
+
+        logger.info(f"🌀 Cloning '{repo_name}' via HTTPS: {https_url}")
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_ASKPASS"] = "echo"
+        env["SSH_ASKPASS"] = "echo"
+
+        try:
+            subprocess.run(
+                ["git", "clone", "--depth", "1", https_url, str(dest_dir)],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            )
+            logger.info(f"✅ Cloned via HTTPS into {dest_dir}")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"⚠️  HTTPS clone failed for '{repo_name}': {e}. Trying SSH...")
+            try:
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", ssh_url, str(dest_dir)],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    env=env,
+                )
+                logger.info(f"✅ Cloned via SSH into {dest_dir}")
+            except subprocess.CalledProcessError as e2:
+                logger.error(f"❌ Failed to clone {repo_name} via both HTTPS and SSH: {e2}")
+                return None
+
+        if ref:
+            try:
+                _run_git_command(["git", "fetch", "--all"], cwd=dest_dir)
+                _run_git_command(["git", "checkout", ref], cwd=dest_dir)
+                logger.info(f"✅ Checked out {repo_name}@{ref}")
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"Failed to checkout ref '{ref}' for '{repo_name}': {e}")
+
+        return dest_dir
+
+    # ---------------- main logic ---------------- #
+
+    for item in paths:
+        repo_name, ref = _parse_repo_spec(item)
+        repo_path = pathlib.Path(repo_name).expanduser().resolve()
+
+        # Clone if missing
+        if not repo_path.exists():
+            logger.info(f"Repository path not found: {repo_name}. Attempting clone...")
+            cloned = _try_clone_repo(repo_name, ref)
+            if cloned is None or not cloned.exists():
+                logger.error(f"Path not found and cloning failed: {repo_name}")
+                raise FileNotFoundError(f"Path not found and cloning failed: {repo_name}")
+            repo_path = cloned
+
+        if repo_path in seen_paths:
+            logger.debug(f"Skipping duplicate path: {repo_path}")
+            continue
+        seen_paths.add(repo_path)
+
+        # Collect .py files
+        if repo_path.is_file() and repo_path.suffix == ".py":
+            py_files.append(repo_path)
+        elif repo_path.is_dir():
+            for f in repo_path.rglob("*.py"):
+                if "__pycache__" not in f.parts:
+                    py_files.append(f)
+        else:
+            logger.error(f"Invalid path type: {repo_path}")
+            raise ValueError(f"Invalid path: {repo_path}")
+
+    # ---------------- import phase ---------------- #
+
+    for file_path in py_files:
+        module_name = _compute_module_name(file_path)
+        if module_name in sys.modules:
+            logger.debug(f"Module already loaded: {module_name} — skipping import.")
+            continue
+
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            sys.modules[module_name] = module
+            # Inject into the caller's global namespace instead of utils.py
+            caller_globals = inspect.currentframe().f_back.f_globals
+            caller_globals[module_name] = module
+            imported_modules.append(module_name)
+            logger.info(f"✅ Imported module: {module_name} ({file_path})")
+        except Exception as e:
+            logger.error(f"❌ Failed to import {file_path}: {e}", exc_info=True)
+
+    logger.info(f"📦 Successfully loaded {len(imported_modules)} module(s): {', '.join(imported_modules)}")
+    return imported_modules
 
