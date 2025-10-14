@@ -115,6 +115,9 @@ def execute(self, depends_on=None):
             """
             # Wait for dependencies
             for dep in self.depends_on:
+                if dep in (self.name, self.hash):
+                    self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
+                    continue
                 dep_proc = self.__class__.registry.get(dep)
                 if dep_proc is None:
                     self.logger.warning(f"Dependency {dep} not found in registry, skipping wait")
@@ -129,6 +132,9 @@ def execute(self, depends_on=None):
             if not self.allow_skipped_deps and self.depends_on:
                 bad = []
                 for dep in self.depends_on:
+                    if dep in (self.name, self.hash):
+                        self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
+                        continue
                     dp = self.__class__.registry.get(dep)
                     if dp and not dp.is_successful():
                         bad.append((dp.name, dp.get_exitcode()))
@@ -176,6 +182,9 @@ def execute(self, depends_on=None):
             """
             # Wait for dependencies to complete (either by name or hash).
             for dep in self.depends_on:
+                if dep in (self.name, self.hash):
+                    self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
+                    continue
                 dep_proc = self.__class__.registry.get(dep)
                 if dep_proc is None:
                     self.logger.warning(f"Dependency {dep} not found in registry, skipping wait")
@@ -187,6 +196,9 @@ def execute(self, depends_on=None):
             if not self.allow_skipped_deps and self.depends_on:
                 bad = []
                 for dep in self.depends_on:
+                    if dep in (self.name, self.hash):
+                        self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
+                        continue
                     dp = self.__class__.registry.get(dep)
                     if dp and not dp.is_successful():
                         bad.append((dp.name, dp.get_exitcode()))
