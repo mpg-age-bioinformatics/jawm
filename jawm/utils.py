@@ -720,7 +720,7 @@ def load_modules(
             modules_root = pathlib.Path(env_modules_path).expanduser().resolve()
             logger.info(f"📦 Using JAWM_MODULES_PATH from environment: {modules_root}")
         else:
-            modules_root = pathlib.Path("./modules").resolve()
+            modules_root = pathlib.Path("./.submodules").resolve()
             logger.info(f"📦 Using default modules directory: {modules_root}")
 
     modules_root.mkdir(parents=True, exist_ok=True)
@@ -788,68 +788,92 @@ def load_modules(
         https_url = f"https://{address}/{user}/{repo_name}.git"
         ssh_url = f"git@{address}:{user}/{repo_name}.git"
 
-        # ⭐ Resolve "latest" into actual tag before cloning
+        # Resolve "latest" tag keyword
         if ref == "latest":
             ref = _get_latest_tag(https_url)
             if not ref:
                 logger.warning(f"Falling back to default branch for '{repo_name}' (no tags).")
 
-        # ✅ If already cloned, skip clone entirely
+        # ---------------- if repo already exists ---------------- #
+        # ---------------- if repo already exists ---------------- #
         if dest_dir.exists():
-            logger.warning(
-                f"Repository '{repo_name}' already exists at {dest_dir}. Skipping clone."
-            )
+            logger.info(f"📁 Repository '{repo_name}' already exists at {dest_dir}")
 
             try:
-                # ⭐ Get current branch
-                branch_name = _run_git_command(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=dest_dir)
-                # ⭐ Get current HEAD commit
-                head_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
-                logger.info(f"📍 '{repo_name}' on branch '{branch_name}' at commit {head_commit[:10]}")
+                # --- Current HEAD and remote info ---
+                current_head = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
+                remote_name = _run_git_command(["git", "remote"], cwd=dest_dir) or "origin"
+                remote_url = _run_git_command(["git", "remote", "get-url", remote_name], cwd=dest_dir)
 
-                # ⭐ Check for local uncommitted changes
-                status_output = _run_git_command(["git", "status", "--porcelain"], cwd=dest_dir)
-                if status_output.strip():
-                    logger.info(f"⚠️  Local modifications detected in '{repo_name}' (not clean).")
+                try:
+                    upstream_branch = _run_git_command(
+                        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+                        cwd=dest_dir,
+                    )
+                except subprocess.CalledProcessError:
+                    upstream_branch = None
+
+                # Fetch all updates
+                _run_git_command(["git", "fetch", "--all"], cwd=dest_dir)
+                _run_git_command(["git", "fetch", "--tags"], cwd=dest_dir)
+
+                # Try to get latest commit on remote
+                remote_latest_commit = None
+                if upstream_branch:
+                    try:
+                        remote_latest_commit = _run_git_command(
+                            ["git", "rev-parse", upstream_branch], cwd=dest_dir
+                        )
+                    except subprocess.CalledProcessError:
+                        remote_latest_commit = None
+
+                # --- Report combined info ---
+                if upstream_branch and remote_latest_commit:
+                    logger.info(
+                        f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | Tracking: {upstream_branch}"
+                    )
+                    logger.info(
+                        f"🔸 Latest remote commit: {remote_latest_commit[:10]}"
+                    )
+                elif upstream_branch:
+                    logger.info(
+                        f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | Tracking: {upstream_branch}"
+                    )
+                    logger.info(f"🔸 Latest remote commit: unavailable (fetch failed)")
                 else:
-                    logger.info(f"✅ '{repo_name}' is clean (no local changes).")
+                    logger.info(
+                        f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | No upstream tracking branch"
+                    )
 
-                # ⭐ Fetch latest from remote
-                _run_git_command(["git", "fetch"], cwd=dest_dir)
-
-                # ⭐ Compare local vs remote
-                behind_ahead = _run_git_command(
-                    ["git", "rev-list", "--left-right", "--count", "HEAD...@{u}"], cwd=dest_dir
-                ).split()
-                behind, ahead = map(int, behind_ahead)
-                if behind > 0 and ahead == 0:
-                    logger.info(f"⬇️  '{repo_name}' is behind remote by {behind} commit(s).")
-                elif ahead > 0 and behind == 0:
-                    logger.info(f"⬆️  '{repo_name}' is ahead of remote by {ahead} commit(s).")
-                elif ahead > 0 and behind > 0:
-                    logger.info(f"⚠️  '{repo_name}' has diverged: {ahead} ahead, {behind} behind.")
+                # Compare local vs remote commits (if available)
+                if remote_latest_commit and remote_latest_commit != current_head:
+                    logger.info(f"⬇️  Remote HEAD differs: {remote_latest_commit[:10]} (upstream)")
+                    logger.info(f"➡️  Pulling latest changes for '{repo_name}' ...")
+                    _run_git_command(["git", "pull"], cwd=dest_dir)
+                    new_head = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
+                    if new_head != current_head:
+                        logger.info(f"✅ '{repo_name}' updated: {current_head[:10]} → {new_head[:10]}")
+                    else:
+                        logger.info(f"ℹ️  '{repo_name}' already up to date.")
                 else:
-                    logger.info(f"✅ '{repo_name}' is up to date with remote.")
+                    logger.info(f"✅ '{repo_name}' already up to date with remote.")
+
+                # Checkout to ref or HEAD
+                if ref:
+                    _checkout_to_ref(repo_name, dest_dir, ref, logger)
+                else:
+                    _checkout_to_default_head(repo_name, dest_dir, logger)
 
             except subprocess.CalledProcessError as e:
-                logger.warning(f"Failed to determine repo state for '{repo_name}': {e}")
+                logger.warning(f"Git operation failed for '{repo_name}': {e}")
             except Exception as e:
-                logger.warning(f"Unexpected error while checking '{repo_name}' state: {e}")
-
-            # optionally verify ref or update
-            if ref:
-                try:
-                    _run_git_command(["git", "fetch", "--all"], cwd=dest_dir)
-                    _run_git_command(["git", "checkout", ref], cwd=dest_dir)
-                    logger.info(f"🔖 Updated '{repo_name}' to ref '{ref}'")
-                except subprocess.CalledProcessError as e:
-                    logger.warning(
-                        f"Could not checkout '{ref}' in existing repo '{repo_name}': {e}"
-                    )
+                logger.warning(f"Unexpected error while updating '{repo_name}': {e}")
 
             return dest_dir
 
-        # --- otherwise, clone fresh as before ---
+
+
+        # ---------------- if repo does not exist (clone) ---------------- #
         logger.info(f"🌀 Cloning '{repo_name}' via HTTPS: {https_url}")
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
@@ -865,8 +889,8 @@ def load_modules(
                 env=env,
             )
             logger.info(f"✅ Cloned via HTTPS into {dest_dir}")
-        except subprocess.CalledProcessError as e:
-            logger.warning(f"⚠️  HTTPS clone failed for '{repo_name}': {e}. Trying SSH...")
+        except subprocess.CalledProcessError:
+            logger.warning(f"⚠️  HTTPS clone failed for '{repo_name}', trying SSH ...")
             try:
                 subprocess.run(
                     ["git", "clone", "--depth", "1", ssh_url, str(dest_dir)],
@@ -877,18 +901,103 @@ def load_modules(
                 )
                 logger.info(f"✅ Cloned via SSH into {dest_dir}")
             except subprocess.CalledProcessError as e2:
-                logger.error(f"❌ Failed to clone {repo_name} via both HTTPS and SSH: {e2}")
+                logger.error(f"❌ Failed to clone '{repo_name}' via both HTTPS and SSH: {e2}")
                 return None
 
+        # Log HEAD after cloning
+        try:
+            branch = _run_git_command(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=dest_dir)
+            head_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
+            logger.info(f"📍 '{repo_name}' cloned at branch '{branch}' with HEAD {head_commit[:10]}")
+        except Exception as e:
+            logger.warning(f"Could not determine current HEAD for '{repo_name}': {e}")
+
+        # Checkout specific ref or default head
         if ref:
-            try:
-                _run_git_command(["git", "fetch", "--all"], cwd=dest_dir)
-                _run_git_command(["git", "checkout", ref], cwd=dest_dir)
-                logger.info(f"✅ Checked out {repo_name}@{ref}")
-            except subprocess.CalledProcessError as e:
-                logger.warning(f"Failed to checkout ref '{ref}' for '{repo_name}': {e}")
+            _checkout_to_ref(repo_name, dest_dir, ref, logger)
+        else:
+            _checkout_to_default_head(repo_name, dest_dir, logger)
 
         return dest_dir
+
+
+
+    # ---------------- helper: checkout to specific ref ---------------- #
+    def _checkout_to_ref(repo_name, repo_path, ref, logger):
+        """Checkout to commit, branch, or tag — safely and with logging."""
+        try:
+            logger.info(f"🔍 Preparing to checkout '{repo_name}' to ref '{ref}' ...")
+
+            # Ensure full history is available
+            try:
+                _run_git_command(["git", "fetch", "--unshallow"], cwd=repo_path)
+            except subprocess.CalledProcessError:
+                pass  # already full clone
+
+            _run_git_command(["git", "fetch", "--all"], cwd=repo_path)
+            _run_git_command(["git", "fetch", "--tags"], cwd=repo_path)
+
+            # Detect ref type
+            ref_type = "unknown"
+            try:
+                branches = _run_git_command(["git", "branch", "-a"], cwd=repo_path)
+                if f"remotes/origin/{ref}" in branches or f"{ref}" in branches:
+                    ref_type = "branch"
+                else:
+                    tags = _run_git_command(["git", "tag"], cwd=repo_path).splitlines()
+                    if ref in tags:
+                        ref_type = "tag"
+                    else:
+                        try:
+                            _run_git_command(["git", "cat-file", "-t", ref], cwd=repo_path)
+                            ref_type = "commit"
+                        except subprocess.CalledProcessError:
+                            ref_type = "unknown"
+            except Exception:
+                pass
+
+            emoji = {"branch": "🌿", "tag": "🔖", "commit": "💾"}.get(ref_type, "❓")
+            logger.info(f"{emoji} Detected ref type: {ref_type}")
+
+            # Try direct checkout
+            try:
+                _run_git_command(["git", "checkout", ref], cwd=repo_path)
+            except subprocess.CalledProcessError:
+                logger.info(f"⚠️  Direct checkout failed; fetching ref '{ref}' explicitly ...")
+                _run_git_command(["git", "fetch", "origin", ref], cwd=repo_path)
+                _run_git_command(["git", "checkout", ref], cwd=repo_path)
+
+            checked_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=repo_path)
+            logger.info(f"✅ Checked out '{repo_name}' to {emoji} '{ref}' ({checked_commit[:10]})")
+
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to checkout ref '{ref}' for '{repo_name}': {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error during checkout of '{repo_name}': {e}")
+
+
+
+    # ---------------- helper: checkout to default HEAD ---------------- #
+    def _checkout_to_default_head(repo_name, repo_path, logger):
+        """Ensure repo is checked out to the default remote HEAD (usually main/master)."""
+        try:
+            # Determine default remote branch
+            remote_default = _run_git_command(
+                ["git", "symbolic-ref", "refs/remotes/origin/HEAD"], cwd=repo_path
+            )
+            default_branch = remote_default.split("/")[-1]
+            logger.info(f"🌿 Default branch for '{repo_name}' is '{default_branch}'")
+
+            _run_git_command(["git", "checkout", default_branch], cwd=repo_path)
+            _run_git_command(["git", "pull"], cwd=repo_path)
+
+            head_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=repo_path)
+            logger.info(f"✅ '{repo_name}' is now on '{default_branch}' @ {head_commit[:10]}")
+
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to checkout to default HEAD for '{repo_name}': {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error during default head checkout for '{repo_name}': {e}")
 
 
     # ---------------- main logic ---------------- #
