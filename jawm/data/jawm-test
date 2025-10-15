@@ -218,18 +218,23 @@ TESTPATH=$( dirname ${FULLPATH}/test/ )
 # download data
 ############################################################
 
-if [ -f ${DOWNLOADS_FILE} ] ; then
+if [ -f "${DOWNLOADS_FILE}" ]; then
 
-  mkdir -p ${TESTPATH}/test-input
-  cd ${TESTPATH}/test-input
-  while read -r _ filename url _ ;
-  do
+  mkdir -p "${TESTPATH}/test-input"
+  cd "${TESTPATH}/test-input" || exit 1
+
+  # Use while loop that also processes the last line without newline
+  while IFS= read -r line || [ -n "$line" ]; do
+      set -- $line
+      filename=$2
+      url=$3
       echo "${filename} ${url}"
       if [ ! -f "${filename}" ]; then
         wget -O "${filename}" "$url"
       fi
-  done < ${DOWNLOADS_FILE}
-  awk '{print $1, $2}' ${DOWNLOADS_FILE} | md5sum -c -
+  done < "${DOWNLOADS_FILE}"
+
+  awk '{print $1, $2}' "${DOWNLOADS_FILE}" | md5sum -c -
 
 fi
 
@@ -489,7 +494,7 @@ for PYTHON_VERSION in ${PYTHON_VERSIONS} ; do
             rm -rf .${TESTS_FILE}.tmp
             head -n 1 ${TESTS_FILE} > ${TESTS_FILE}.tmp
 
-            while IFS=';' read -r MOD WORKFLOW PARAM NAME STORED_HASH; do
+            while IFS=';' read -r MOD WORKFLOW PARAM NAME STORED_HASH || [ -n "$MOD" ]; do
                 # Skip empty lines or lines starting with #
                 [[ -z "$MOD" || "$MOD" == \#* ]] && continue
 
@@ -574,7 +579,6 @@ for PYTHON_VERSION in ${PYTHON_VERSIONS} ; do
 
             done < ${TESTS_FILE}
 
-            tail -n 1 ${TESTS_FILE} >> ${TESTS_FILE}.tmp
             mv ${TESTS_FILE}.tmp ${TESTS_FILE}
    
         done
