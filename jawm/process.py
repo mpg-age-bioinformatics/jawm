@@ -110,7 +110,8 @@ class Process:
         "resume": bool,
         "parallel": bool,
         "always_run": bool,
-        "automated_mount": bool
+        "automated_mount": bool,
+        "desc": str,
     }
     # Set of internal/reserved keys
     reserved_keys = {
@@ -170,6 +171,7 @@ class Process:
         parallel=None,
         always_run=None,
         automated_mount=None,
+        desc=None,
         **kwargs
     ):
         """
@@ -290,7 +292,10 @@ class Process:
             Whether the process should run even if something failed. It does not override when: `when=False` still skips.
 
         automated_mount : bool, default=True  
-            If False, it will not auto-bind the process log directory or any mk./map. paths. User-specified container options still apply.
+            Whether to auto-bind the process log directory or any mk./map. paths. User-specified container options still apply.
+
+        desc : str, optional  
+            Human-readable description of the Process (one-line or multi-line docstring). No direct impact on the Process.
 
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
@@ -409,6 +414,7 @@ class Process:
         self.parallel = self.params.get("parallel", True)
         self.always_run = self.params.get("always_run", False)
         self.automated_mount = self.params.get("automated_mount", True)
+        self.desc = self.params.get("desc", None)
 
         # Local execution configurations
         self.manager_local = self.params.get("manager_local", {})

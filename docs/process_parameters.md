@@ -750,3 +750,44 @@ always_run: true
 
 ---
 
+### `automated_mount`
+
+- **Category**: `parameter`  
+- **Type**: `bool`  
+- **Default**: `True`  
+
+Whether to auto-bind the process log directory or any mk./map. paths. User-specified container options still apply.
+
+**Example:**
+```python
+automated_mount=True
+```
+**YAML Example:**
+```yaml
+automated_mount: true
+```
+
+---
+
+### `desc`
+
+- **Category**: `parameter`  
+- **Type**: `str`  
+
+Human-readable description of the Process (one-line or multi-line docstring). No direct impact on the Process.
+
+**Example:**
+```python
+desc="""Process steps:
+- Step 1
+- Step 2"""
+```
+**YAML Example:**
+```yaml
+desc: |
+    Process steps:
+    - Step 1
+    - Step 2
+```
+
+---
