@@ -135,7 +135,7 @@ def _execute_local(self):
                     return
 
                 # Otherwise log error, possibly retry
-                self.logger.error(f"Attempt {attempt_i} for process {self.name} failed with exit code {exit_code}")
+                self.logger.error(f"Attempt {attempt_i} for process {self.name} failed with exit code {exit_code}{self._elog_path()}")
                 with open(self.stderr_path, "r") as stderr_file:
                     error_message = stderr_file.read().strip()
                 self._log_error_summary(error_message, type_text="LocalAttempt")
@@ -161,7 +161,7 @@ def _execute_local(self):
     except Exception as e:
         # If something fails before the monitor thread is even launched,
         # we need to set finished_event so dependent processes won't wait forever.
-        self.logger.error(f"[{self.name}] Failed launching process: {str(e)}")
+        self.logger.error(f"[{self.name}] Failed launching process: {str(e)}{self._elog_path()}")
         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.finished_event.set()
         self.stop_future_event.set()

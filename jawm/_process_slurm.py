@@ -125,7 +125,7 @@ def _execute_slurm(self):
             # Check submission result
             if result.returncode != 0:
                 self._log_error_summary(result.stderr, type_text="SlurmError")
-                self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}")
+                self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}{self._elog_path()}")
                 return 127  # or some non-zero to indicate failure
 
             # Parse job_id from sbatch output
@@ -159,7 +159,7 @@ def _execute_slurm(self):
                 if job_info.returncode != 0:
                     if retry_fail >= max_fail:
                         self._log_error_summary("Monitoring failed from sacct tool!", type_text="SlurmMonitoring")
-                        self.logger.error(f"Max retries ({max_fail}) for querying job {job_id} with sacct tool. Stopping monitoring!")
+                        self.logger.error(f"Max retries ({max_fail}) for querying job {job_id} with sacct tool. Stopping monitoring!{self._elog_path()}")
                         break
                     self.logger.warning(f"Failed to query job {job_id} status: {job_info.stderr}")
                     time.sleep(min(10 * (2 ** retry_fail), 300))
@@ -210,7 +210,7 @@ def _execute_slurm(self):
                     self.finished_event.set()
                     return
                 # Else it failed
-                self.logger.error(f"Attempt {attempt_i} for process {self.name} failed in Slurm")
+                self.logger.error(f"Attempt {attempt_i} for process {self.name} failed in Slurm{self._elog_path()}")
                 if attempt_i < total_attempts:
                     remaining = total_attempts - attempt_i
                     self.logger.info(f"Retrying process {self.name} in Slurm, {remaining} retries left")
@@ -230,7 +230,7 @@ def _execute_slurm(self):
         return None
 
     except Exception as e:
-        self.logger.error(f"Failed launching process {self.name} in Slurm: {str(e)}")
+        self.logger.error(f"Failed launching process {self.name} in Slurm: {str(e)}{self._elog_path()}")
         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.finished_event.set()
         self.stop_future_event.set()

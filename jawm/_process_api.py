@@ -89,7 +89,7 @@ def execute(self, depends_on=None):
         else:
             run_condition = bool(self.when)
     except Exception as e:
-        self.logger.error(f"'when' evaluation failed for {self.name}: {e}")
+        self.logger.error(f"'when' evaluation failed for {self.name}: {e}{self._elog_path()}")
         run_condition = False
     
     if not run_condition:
@@ -160,7 +160,7 @@ def execute(self, depends_on=None):
                 self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self._run_manager()
             except Exception as e:
-                self.logger.error(f"Process {self.name} failed to launch or execute: {e}")
+                self.logger.error(f"Process {self.name} failed to launch or execute: {e}{self._elog_path()}")
                 self.__class__.stop_future_event.set()
                 self.finished_event.set()
                 raise
@@ -219,7 +219,7 @@ def execute(self, depends_on=None):
                 self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self._run_manager()
             except Exception as e:
-                self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}")
+                self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}{self._elog_path()}")
                 self.__class__.stop_future_event.set()
                 self.finished_event.set()
                 raise
@@ -278,7 +278,7 @@ def is_valid(self, mode="strict"):
     """
     mode = mode.lower()
     if mode not in {"basic", "strict"}:
-        self.logger.error(f"is_valid | Unsupported mode: {mode}")
+        self.logger.error(f"is_valid | Unsupported mode: {mode}{self._elog_path()}")
         return False
 
     errors = []
@@ -375,7 +375,7 @@ def is_valid(self, mode="strict"):
 
     # --- Report Results ---
     for e in errors:
-        self.logger.error(f"Validation Error: {e}")
+        self.logger.error(f"Validation Error: {e}{self._elog_path()}")
     for w in warnings:
         self.logger.warning(f"Validation Warning: {w}")
 
@@ -531,7 +531,7 @@ def update_vars(self, var_file):
         )
 
     except Exception as e:
-        self.logger.error(f"update_vars failed for {self.name}: {e}")
+        self.logger.error(f"update_vars failed for {self.name}: {e}{self._elog_path()}")
         if hasattr(self, "_log_error_summary"):
             self._log_error_summary(f"update_vars failed: {e}", type_text="VarUpdate")
 

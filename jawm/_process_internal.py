@@ -757,6 +757,17 @@ def _normalize_apptainer_image(self, ref):
     return f"docker://{ref}"
 
 
+@register
+def _elog_path(self):
+    """
+    Return log path info to be appened in error log
+    """
+    lp = getattr(self, "log_path", None)
+    if isinstance(lp, str) and os.path.exists(lp):
+        return f" (Log Folder: {self.log_path})"
+    return ""
+
+
 
 # --------------------------------------------
 #   Plain Helper Methods without @register

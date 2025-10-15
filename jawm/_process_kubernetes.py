@@ -275,7 +275,7 @@ def _execute_kubernetes(self):
             f.write((res.stdout or "") + (("\n" + res.stderr) if res.stderr else ""))
         if res.returncode != 0:
             self._log_error_summary(res.stderr, type_text="K8sKubectl")
-            self.logger.error(f"kubectl apply failed: {res.stderr.strip()}")
+            self.logger.error(f"kubectl apply failed: {res.stderr.strip()}{self._elog_path()}")
             return 127
 
         # Record job "id" as job name
@@ -300,7 +300,7 @@ def _execute_kubernetes(self):
                     f"{' '.join(full_cmd)}\n"
                     f"STDERR: {res.stderr.strip()}"
                 )
-                self.logger.error(msg)
+                self.logger.error(f"{msg}{self._elog_path()}")
                 # Also log into central error summary file
                 self._log_error_summary(msg, type_text="K8sKubectl")
 
@@ -468,7 +468,7 @@ def _execute_kubernetes(self):
                 self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self.finished_event.set()
                 return
-            self.logger.error(f"K8s attempt {attempt_i}/{total_attempts} failed! Summary can be found in: {self.error_summary_file}")
+            self.logger.error(f"K8s attempt {attempt_i}/{total_attempts} failed! Summary can be found in: {self.error_summary_file}{self._elog_path()}")
             if attempt_i < total_attempts:
                 self.logger.info(f"Retrying K8s job; {total_attempts - attempt_i} retries left")
             else:
