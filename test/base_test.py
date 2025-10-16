@@ -1970,6 +1970,64 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+print("\n>>> Test 35: Process.wait(), timeout, and environment behavior")
+Process.reset_stop()
+tmp = None
+try:
+    # --- Setup ---
+    tmp = tempfile.mkdtemp(prefix="wait_cli_env_")
+    logs = os.path.join(tmp, "logs")
+    os.makedirs(logs, exist_ok=True)
+
+    # --- Quick process: should complete immediately ---
+    p1 = Process(name="p1_quick", script="#!/bin/bash\necho quick", logs_directory=logs)
+    p1.execute()
+    Process.wait(p1.hash, log=False, timeout=10)
+    assert p1.finished_event.is_set(), "❌ p1_quick did not finish"
+    print(" ✓ Quick process completed normally")
+    Process.reset_runtime()
+
+    # --- Timeout test: should return early but finish later ---
+    p2 = Process(name="p2_timeout", script="#!/bin/bash\nsleep 3", logs_directory=logs)
+    p2.execute()
+    t0 = time.time()
+    Process.wait(p2.hash, log=False, timeout=2)
+    dt = time.time() - t0
+    assert dt < 2.5, f"❌ Timeout not respected (elapsed={dt:.2f}s)"
+    print(f" ✓ Timeout respected (waited {dt:.1f}s, process still running)")
+
+    # Wait for process to actually finish
+    Process.wait(p2.hash, log=False, timeout=10)
+    Process.reset_runtime()
+
+    # --- Environment-based timeout: JAWM_WAIT_TIMEOUT=3 ---
+    os.environ["JAWM_WAIT_TIMEOUT"] = "3"
+    p3 = Process(name="p3_env", script="#!/bin/bash\nsleep 3", logs_directory=logs)
+    t0 = time.time()
+    p3.execute()
+    Process.wait(p3.hash, log=False)
+    dt = time.time() - t0
+    del os.environ["JAWM_WAIT_TIMEOUT"]
+    assert 2.0 <= dt <= 4.5, f"❌ Env timeout not applied (elapsed={dt:.2f}s)"
+    print(f" ✓ Environment timeout respected (JAWM_WAIT_TIMEOUT=3 → waited {dt:.1f}s)")
+
+    # --- ✅ Summary ---
+    print("✅ Passed: Process.wait(), timeout, and environment behavior")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    try:
+        Process.wait("all", timeout=10, log=False)
+    except Exception:
+        pass
+    if tmp and os.path.isdir(tmp):
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 
 # -----------------------------
 # Cleanup created directories
