@@ -929,7 +929,7 @@ class Process:
 
 
     @classmethod
-    def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5):
+    def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5, log=True, timeout=None):
         """
         Wait until the given processes are finished, optionally checking their exit codes.
 
@@ -942,6 +942,8 @@ class Process:
             - "stderr": tail the process stderr file
             - "both": tail both stdout and stderr
         tail_poll (float): polling interval in seconds for tailing (default 0.5)
+        log (bool): Whether to log the wait info or not
+        timeout (int | None): Maximum time (in seconds) to wait for each process. If None (default), wait indefinitely or comply with os env JAWM_WAIT_TIMEOUT
 
         Returns:
             bool: True if all waited processes completed with allowed exit codes, False otherwise.
@@ -957,7 +959,7 @@ class Process:
             elif isinstance(allowed_exit, list):
                 allowed_exit = [str(code).strip() for code in allowed_exit]
             else:
-                print("Process.wait | WARNING :: Unsupported format for allowed_exit, skipping check.")
+                if log: print("Process.wait | WARNING :: Unsupported format for allowed_exit, skipping check.")
                 allowed_exit = "all"
 
         # Normalize single process to list
@@ -979,12 +981,12 @@ class Process:
                 elif isinstance(item, str):
                     p = cls.registry.get(item)
                     if p is None:
-                        print(f"Process.wait | WARNING :: No registered process for: {item}")
+                        if log: print(f"Process.wait | WARNING :: No registered process for: {item}")
                         success = False
                     else:
                         procs.append(p)
                 else:
-                    print(f"Process.wait | WARNING :: Unsupported process reference: {item}")
+                    if log: print(f"Process.wait | WARNING :: Unsupported process reference: {item}")
                     success = False
 
         # ---------------------------
@@ -1017,7 +1019,7 @@ class Process:
                             time.sleep(poll)
                             f.seek(where)
             except Exception as e:
-                print(f"Process.wait | WARNING :: Tail failed for {path}: {e}")
+                if log: print(f"Process.wait | WARNING :: Tail failed for {path}: {e}")
 
         # Start tailers for ALL selected processes up-front, so they run concurrently
         tail_state = {}  # proc -> {"stop": Event, "threads": [Thread,...]}
@@ -1044,7 +1046,7 @@ class Process:
                     _add_tail(proc.stdout_path, "stdout")
                     _add_tail(proc.stderr_path, "stderr")
                 else:
-                    proc.logger.warning(f"Process.wait | WARNING :: Unsupported tail option '{tail}' — ignoring for {proc.name}")
+                    if log: proc.logger.warning(f"Process.wait | WARNING :: Unsupported tail option '{tail}' — ignoring for {proc.name}")
 
                 tail_state[proc] = {"stop": stop_evt, "threads": threads}
 
@@ -1054,11 +1056,30 @@ class Process:
         for proc in procs:
             try:
                 if proc.finished_event.is_set():
-                    proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] already completed")
+                    if log: proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] already completed")
                 else:
-                    proc.logger.info(f"Process.wait → Waiting for {proc.name} [{proc.hash}] to complete...")
-                    proc.finished_event.wait()
-                    proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] has completed")
+                    timeout_val = timeout if isinstance(timeout, int) else None
+                    if timeout is not None and not isinstance(timeout, int):
+                        if log: proc.logger.warning(f"Process.wait → Invalid timeout parameter '{timeout}' for {proc.name} [{proc.hash}] (must be integer seconds). Ignoring timeout.")
+
+                    if timeout_val is None:
+                        env_val = os.getenv("JAWM_WAIT_TIMEOUT")
+                        if env_val is not None:
+                            try:
+                                timeout_val = int(env_val)
+                            except ValueError:
+                                if log: proc.logger.warning(f"Process.wait → Invalid JAWM_WAIT_TIMEOUT='{env_val}' for {proc.name} [{proc.hash}] (must be integer seconds). Ignoring timeout.")
+                                timeout_val = None
+
+                    # --- perform the wait ---
+                    if timeout_val is not None:
+                        proc.finished_event.wait(timeout=timeout_val)
+                        if not proc.finished_event.is_set():
+                            proc.logger.warning(f"Process.wait → Timeout ({timeout_val}s) reached while waiting for {proc.name} [{proc.hash}]")
+                            success = False
+                    else:
+                        proc.finished_event.wait()
+                    if log: proc.logger.info(f"Process.wait → {proc.name} [{proc.hash}] has completed")
 
                 if allowed_exit != "all":
                     exit_code = proc.get_exitcode()
@@ -1067,9 +1088,9 @@ class Process:
                     except Exception:
                         code = None
                     if str(code) not in allowed_exit:
-                        proc.logger.warning(f"Process {proc.name} ({proc.hash}) has completed with disallowed exit code: {exit_code}")
+                        if log: proc.logger.warning(f"Process {proc.name} ({proc.hash}) has completed with disallowed exit code: {exit_code}")
                         if hasattr(proc, "_log_error_summary"):
-                            proc._log_error_summary(f"Process has completed with disallowed exit code: {exit_code}", type_text="ErrorWait")
+                            if log: proc._log_error_summary(f"Process has completed with disallowed exit code: {exit_code}", type_text="ErrorWait")
                         success = False
             except Exception as e:
                 if hasattr(proc, "_log_error_summary"):
@@ -1084,6 +1105,6 @@ class Process:
                     for t in ts["threads"]:
                         t.join(timeout=1.0)
 
-        print(f"Process.wait | INFO :: Wait completed for {len(procs)} process(es).")
+        if log: print(f"Process.wait | INFO :: Wait completed for {len(procs)} process(es).")
         return success
 
