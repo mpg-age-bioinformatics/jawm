@@ -25,7 +25,7 @@ except md.PackageNotFoundError:
 #  Helper var and methods for jawm-dev command
 # ----------------------------------------------------------
 
-_VALID_CMDS = {"init" }
+_VALID_CMDS = {"init"}
 
 # ----------------------------------------------------------
 #  Main method for jawm-dev command
@@ -34,22 +34,21 @@ _VALID_CMDS = {"init" }
 def main():
     parser = argparse.ArgumentParser(description="jawm-dev - Developer CLI for the jawm workflow manager")
     parser.add_argument("command", nargs="?", help="Developer command to execute (init, download, test, help)")
-    parser.add_argument("--script", default="./test/test.sh", help="Path to test.sh script (default: ./test/test.sh)")
+    # parser.add_argument("--script", default="./test/test.sh", help="Path to test.sh script (default: ./test/test.sh)")
     parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments passed to the command")
     parser.add_argument("-V", "--version", action="version", version=f"jawm-dev {_VERSION}", help="Show jawm-dev version and exit")
 
     args = parser.parse_args()
 
-    if args.command == "test":
-        # Operation for command jawm-dev test
-        _run_test(args.script, args.args)
-        sys.exit(0)
-   
-    elif args.command is None:
+    if args.command is None:
         # No command → show help
         parser.print_help()
         sys.exit(2)
-
+    
+    elif args.command == "init":
+        # Operation for command jawm-dev init
+        sys.exit(0)
+   
     elif args.command not in _VALID_CMDS:
         # Unknown command → custom error + help
         print(f"Unknown jawm-dev command: {args.command}")
