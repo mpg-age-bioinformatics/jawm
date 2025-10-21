@@ -768,6 +768,29 @@ def _elog_path(self):
     return ""
 
 
+@register
+def _tail_error(self, max_lines=5, full=False, slurm=False):
+    """
+    Return a concise or full snippet from the process stderr log (for logging).
+    """
+
+    try:
+        err = self.get_error()
+        if err:
+            if full:
+                return f"\n\n{err.strip()}"
+            lines = err.strip().splitlines()
+            if lines:
+                tail = "\n".join(lines[-max_lines:])
+                return f"\n\n{tail}"
+    except Exception:
+        pass
+
+    if slurm:
+        return "\nJob may have failed silently or without stderr output!"
+    return ""
+
+
 
 # --------------------------------------------
 #   Plain Helper Methods without @register
