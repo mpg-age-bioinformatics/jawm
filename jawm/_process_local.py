@@ -149,7 +149,8 @@ def _execute_local(self):
                     self.finished_event.set()
                     self.stop_future_event.set()
                     ter_err = f"Process {self.name} failed with error:\n\n{error_message}"
-                    raise RuntimeError(ter_err)
+                    self.logger.error(f"{ter_err}\n{self._elog_path()}")
+                    return
 
         # Start the background thread so _execute_local() returns immediately
         self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
