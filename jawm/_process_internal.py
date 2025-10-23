@@ -773,16 +773,25 @@ def _tail_error(self, max_lines=5, full=False, slurm=False):
     """
     Return a concise or full snippet from the process stderr log (for logging).
     """
-
     try:
         err = self.get_error()
         if err:
+            err = err.strip()
+            if not err:
+                return "\nJob produced empty stderr output!"
+
             if full:
-                return f"\n\n{err.strip()}"
-            lines = err.strip().splitlines()
-            if lines:
+                # full error text
+                return f"\n\n{err}"
+
+            lines = err.splitlines()
+            n_total = len(lines)
+            if n_total <= max_lines:
+                # small stderr → show all
+                return f"\n\n{err}"
+            else:
                 tail = "\n".join(lines[-max_lines:])
-                return f"\n\n{tail}"
+                return f"\n\nLast {max_lines} lines of error:\n{tail}"
     except Exception:
         pass
 
