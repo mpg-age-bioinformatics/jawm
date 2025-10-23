@@ -212,7 +212,7 @@ echo "Specified jawm Versions: ${JAWM_VERSIONS[@]:-None}"
 ############################################################
 FULLPATH=$( readlink -f . )
 DIRPATH=$( readlink -f . )
-TESTPATH=$( dirname ${FULLPATH}/test/ )
+TESTPATH=${FULLPATH}/test/
 
 ############################################################
 # download data
