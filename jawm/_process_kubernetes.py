@@ -475,8 +475,9 @@ def _execute_kubernetes(self):
                 self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                 self.finished_event.set()
                 self.stop_future_event.set()
-                self._log_error_summary(f"K8s job failed after retries (records on: {self.stderr_path})", type_text="K8sAttempt")
-                raise RuntimeError(f"Process {self.name} in K8s failed after {total_attempts} attempts")
+                self._log_error_summary(f"Process in K8s failed.{self._tail_error()}", type_text="K8sAttempt")
+                self.logger.error(f"Process {self.name} in K8s failed after {total_attempts} attempt(s){self._elog_path()}{self._tail_error()}")
+                return
 
     self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
     self._monitor_thread.start()
