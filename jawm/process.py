@@ -388,7 +388,7 @@ class Process:
         self.logs_directory = os.path.abspath(self.params.get("logs_directory", os.path.join(self.project_directory, "logs")))
         # os.makedirs(self.logs_directory, exist_ok=True)
         self.parameters_directory = self.params.get("parameters_directory", os.path.join(self.project_directory, "parameters"))
-        self.error_summary_file = os.path.abspath(self.params.get("error_summary_file", os.path.join(self.logs_directory, "error_summary.log")))
+        self.error_summary_file = os.path.abspath(self.params.get("error_summary_file", os.path.join(self.logs_directory, "error.log")))
 
         # Setup monitoring directory
         self.monitoring_directory = self.params.get("monitoring_directory", os.environ.get("JAWM_MONITORING_DIRECTORY", os.path.expanduser("~/.jawm/monitoring")))

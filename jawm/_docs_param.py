@@ -101,9 +101,9 @@ for fruit in ["Apple", "Banana", "Ananas"]:
         "description": "Path to a log file summarizing all the errors with time records.",
         "note": "This should be the go to file while checking for error logs",
         "type": "str",
-        "default": "<logs_directory>/error_summary.log",
-        "example": 'error_summary_file="logs/error_summary.log"',
-        "yaml_example": 'error_summary_file: "logs/error_summary.log"'
+        "default": "<logs_directory>/error.log",
+        "example": 'error_summary_file="logs/error.log"',
+        "yaml_example": 'error_summary_file: "logs/error.log"'
     },
     "monitoring_directory": {
         "category": "parameter",

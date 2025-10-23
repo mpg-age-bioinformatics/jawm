@@ -179,7 +179,7 @@ logs_directory: "/data/logs"
 
 - **Category**: `parameter`
 - **Type**: `str`
-- **Default**: `<logs_directory>/error_summary.log`
+- **Default**: `<logs_directory>/error.log`
 
 Central log that collects summarized errors across runs.
 
@@ -187,11 +187,11 @@ _**Note**_: This should be the go-to file while checking for error logs.
 
 **Example:**
 ```python
-error_summary_file="logs/error_summary.log"
+error_summary_file="logs/error.log"
 ```
 **YAML Example:**
 ```yaml
-error_summary_file: "logs/error_summary.log"
+error_summary_file: "logs/error.log"
 ```
 
 ---
