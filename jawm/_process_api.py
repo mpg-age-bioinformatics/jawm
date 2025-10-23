@@ -108,6 +108,7 @@ def execute(self, depends_on=None):
         return
 
     if not self.run_in_detached:
+        # run_in_detached will be depreciated and be False by default
         def _run_sequence():
             """
             Wait for dependencies (by name/hash), enforce allow_skipped_deps,
@@ -165,17 +166,25 @@ def execute(self, depends_on=None):
                 self.finished_event.set()
                 raise
 
-        # Always schedule dependency wait + launch on a background thread
-        t = threading.Thread(target=_run_sequence, daemon=False)
-        t.start()
-
-        # Only block the caller if parallel=False
-        if not self.parallel:
+        if self.parallel:
+            # Non-blocking (background)
+            t = threading.Thread(target=_run_sequence, daemon=True)
+            t.start()
+        else:
+            # Blocking, sequential execution
+            # run the sequence inline
+            _run_sequence()
+            # explicitly wait for any monitor thread started inside _run_manager()
+            m = getattr(self, "_monitor_thread", None)
+            if m and m.is_alive():
+                m.join()
+            # finally, also ensure finished_event is set
             self.finished_event.wait()
 
         return None
 
     else:
+        # Depreciated block for production, but can be used in development
         def run_in_background():
             """
             This background thread for run_in_detached run
@@ -221,8 +230,8 @@ def execute(self, depends_on=None):
             except Exception as e:
                 self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}{self._elog_path()}")
                 self.__class__.stop_future_event.set()
+            finally:
                 self.finished_event.set()
-                raise
         
         # Spawn a background thread
         a_thread = threading.Thread(target=run_in_background, daemon=False)
