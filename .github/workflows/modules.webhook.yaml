@@ -1,0 +1,154 @@
+name: Reference Test Module
+
+# in futurue use this to test against latest jawm release and
+# create a cd.ci.yaml that tests against the latest jawm commit
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ">=3.10"
+
+      # 3️⃣ Ensure Docker is available
+      - name: Check Docker
+        run: |
+          if ! command -v docker &> /dev/null
+          then
+            echo "Docker could not be found!"
+            exit 1
+          fi
+          docker --version
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.JAWM_BIOINFORMATICS_KEY }}
+
+      - name: Add GitHub to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Install jawm and capture commit hash
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install --upgrade pip
+
+          # Clone the repo manually
+          git clone git@github.com:mpg-age-bioinformatics/jawm.git
+          cd jawm
+
+          # Capture the commit hash
+          JAWM_COMMIT_HASH=$(git rev-parse HEAD)
+          echo "JAWM_COMMIT_HASH=$JAWM_COMMIT_HASH" >> $GITHUB_ENV
+
+          # Install from local clone
+          pip install .
+
+      - name: Run jawm
+        run: |
+          jawm-test -p system -j local 
+
+      - name: Succeeded
+        if: success()
+        run: echo "✅ Test succeeded with ${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm@$(echo $JAWM_COMMIT_HASH | cut -c 1-8)" 
+
+      - name: Slack Failure Notification
+        if: failure() # skip during local actions testing
+        run: |
+          echo "🚫 Job failed!" && \
+          generate_post_data()
+          {
+            cat << EOF
+          {
+            "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm@$(echo $JAWM_COMMIT_HASH | cut -c 1-8)* test FAILED\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
+          }
+          EOF
+          }
+          curl -H "Content-Type: application/json" -X POST -d "$(generate_post_data)" ${{ secrets.SLACK_JAWM_WEBHOOK }}
+
+  build-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ">=3.10"
+
+      # 3️⃣ Ensure Docker is available
+      - name: Check Docker
+        run: |
+          if ! command -v docker &> /dev/null
+          then
+            echo "Docker could not be found!"
+            exit 1
+          fi
+          docker --version
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.JAWM_BIOINFORMATICS_KEY }}
+
+      - name: Add GitHub to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Install jawm and capture commit hash
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          python -m pip install --upgrade pip
+
+          # Clone the repo manually
+          git clone git@github.com:mpg-age-bioinformatics/jawm.git
+          cd jawm
+
+          git fetch --tags
+          JAWM_LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          git checkout "$JAWM_LATEST_TAG"
+          echo "JAWM_LATEST_TAG=$JAWM_LATEST_TAG" >> $GITHUB_ENV
+
+          # Install from local clone
+          pip install .
+
+      - name: Run jawm
+        run: |
+          jawm-test -p system -j local 
+
+      - name: Succeeded
+        if: success()
+        run: echo "✅ Test succeeded with ${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm@$(echo $JAWM_LATEST_TAG | cut -c 1-8)" 
+
+      - name: Slack Failure Notification
+        if: failure() # skip during local actions testing
+        run: |
+          echo "🚫 Job failed!" && \
+          generate_post_data()
+          {
+            cat << EOF
+          {
+            "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm@$(echo $JAWM_LATEST_TAG | cut -c 1-8)* test FAILED\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
+          }
+          EOF
+          }
+          curl -H "Content-Type: application/json" -X POST -d "$(generate_post_data)" ${{ secrets.SLACK_JAWM_WEBHOOK }}
+
+
+
+# from the jawm_fastqc folder
+# act -s JAWM_BIOINFORMATICS_KEY="$(cat ~/.ssh/jawm)"
