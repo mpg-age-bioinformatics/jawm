@@ -15,6 +15,31 @@ from ._method_lib import add_methods_from
 from . import _process_api, _process_internal, _process_local, _process_slurm, _process_kubernetes
 from ._utils import _add_prefix_aliases, read_variables
 
+def _expand_relpaths_in_value(val, cwd=None):
+    """
+    Expand leading './' to '<cwd>/'.
+    Treat '\./' as literal './' (remove the backslash).
+    Works recursively on dicts/lists/tuples.
+    """
+    import os
+    if cwd is None:
+        cwd = os.getcwd()
+
+    if isinstance(val, str):
+        if val.startswith(r"\./"):
+            return val[1:]  # keep literal './'
+        if val.startswith("./"):
+            return os.path.join(cwd, val[2:])
+        return val
+
+    if isinstance(val, dict):
+        return {k: _expand_relpaths_in_value(v, cwd) for k, v in val.items()}
+
+    if isinstance(val, (list, tuple)):
+        converted = [_expand_relpaths_in_value(x, cwd) for x in val]
+        return type(val)(converted) if isinstance(val, tuple) else converted
+
+    return val
 
 @add_methods_from(_process_api, _process_internal, _process_local, _process_slurm, _process_kubernetes)
 class Process:
@@ -366,6 +391,8 @@ class Process:
         self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
         self.var = self.params.get("var", None)
         if isinstance(self.var, dict):
+            # expand ./ and \./ in Process.var
+            self.var = _expand_relpaths_in_value(self.var, os.getcwd())
             _add_prefix_aliases(self.var)       # add aliases for prefixed var
         self.var_file = self.params.get("var_file", None)
         # If a var_file is provided, preload it into self.var so proc.var has everything
@@ -378,7 +405,11 @@ class Process:
                     self.var = merged
                 else:
                     self.var = dict(vf_loaded)
+                    
+                # expand ./ and \./ after merge so both var_file and Process.var are normalized
+                self.var = _expand_relpaths_in_value(self.var, os.getcwd())
                 _add_prefix_aliases(self.var)
+
             except Exception:
                 pass  
 
