@@ -966,6 +966,21 @@ def main():
             overwrite = cfg.get("overwrite", False)
             reference = cfg.get("reference")
 
+            # --- Validate that all included paths exist before hashing ---
+            missing = []
+            for p in paths:
+                if not os.path.exists(p):
+                    missing.append(os.path.abspath(str(p)))
+
+            if missing:
+                logger.error("[hash] The following included paths were not found:")
+                for m in missing:
+                    logger.error(f"[hash] Missing - {m}")
+                logger.error("[hash] Aborting user-defined hash computation — missing files detected.")
+                if overwrite:
+                    logger.error("[hash] The .hash file will NOT be overwritten even if 'overwrite: true' is set.")
+                sys.exit(EXIT_HASH_REFERENCE_MISMATCH)
+
             userdef_files_csv = "-"
             if paths:
                 userdef_files_considered = _enumerate_hash_inputs_cli(
