@@ -968,11 +968,53 @@ class Process:
 
         # Resolve processes to wait on
         if process_list == "all":
-            procs = list({
-                id(p): p
+
+            # --- Dynamic registry stabilization ---
+            stable_cycles = 0
+            last_registry_count = -1
+            poll_interval = 0.5
+            max_total_wait = int(os.getenv("JAWM_WAIT_STABILIZE", "600"))  # default 10 min
+
+            for _ in range(int(max_total_wait / poll_interval)):
+                # Fresh snapshot of all started processes
+                procs = [
+                    p
+                    for p in cls.registry.values()
+                    if isinstance(p, cls) and p.execution_start_at is not None
+                ]
+                active = [p for p in procs if not p.finished_event.is_set()]
+                reg_count = len(procs)
+
+                # Stable when registry size unchanged & no active procs
+                if reg_count == last_registry_count and not active:
+                    stable_cycles += 1
+                else:
+                    stable_cycles = 0
+                last_registry_count = reg_count
+
+                # Require 3 stable cycles + idle grace
+                if stable_cycles >= 3:
+                    # Additional 3s idle grace (final quiet period)
+                    idle_t0 = time.time()
+                    while time.time() - idle_t0 < 3:
+                        if len(cls.list_active()) > 0:
+                            stable_cycles = 0
+                            break
+                        time.sleep(poll_interval)
+                    if stable_cycles >= 3:
+                        break
+
+                time.sleep(poll_interval)
+
+            # Final safety rescan after stabilization
+            procs = [
+                p
                 for p in cls.registry.values()
                 if isinstance(p, cls) and p.execution_start_at is not None
-            }.values())
+            ]
+            active = [p for p in procs if not p.finished_event.is_set()]
+            if active:
+                if log: print(f"Process.wait | WARNING :: Timeout waiting for {len(active)} remaining processes.")
         else:
             procs = []
             for item in process_list:
