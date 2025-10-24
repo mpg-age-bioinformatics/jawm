@@ -896,7 +896,7 @@ def main():
                         logger.warning(f"Invalid JAWM_WAIT_TIMEOUT='{env_val}'. Falling back to default (24h).")
 
                 # Wait for all processes to finish before hashing
-                Process.wait("all", timeout=timeout_val, log=False)
+                Process.wait("all", timeout=timeout_val, log=False, dynamic=True)
 
         except Exception as e:
             logger.warning(f"Could not complete wait for processes before exit: {e}")

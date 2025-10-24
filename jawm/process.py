@@ -929,7 +929,7 @@ class Process:
 
 
     @classmethod
-    def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5, log=True, timeout=None):
+    def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False):
         """
         Wait until the given processes are finished, optionally checking their exit codes.
 
@@ -944,6 +944,7 @@ class Process:
         tail_poll (float): polling interval in seconds for tailing (default 0.5)
         log (bool): Whether to log the wait info or not
         timeout (int | None): Maximum time (in seconds) to wait for each process. If None (default), wait indefinitely or comply with os env JAWM_WAIT_TIMEOUT
+        dynamic (bool): Consider dynamic stabilization mode on process registry, so it doesn't only count snapshot (default False)
 
         Returns:
             bool: True if all waited processes completed with allowed exit codes, False otherwise.
@@ -968,11 +969,48 @@ class Process:
 
         # Resolve processes to wait on
         if process_list == "all":
-            procs = list({
-                id(p): p
-                for p in cls.registry.values()
-                if isinstance(p, cls) and p.execution_start_at is not None
-            }.values())
+            time.sleep(float(os.getenv("JAWM_WAIT_GRACE", "0.3")))
+            if dynamic:
+                # --- Dynamic stabilization mode ---
+                stable_cycles = 0
+                last_registry_count = -1
+                poll_interval = 0.5
+                max_total_wait = int(os.getenv("JAWM_WAIT_STABILIZE", "600"))  # default 10 min
+
+                for _ in range(int(max_total_wait / poll_interval)):
+                    procs = list({
+                        id(p): p
+                        for p in cls.registry.values()
+                        if isinstance(p, cls) and p.execution_start_at is not None
+                    }.values())
+                    active = [p for p in procs if not p.finished_event.is_set()]
+                    reg_count = len(procs)
+
+                    if reg_count == last_registry_count and not active:
+                        stable_cycles += 1
+                    else:
+                        stable_cycles = 0
+                    last_registry_count = reg_count
+
+                    # Require 3 stable cycles for confirmation
+                    if stable_cycles >= 3:
+                        if log: print(f"Process.wait | INFO :: Registry stabilized with {len(procs)} total processes.")
+                        break
+
+                    time.sleep(poll_interval)
+
+                # Final rescan after stabilization
+                procs = list({
+                    id(p): p
+                    for p in cls.registry.values()
+                    if isinstance(p, cls) and p.execution_start_at is not None
+                }.values())
+            else:
+                procs = list({
+                    id(p): p
+                    for p in cls.registry.values()
+                    if isinstance(p, cls) and p.execution_start_at is not None
+                }.values())
         else:
             procs = []
             for item in process_list:
