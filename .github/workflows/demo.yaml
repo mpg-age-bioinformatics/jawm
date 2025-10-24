@@ -43,6 +43,11 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
+      - name: Set module to test
+        run: |
+          echo "JAWM_MODULE=demo" >> $GITHUB_ENV      
+
+
       - name: Install jawm
         run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
@@ -51,24 +56,24 @@ jobs:
           # Install from local clone
           pip install .
 
-      - name: Clone jawm_demo and capture commit hash
+      - name: Clone jawm_module and capture commit hash
         run: |
           # Clone the repo manually
-          git clone git@github.com:mpg-age-bioinformatics/jawm_demo.git
-          cd jawm_demo
+          git clone git@github.com:mpg-age-bioinformatics/jawm_${JAWM_MODULE}.git
+          cd jawm_${JAWM_MODULE}
 
           # Capture the commit hash
-          JAWM_DEMO_COMMIT_HASH=$(git rev-parse HEAD)
-          echo "JAWM_DEMO_COMMIT_HASH=$JAWM_DEMO_COMMIT_HASH" >> $GITHUB_ENV      
+          JAWM_MODULE_COMMIT_HASH=$(git rev-parse HEAD)
+          echo "JAWM_MODULE_COMMIT_HASH=$JAWM_MODULE_COMMIT_HASH" >> $GITHUB_ENV      
 
       - name: Run jawm
         run: |
-          cd jawm_demo
+          cd jawm_${JAWM_MODULE}
           jawm-test -p system -j local 
 
       - name: Succeeded
         if: success()
-        run: echo "✅ Test succeeded with ${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm_demo@$(echo $JAWM_DEMO_COMMIT_HASH | cut -c 1-8)" 
+        run: echo "✅ Test succeeded with ${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm_${JAWM_MODULE}@$(echo $JAWM_MODULE_COMMIT_HASH | cut -c 1-8)" 
 
       - name: Slack Failure Notification
         if: failure() # skip during local actions testing
@@ -78,7 +83,7 @@ jobs:
           {
             cat << EOF
           {
-            "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm_demo@$(echo $JAWM_DEMO_COMMIT_HASH | cut -c 1-8)* test FAILED\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
+            "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm_${JAWM_MODULE}@$(echo $JAWM_MODULE_COMMIT_HASH | cut -c 1-8)* test FAILED\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
           }
           EOF
           }
