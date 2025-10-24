@@ -380,6 +380,19 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
     _replace("demo_submodule.py", f"{module_name}_submodule.py")
     _replace("demo_submodule", f"{module_name}_submodule")
 
+    # --- If user != default, adjust test workflow to use modules.yaml instead of modules.webhook.yaml ---
+    if user != "mpg-age-bioinformatics":
+        wf = target / ".github" / "workflows" / "test.yaml"
+        if wf.exists():
+            try:
+                text = wf.read_text(encoding="utf-8")
+                text = text.replace("modules.webhook.yaml", "modules.yaml")
+                wf.write_text(text, encoding="utf-8")
+                print("🔧 Updated test workflow to use modules.yaml (non-default user).")
+            except Exception as e:
+                print(f"⚠️ Failed to modify .github/workflows/test.yaml: {e}")
+
+
     # Remove lines 3–6 from README.md
     readme = target / "README.md"
     if readme.exists():
@@ -477,10 +490,32 @@ def main():
         sys.exit(2)
     
     elif args.command == "init":
-        # Subparser for the init command (positional project name)
-        init_parser = argparse.ArgumentParser(prog="jawm-dev init", description="Initialize a new jawm workflow project from the jawm_template repository.")
-        init_parser.add_argument("name", nargs="?", help="Name of the new workflow project directory to create.")
-        init_args = init_parser.parse_args(args.args)
+        # Subparser for the init command (positional module name)
+        init_parser = argparse.ArgumentParser(
+            prog="jawm-dev init",
+            description="Initialize a new jawm workflow project from the jawm_template repository.",
+        )
+        init_parser.add_argument(
+            "name",
+            nargs="?",
+            help="Base module name (without prefix). Example: 'demo' → repo 'jawm_demo', file 'demo.py'.",
+        )
+        init_parser.add_argument(
+            "--server",
+            default="github.com",
+            help="Git server host or URL (use 'local' to skip remote). Default: github.com",
+        )
+        init_parser.add_argument(
+            "--user",
+            default="mpg-age-bioinformatics",
+            help="Git username/organization for remote. Default: mpg-age-bioinformatics",
+        )
+        init_parser.add_argument(
+            "--prefix", "--module-prefix",
+            dest="module_prefix",
+            default="jawm_",
+            help="Repository directory prefix. Default: jawm_",
+        )
 
         # If no args (no name provided), show help instead of error
         if not args.args:
@@ -488,8 +523,18 @@ def main():
             sys.exit(0)
 
         init_args = init_parser.parse_args(args.args)
-        _run_init(init_args.name)
+
+        if not init_args.name:
+            init_parser.error("the following arguments are required: name")
+
+        _run_init(
+            module_name=init_args.name,
+            server=init_args.server,
+            user=init_args.user,
+            module_prefix=init_args.module_prefix,
+        )
         sys.exit(0)
+
 
    
     elif args.command not in _VALID_CMDS:
