@@ -883,6 +883,24 @@ def main():
         if auto_files_considered:
             auto_files_csv = ",".join(auto_files_considered)
 
+        # Wait for all processes to finish before hashing
+        try:
+            wait_cli = os.getenv("JAWM_WAIT_CLI", "1").lower() not in {"0", "false", "no", "off"}
+            if wait_cli:
+                timeout_val = 86400  # default: 24 hours
+                env_val = os.getenv("JAWM_WAIT_TIMEOUT")
+                if env_val is not None:
+                    try:
+                        timeout_val = int(env_val)
+                    except ValueError:
+                        logger.warning(f"Invalid JAWM_WAIT_TIMEOUT='{env_val}'. Falling back to default (24h).")
+
+                # Wait for all processes to finish before hashing
+                Process.wait("all", timeout=timeout_val, log=False)
+
+        except Exception as e:
+            logger.warning(f"Could not complete wait for processes before exit: {e}")
+        
         # compute auto hash (prefix-mode preferred)
         auto_hash = _compute_run_hash_from_process_prefixes_cli()
         if not auto_hash:
@@ -1012,25 +1030,6 @@ def main():
         # If module raised SystemExit, prefer that code; else generic failure
         sys.exit(exit_code_from_script if exit_code_from_script is not None else 1)
     finally:
-        try:
-            # Check if CLI waiting is enabled (default: yes)
-            wait_cli = os.getenv("JAWM_WAIT_CLI", "1").lower() not in {"0", "false", "no", "off"}
-            if wait_cli:
-                timeout_val = 86400  # default: 24 hours
-                env_val = os.getenv("JAWM_WAIT_TIMEOUT")
-                if env_val is not None:
-                    try:
-                        timeout_val = int(env_val)
-                    except ValueError:
-                        logger.warning(f"Invalid JAWM_WAIT_TIMEOUT='{env_val}'. Falling back to default (24h).")
-
-                # Wait for any running processes before ending
-                active = Process.list_active()
-                if active:
-                    Process.wait("all", timeout=timeout_val, log=False)
-        except Exception as e:
-            logger.warning(f"Could not complete wait for processes before exit: {e}")
-
         time.sleep(0.2)
         if exit_code_def == 0:
             logger.info("Ending jawm module script from jawm command")

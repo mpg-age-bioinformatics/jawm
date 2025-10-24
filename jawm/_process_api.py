@@ -168,7 +168,7 @@ def execute(self, depends_on=None):
 
         if self.parallel:
             # Non-blocking (background)
-            t = threading.Thread(target=_run_sequence, daemon=True)
+            t = threading.Thread(target=_run_sequence, daemon=False)
             t.start()
         else:
             # Blocking, sequential execution
