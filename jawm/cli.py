@@ -561,9 +561,40 @@ def main():
 
     args, unknown_args = parser.parse_known_args()
 
+
+
+    def _synth_git_target(module: str, server: str, user: str) -> str:
+        """
+        Build a git SSH target from server/user/module.
+        Supports optional @ref suffix:
+            repo
+            repo@tag
+            org/repo
+            org/repo@commit
+        """
+        name, sep, ref = module.partition('@')
+
+        # If user did not specify org, assume provided --user
+        if '/' not in name:
+            name = f"{user}/{name}"
+
+        target = f"git@{server}:{name}.git"
+        if sep:  # module had @ref
+            target = f"{target}@{ref}"
+        return target
+
+    # ---- PLACE THIS RIGHT BEFORE your existing `_is_git_target(args.module)` block ----
+
+    # Only synthesize git URL if:
+    #  (1) module path does NOT exist locally, AND
+    #  (2) module is NOT already a git URL / git-like target.
+    if not Path(args.module).exists() and not _is_git_target(args.module):
+        args.module = _synth_git_target(args.module, args.server, args.user)
+
     # If module is a git repo target, clone/cache and rewrite args.module to local 
     _git_info_line = None
     _original_module = args.module
+
     if _is_git_target(args.module):
         cache_root = _git_cache_root(getattr(args, "git_cache", None))
         cache_root.mkdir(parents=True, exist_ok=True)
