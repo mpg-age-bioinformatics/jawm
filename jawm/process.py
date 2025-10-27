@@ -365,7 +365,7 @@ class Process:
         self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
         self.var = self.params.get("var", None)
         if isinstance(self.var, dict):
-            # Expand/process vaues
+            # Expand/process values
             self.var = _expand_relpaths_in_value(self.var, os.getcwd())
             _add_prefix_aliases(self.var)       # add aliases for prefixed var
         self.var_file = self.params.get("var_file", None)
@@ -380,7 +380,7 @@ class Process:
                 else:
                     self.var = dict(vf_loaded)
                     
-                # Expand/process vaues
+                # Expand/process values
                 self.var = _expand_relpaths_in_value(self.var, os.getcwd())
                 _add_prefix_aliases(self.var)
 

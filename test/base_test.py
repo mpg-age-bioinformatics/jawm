@@ -1972,7 +1972,7 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-print("\n>>> Test 35: Process.wait(), timeout, and environment behavior")
+print("\n>>> Test 36: Process.wait(), timeout, and environment behavior")
 Process.reset_stop()
 tmp = None
 try:
@@ -2028,6 +2028,92 @@ finally:
         pass
     if tmp and os.path.isdir(tmp):
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+print("\n>>> Test 37: Path expansion logic and environment toggles")
+
+try:
+    import os
+    from jawm import Process
+
+    cwd = os.getcwd()
+    home = os.path.expanduser("~")
+
+    # --- A) Default behavior (JAWM_EXPAND_PATH=true, JAWM_EXPAND_HOME=false) ---
+    os.environ.pop("JAWM_EXPAND_PATH", None)
+    os.environ.pop("JAWM_EXPAND_HOME", None)
+
+    pA = Process(
+        name="path_exp_default",
+        script="#!/bin/bash\necho OK\n",
+        var={"DATA_DIR": "./data", "ESC": r"\./keep", "HOME_DIR": "~/data"},
+        logs_directory="logs_path_env_test"
+    )
+
+    assert pA.var["DATA_DIR"].startswith(cwd + os.sep), "❌ './' not expanded under default"
+    assert pA.var["ESC"] == "./keep", "❌ '\\./' not preserved as literal"
+    assert pA.var["HOME_DIR"].startswith("~/"), "❌ '~/...' should not expand by default"
+
+    print("   ✓ Default expansion behavior correct")
+
+    # --- B) Disable expansion globally ---
+    os.environ["JAWM_EXPAND_PATH"] = "false"
+    os.environ["JAWM_EXPAND_HOME"] = "false"
+
+    pB = Process(
+        name="path_exp_off",
+        script="#!/bin/bash\necho OFF\n",
+        var={"DATA_DIR": "./data", "HOME_DIR": "~/data"},
+        logs_directory="logs_path_env_test"
+    )
+
+    assert pB.var["DATA_DIR"] == "./data", "❌ './' expanded despite JAWM_EXPAND_PATH=false"
+    assert pB.var["HOME_DIR"] == "~/data", "❌ '~/...' expanded despite JAWM_EXPAND_HOME=false"
+
+    print("   ✓ Global disable (env var false) works")
+
+    # --- C) Enable only './' expansion (typical Docker/HPC safe mode) ---
+    os.environ["JAWM_EXPAND_PATH"] = "true"
+    os.environ["JAWM_EXPAND_HOME"] = "false"
+
+    pC = Process(
+        name="path_exp_pathonly",
+        script="#!/bin/bash\necho PATHONLY\n",
+        var={"DATA_DIR": "./data", "HOME_DIR": "~/data"},
+        logs_directory="logs_path_env_test"
+    )
+
+    assert pC.var["DATA_DIR"].startswith(cwd + os.sep), "❌ './' not expanded when enabled"
+    assert pC.var["HOME_DIR"].startswith("~/"), "❌ '~/...' should stay literal when JAWM_EXPAND_HOME=false"
+
+    print("   ✓ Path-only expansion works (safe mode)")
+
+    # --- D) Enable full expansion (./ + ~/) ---
+    os.environ["JAWM_EXPAND_PATH"] = "true"
+    os.environ["JAWM_EXPAND_HOME"] = "true"
+
+    pD = Process(
+        name="path_exp_all",
+        script="#!/bin/bash\necho ALL\n",
+        var={"DATA_DIR": "./data", "HOME_DIR": "~/data"},
+        logs_directory="logs_path_env_test"
+    )
+
+    assert pD.var["DATA_DIR"].startswith(cwd + os.sep), "❌ './' not expanded with full mode"
+    assert pD.var["HOME_DIR"].startswith(home + os.sep), "❌ '~/...' not expanded to home directory"
+
+    print("   ✓ Full expansion mode works (./ and ~/ expanded)")
+
+    # --- Cleanup ---
+    os.environ.pop("JAWM_EXPAND_PATH", None)
+    os.environ.pop("JAWM_EXPAND_HOME", None)
+
+    print("✅ Passed: Path expansion logic and environment toggle behavior")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
 
 
 
