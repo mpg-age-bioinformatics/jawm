@@ -140,62 +140,204 @@ def _git(*args, cwd=None, check=True):
         raise RuntimeError(f"git {' '.join(args)}\n{r.stderr or r.stdout}")
     return r
 
+
 def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
+    """
+    Resolve a git target to a local cached folder or subpath.
+
+    External helpers assumed to exist:
+      - _normalize_git_url(target) -> (url, ref, subpath)
+      - _git(*args, cwd=None) -> subprocess.CompletedProcess
+      - _looks_like_sha(s: str) -> bool   # checks hex-ness (not the length)
+    """
+    CACHE_TTL_SECS = 120  # 2 minutes for "no-ref" freshness
+
     url, ref, subpath = _normalize_git_url(target)
 
     tmp = Path(tempfile.mkdtemp(prefix="jawm_git_"))
     try:
         _git("clone", "--filter=blob:none", "--no-checkout", "--depth=1", url, str(tmp))
 
-        if ref:
-            if _looks_like_sha(ref):
-                # User passed a commit hash → pin to it and fetch it
-                sha = ref
-                # Try to fetch that commit; GitHub supports fetch by SHA if reachable
+        _SCP_RE = re.compile(r'^(?:(?P<user>[\w\-.]+)@)?(?P<host>[\w\-.]+):(?P<path>.+)$')
+
+        def sanitize_repo(u: str) -> str:
+            s = u.strip()
+            if '//' in s:
+                s = s.split('//', 1)[1]
+            else:
+                if s.startswith('gh:'):
+                    s = s[3:]
+                else:
+                    m = _SCP_RE.match(s)
+                    if m:
+                        s = f"{m.group('host')}/{m.group('path')}"
+            s = re.sub(r'[^A-Za-z0-9_.\-/@]+', "_", s)
+            s = s.replace("@", "/")
+            s = re.sub(r'/+', '/', s)
+            return s
+
+        def _find_latest_cached_dir(base: Path) -> Path | None:
+            """Return the newest 7-hex-named subdir (used only for no-ref caches)."""
+            if not base.exists():
+                return None
+            candidates = [
+                p for p in base.iterdir()
+                if p.is_dir() and len(p.name) == 7 and all(c in "0123456789abcdef" for c in p.name.lower())
+            ]
+            if not candidates:
+                return None
+            return max(candidates, key=lambda p: p.stat().st_mtime)
+
+        def _write_full_sha_marker(dest: Path, full_sha: str) -> None:
+            try:
+                (dest / ".commit").write_text(full_sha + "\n", encoding="utf-8")
+            except Exception:
+                pass  # non-fatal
+
+        def _folder_label(user_ref: str | None, full_sha: str) -> str:
+            """
+            Cache folder segment representing what the user asked for:
+              - no ref      -> <shortsha>
+              - commit-ish  -> <short-of-user-input>  (e.g., 'f5b27c5')
+              - tag/branch  -> <sanitized-ref>@<shortsha>
+            """
+            short = full_sha[:7]
+            if not user_ref:
+                return short
+            if _looks_like_sha(user_ref):
+                return user_ref[:7]
+            safe_ref = re.sub(r'[^A-Za-z0-9_.-]+', "_", user_ref)
+            return f"{safe_ref}@{short}"
+
+        def _rev_parse_commit(expr: str) -> str | None:
+            r = subprocess.run(
+                ["git", "rev-parse", f"{expr}^{{commit}}"],
+                cwd=tmp, text=True, capture_output=True
+            )
+            return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
+
+        def _resolve_short_sha(prefix: str) -> str | None:
+            """
+            Try to resolve a short SHA by fetching lightweight refs first,
+            then progressively deepening history (blobless) until the prefix resolves.
+            Returns a full 40-char SHA or None if not found within limits.
+            """
+            # 1) Fetch default refs (heads); try resolve
+            _git("fetch", "--filter=blob:none", "--depth=1", "origin", cwd=tmp)
+            full = _rev_parse_commit(prefix)
+            if full:
+                return full
+
+            # 2) Fetch tags; try resolve
+            _git("fetch", "--filter=blob:none", "--tags", "--depth=1", "origin", cwd=tmp)
+            full = _rev_parse_commit(prefix)
+            if full:
+                return full
+
+            # 3) Progressive deepen (no blobs) to find older commits
+            for deepen in (32, 128, 512, 2048, 8192):
                 r = subprocess.run(
-                    ["git", "fetch", "--depth=1", "origin", sha],
+                    ["git", "fetch", "--filter=blob:none", f"--deepen={deepen}", "origin"],
                     cwd=tmp, text=True, capture_output=True
                 )
-                # If that fails, fall back to fetching the default refs
-                if r.returncode != 0:
-                    _git("fetch", "--depth=1", "origin", cwd=tmp)
-                # Verify we actually have the commit object
-                v = subprocess.run(
-                    ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
-                    cwd=tmp
-                )
-                if v.returncode != 0:
-                    raise RuntimeError(
-                        f"Commit not found or unreachable on remote: {sha}\n"
-                        f"(Did you mistype it, or is it not reachable from any remote ref?)"
+                # Ignore non-zero return; still try to resolve
+                full = _rev_parse_commit(prefix)
+                if full:
+                    return full
+
+            # 4) Last resort: unshallow (still blobless); can be heavy on very large repos
+            r = subprocess.run(
+                ["git", "fetch", "--filter=blob:none", "--unshallow", "origin"],
+                cwd=tmp, text=True, capture_output=True
+            )
+            full = _rev_parse_commit(prefix)
+            return full
+
+        safe_repo = sanitize_repo(url)
+
+        # --- Resolve the exact commit SHA we want ----------------------------
+        sha = None
+
+        if ref:
+            if _looks_like_sha(ref):
+                # Full SHA or abbreviated SHA: resolve by actually fetching/checking the object
+                if len(ref) == 40:
+                    sha = ref
+                    # try to ensure object is present
+                    r = subprocess.run(
+                        ["git", "fetch", "--depth=1", "origin", sha],
+                        cwd=tmp, text=True, capture_output=True
                     )
-            else:
-                # Branch/Tag → fetch and use FETCH_HEAD
-                _git("fetch", "--depth=1", "origin", ref, cwd=tmp)
-                sha = _git("rev-parse", "FETCH_HEAD", cwd=tmp).stdout.strip()
-        else:
-            _git("fetch", "--depth=1", "origin", cwd=tmp)
-            # Try to resolve origin/HEAD; fall back to main/master
-            r = subprocess.run(["git", "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"],
-                            cwd=tmp, text=True, capture_output=True)
-            if r.returncode == 0 and r.stdout.strip():
-                head_ref = r.stdout.strip()            # e.g. "origin/main"
-                sha = _git("rev-parse", f"{head_ref}^{{commit}}", cwd=tmp).stdout.strip()
-            else:
-                for candidate in ("origin/main", "origin/master"):
-                    rr = subprocess.run(["git", "rev-parse", f"{candidate}^{{commit}}"],
-                                        cwd=tmp, text=True, capture_output=True)
-                    if rr.returncode == 0 and rr.stdout.strip():
-                        sha = rr.stdout.strip()
-                        break
+                    # even if that fails, do a regular fetch and verify below
+                    _git("fetch", "--filter=blob:none", "--depth=1", "origin", cwd=tmp)
+                    if not _rev_parse_commit(sha):
+                        # grab tags/heads and try again
+                        _git("fetch", "--filter=blob:none", "--tags", "--depth=1", "origin", cwd=tmp)
+                        if not _rev_parse_commit(sha):
+                            # deepen to try to reach it
+                            sha2 = _resolve_short_sha(sha)
+                            if not sha2:
+                                raise RuntimeError("Commit not reachable from the remote.")
+                            sha = sha2
                 else:
-                    raise RuntimeError("Could not determine default remote HEAD (tried origin/HEAD, origin/main, origin/master).")
+                    # Abbreviated SHA → resolve by fetch/deepen until it resolves
+                    sha = _resolve_short_sha(ref)
+                    if not sha:
+                        raise RuntimeError("Could not resolve the abbreviated commit.")
+            else:
+                # branch/tag
+                _git("fetch", "--filter=blob:none", "--depth=1", "origin", ref, cwd=tmp)
+                sha = _git("rev-parse", "FETCH_HEAD", cwd=tmp).stdout.strip()
 
+        else:
+            # No ref → try cache freshness before hitting the network
+            repo_base = cache_root / safe_repo
+            latest_cached = _find_latest_cached_dir(repo_base)
+            if latest_cached is not None:
+                age = time.time() - latest_cached.stat().st_mtime
+                if age <= CACHE_TTL_SECS:
+                    # Fresh → reuse immediately if it already has contents
+                    dest = latest_cached
+                    subpath_norm = (subpath or "").strip("/")
+                    if subpath_norm:
+                        target_path = dest / os.path.normpath(subpath_norm).replace("\\", "/")
+                        if target_path.exists():
+                            return target_path
+                    if any(dest.iterdir()):
+                        return dest
+                    # Empty dir (rare). Try to read .commit for SHA; otherwise fetch below.
+                    marker = dest / ".commit"
+                    if marker.exists():
+                        sha = marker.read_text(encoding="utf-8").strip()
 
-        safe_repo = re.sub(r"[^A-Za-z0-9_.-]+", "_", url)
-        dest = cache_root / safe_repo / sha
+            if not sha:
+                # Fetch default refs to learn current default-branch commit
+                _git("fetch", "--filter=blob:none", "--depth=1", "origin", cwd=tmp)
+                r = subprocess.run(
+                    ["git", "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"],
+                    cwd=tmp, text=True, capture_output=True
+                )
+                if r.returncode == 0 and r.stdout.strip():
+                    head_ref = r.stdout.strip()  # e.g. "origin/main"
+                    sha = _git("rev-parse", f"{head_ref}^{{commit}}", cwd=tmp).stdout.strip()
+                else:
+                    for candidate in ("origin/main", "origin/master"):
+                        rr = subprocess.run(
+                            ["git", "rev-parse", f"{candidate}^{{commit}}"],
+                            cwd=tmp, text=True, capture_output=True
+                        )
+                        if rr.returncode == 0 and rr.stdout.strip():
+                            sha = rr.stdout.strip()
+                            break
+                    else:
+                        raise RuntimeError("Could not determine default remote HEAD.")
+
+        # Now that we have the full SHA, compute the destination folder
+        label = _folder_label(ref, sha)
+        dest = cache_root / safe_repo / label
         dest.mkdir(parents=True, exist_ok=True)
 
+        # --- Normalize subpath and safety checks -----------------------------
         subpath = (subpath or "").strip("/")
         if subpath:
             norm = os.path.normpath(subpath).replace("\\", "/")
@@ -217,6 +359,7 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
                 raise RuntimeError(f"git archive failed: {proc.stderr.decode().strip() or proc.stdout.decode().strip()}")
             with tarfile.open(fileobj=io.BytesIO(proc.stdout), mode="r:") as tf:
                 tf.extractall(path=dest)
+            _write_full_sha_marker(dest, sha)
             return dest
 
         # === Subpath present → return cached result if it already exists ======
@@ -239,7 +382,6 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
             hint_list = ""
             if ls.returncode == 0 and ls.stdout.strip():
                 lines = [ln.strip() for ln in ls.stdout.splitlines() if ln.strip()]
-                # re-prefix with parent for clarity if we listed a directory
                 if parent:
                     lines = [f"{parent}/{ln}" for ln in lines]
                 hint_list = "\n  - " + "\n  - ".join(lines[:50])  # cap for safety
@@ -267,6 +409,7 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
                 raise RuntimeError(f"git show failed: {r.stderr.decode().strip() or r.stdout.decode().strip()}")
             with open(target_path, "wb") as f:
                 f.write(r.stdout)
+            _write_full_sha_marker(dest, sha)
             return target_path
 
         # --- Tree (directory) -------------------------------------------------
@@ -283,12 +426,14 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
                 )
             with tarfile.open(fileobj=io.BytesIO(proc.stdout), mode="r:") as tf:
                 tf.extractall(path=dest)
+            _write_full_sha_marker(dest, sha)
             return target_path
 
         raise RuntimeError(f"Unsupported git object type for {subpath!r}: {objtype}")
 
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
 
 def _git_cache_root(cli_flag_path=None):
     """
@@ -402,8 +547,17 @@ def main():
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
     parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
     parser.add_argument("--git-cache", help="Path for jawm's git cache (default: ~/.jawm/git)")
+    parser.add_argument(
+            "--server",
+            default="github.com",
+            help="Git server host or URL (use 'local' to skip remote). Default: github.com",
+        )
+    parser.add_argument(
+            "--user",
+            default="mpg-age-bioinformatics",
+            help="Git username/organization for remote. Default: mpg-age-bioinformatics",
+        )
     parser.add_argument("-V", "--version", action="version", version=f"jawm {_VERSION}")
-
 
     args, unknown_args = parser.parse_known_args()
 
@@ -414,8 +568,42 @@ def main():
         cache_root = _git_cache_root(getattr(args, "git_cache", None))
         cache_root.mkdir(parents=True, exist_ok=True)
         resolved = _resolve_git_to_local(args.module, cache_root)
-        args.module = str(resolved)
-        _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}'"
+
+        # Determine repo_name from: cache_root/<safe_repo>/<sha>/repo_name/<...>
+        try:
+            rel = Path(resolved).resolve().relative_to(cache_root.resolve())
+            parts = rel.parts
+            # parts[0] = safe_repo, parts[1] = sha, parts[2] = repo_name (if subpath used)
+            repo_name = parts[2] if len(parts) >= 3 else parts[-1]
+        except Exception:
+            # fallback if resolved is not under cache_root (should not happen, but safe)
+            repo_name = Path(resolved).name
+
+        # Strip a trailing .git
+        repo_name = re.sub(r"\.git$", "", repo_name, flags=re.IGNORECASE) or "repo"
+
+        # Destination in current working directory
+        dst = Path.cwd() / repo_name
+
+        # Ensure resolved is a directory
+        resolved_path = Path(resolved)
+        if not resolved_path.is_dir():
+            raise RuntimeError(f"Resolved git path is not a directory: {resolved}")
+
+        # Copy (clean replace)
+        if dst.exists():
+            shutil.rmtree(dst)
+
+        shutil.copytree(resolved_path, dst)
+
+        # Point args.module at the **local working copy**
+        args.module = str(dst)
+
+        # (Optional) Update logging line
+        _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
+
+        # args.module = str(resolved)
+        # _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}'"
 
     # normalize -p and -v: single item → string; many → list
     if args.parameters is not None and isinstance(args.parameters, list) and len(args.parameters) == 1:
@@ -830,6 +1018,7 @@ def main():
     # --- Run the module script ---
     exit_code_from_script = None
     exit_code_def = 0
+
     try:
         logger.info(f"Running jawm module: {module_path}")
         try:

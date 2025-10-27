@@ -565,12 +565,12 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
     else:
         var={}
 
-    script_name = os.path.basename(sys.argv[0])
-    workflows=[ s for s in workflows if s != script_name ]
+    # script_name = os.path.basename(sys.argv[0])
+    workflows=[ s for s in workflows if s != sys.argv[0] ]
     if not workflows :
         workflows=["main"]
     else :
-        workflows=workflows[0]
+        workflows=workflows[1:][0]
 
         if "," in workflows :
             workflows=workflows.split(",")
@@ -669,7 +669,6 @@ def from_file_pairs(data_folder, read1_suffix=".READ_1.fastq.gz", read2_suffix="
 
     return pairs
 
-
 def load_modules(
     paths,
     *,
@@ -686,6 +685,11 @@ def load_modules(
     - Avoids re-importing modules already in sys.modules.
     - HTTPS→SSH fallback cloning (non-interactive).
 
+    Path resolution:
+      • Relative paths are resolved against the CALLER'S FILE directory,
+        not this function's file and not necessarily the process CWD.
+        (If no caller file is available, we fall back to os.getcwd().)
+
     Parameters
     ----------
     paths : list[str] | str
@@ -697,11 +701,32 @@ def load_modules(
     modules_root : str | Path, optional
         Root directory where modules are cloned or searched.
         Priority:
-          1. Explicit argument (this parameter)
-          2. Environment variable JAWM_MODULES_PATH
-          3. Default: ./modules
+          1. Explicit argument (resolved relative to caller file if not absolute)
+          2. Environment variable JAWM_MODULES_PATH (same)
+          3. Default: <caller_file_dir>/.submodules
     """
     logger = logging.getLogger("jawm.utils|load_modules")
+
+    # ⭐ Determine the CALLER's file directory
+    def _caller_dir() -> pathlib.Path:
+        try:
+            # Walk the stack to find the first frame outside this module.
+            this_file = pathlib.Path(__file__).resolve()
+            for frame_info in inspect.stack():
+                fpath = pathlib.Path(frame_info.filename).resolve()
+                if fpath != this_file and fpath.exists():
+                    return fpath.parent
+        except Exception:
+            pass
+        # Fallback (e.g., interactive/REPL)
+        return pathlib.Path(os.getcwd()).resolve()
+
+    caller_base = _caller_dir()
+
+    # ⭐ Resolve a path relative to the caller's file (unless absolute)
+    def _resolve_from_caller(p: pathlib.Path | str) -> pathlib.Path:
+        p = pathlib.Path(p).expanduser()
+        return (caller_base / p).resolve() if not p.is_absolute() else p.resolve()
 
     if not isinstance(paths, (list, tuple)):
         paths = [paths]
@@ -710,18 +735,18 @@ def load_modules(
     seen_paths = set()
     py_files = []
 
-    # ⭐ Determine module root priority
+    # ⭐ Determine modules_root relative to CALLER
     if modules_root is not None:
-        modules_root = pathlib.Path(modules_root).expanduser().resolve()
-        logger.info(f"📦 Using modules_root argument: {modules_root}")
+        modules_root = _resolve_from_caller(modules_root)
+        logger.info(f"📦 Using modules_root argument (relative to caller): {modules_root}")
     else:
         env_modules_path = os.getenv("JAWM_MODULES_PATH")
         if env_modules_path:
-            modules_root = pathlib.Path(env_modules_path).expanduser().resolve()
-            logger.info(f"📦 Using JAWM_MODULES_PATH from environment: {modules_root}")
+            modules_root = _resolve_from_caller(env_modules_path)
+            logger.info(f"📦 Using JAWM_MODULES_PATH (relative to caller if not absolute): {modules_root}")
         else:
-            modules_root = pathlib.Path("./.submodules").resolve()
-            logger.info(f"📦 Using default modules directory: {modules_root}")
+            modules_root = (caller_base / ".submodules").resolve()
+            logger.info(f"📦 Using default modules directory next to caller: {modules_root}")
 
     modules_root.mkdir(parents=True, exist_ok=True)
 
@@ -753,7 +778,7 @@ def load_modules(
         )
         return result.stdout.strip()
 
-    # ⭐ NEW: helper to get latest tag from remote
+    # helper to get latest tag from remote
     def _get_latest_tag(https_url):
         try:
             logger.info(f"🔍 Fetching latest tag from {https_url} ...")
@@ -762,7 +787,6 @@ def load_modules(
             for line in output.splitlines():
                 if "refs/tags/" in line:
                     tag = line.split("refs/tags/")[-1]
-                    # ignore dereferenced tags like v1.0.0^{}
                     if tag.endswith("^{}"):
                         tag = tag[:-3]
                     tags.append(tag)
@@ -770,7 +794,6 @@ def load_modules(
                 logger.warning(f"No tags found for {https_url}; using default branch.")
                 return None
 
-            # sort semver-like tags naturally (fallback to lexicographic)
             import re
             def version_key(tag):
                 nums = re.findall(r"\d+", tag)
@@ -783,24 +806,19 @@ def load_modules(
             return None
 
     def _try_clone_repo(repo_name, ref=None):
-        """Clone repo into ./modules/<repo_name> and optionally checkout ref."""
+        """Clone repo into <modules_root>/<repo_name> and optionally checkout ref."""
         dest_dir = modules_root / repo_name
         https_url = f"https://{address}/{user}/{repo_name}.git"
         ssh_url = f"git@{address}:{user}/{repo_name}.git"
 
-        # Resolve "latest" tag keyword
         if ref == "latest":
             ref = _get_latest_tag(https_url)
             if not ref:
                 logger.warning(f"Falling back to default branch for '{repo_name}' (no tags).")
 
-        # ---------------- if repo already exists ---------------- #
-        # ---------------- if repo already exists ---------------- #
         if dest_dir.exists():
             logger.info(f"📁 Repository '{repo_name}' already exists at {dest_dir}")
-
             try:
-                # --- Current HEAD and remote info ---
                 current_head = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
                 remote_name = _run_git_command(["git", "remote"], cwd=dest_dir) or "origin"
                 remote_url = _run_git_command(["git", "remote", "get-url", remote_name], cwd=dest_dir)
@@ -813,11 +831,9 @@ def load_modules(
                 except subprocess.CalledProcessError:
                     upstream_branch = None
 
-                # Fetch all updates
                 _run_git_command(["git", "fetch", "--all"], cwd=dest_dir)
                 _run_git_command(["git", "fetch", "--tags"], cwd=dest_dir)
 
-                # Try to get latest commit on remote
                 remote_latest_commit = None
                 if upstream_branch:
                     try:
@@ -827,25 +843,21 @@ def load_modules(
                     except subprocess.CalledProcessError:
                         remote_latest_commit = None
 
-                # --- Report combined info ---
                 if upstream_branch and remote_latest_commit:
                     logger.info(
                         f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | Tracking: {upstream_branch}"
                     )
-                    logger.info(
-                        f"🔸 Latest remote commit: {remote_latest_commit[:10]}"
-                    )
+                    logger.info(f"🔸 Latest remote commit: {remote_latest_commit[:10]}")
                 elif upstream_branch:
                     logger.info(
                         f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | Tracking: {upstream_branch}"
                     )
-                    logger.info(f"🔸 Latest remote commit: unavailable (fetch failed)")
+                    logger.info("🔸 Latest remote commit: unavailable (fetch failed)")
                 else:
                     logger.info(
                         f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | No upstream tracking branch"
                     )
 
-                # Compare local vs remote commits (if available)
                 if remote_latest_commit and remote_latest_commit != current_head:
                     logger.info(f"⬇️  Remote HEAD differs: {remote_latest_commit[:10]} (upstream)")
                     logger.info(f"➡️  Pulling latest changes for '{repo_name}' ...")
@@ -858,7 +870,6 @@ def load_modules(
                 else:
                     logger.info(f"✅ '{repo_name}' already up to date with remote.")
 
-                # Checkout to ref or HEAD
                 if ref:
                     _checkout_to_ref(repo_name, dest_dir, ref, logger)
                 else:
@@ -871,9 +882,6 @@ def load_modules(
 
             return dest_dir
 
-
-
-        # ---------------- if repo does not exist (clone) ---------------- #
         logger.info(f"🌀 Cloning '{repo_name}' via HTTPS: {https_url}")
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
@@ -904,7 +912,6 @@ def load_modules(
                 logger.error(f"❌ Failed to clone '{repo_name}' via both HTTPS and SSH: {e2}")
                 return None
 
-        # Log HEAD after cloning
         try:
             branch = _run_git_command(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=dest_dir)
             head_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
@@ -912,7 +919,6 @@ def load_modules(
         except Exception as e:
             logger.warning(f"Could not determine current HEAD for '{repo_name}': {e}")
 
-        # Checkout specific ref or default head
         if ref:
             _checkout_to_ref(repo_name, dest_dir, ref, logger)
         else:
@@ -920,24 +926,17 @@ def load_modules(
 
         return dest_dir
 
-
-
-    # ---------------- helper: checkout to specific ref ---------------- #
     def _checkout_to_ref(repo_name, repo_path, ref, logger):
         """Checkout to commit, branch, or tag — safely and with logging."""
         try:
             logger.info(f"🔍 Preparing to checkout '{repo_name}' to ref '{ref}' ...")
-
-            # Ensure full history is available
             try:
                 _run_git_command(["git", "fetch", "--unshallow"], cwd=repo_path)
             except subprocess.CalledProcessError:
-                pass  # already full clone
-
+                pass
             _run_git_command(["git", "fetch", "--all"], cwd=repo_path)
             _run_git_command(["git", "fetch", "--tags"], cwd=repo_path)
 
-            # Detect ref type
             ref_type = "unknown"
             try:
                 branches = _run_git_command(["git", "branch", "-a"], cwd=repo_path)
@@ -959,7 +958,6 @@ def load_modules(
             emoji = {"branch": "🌿", "tag": "🔖", "commit": "💾"}.get(ref_type, "❓")
             logger.info(f"{emoji} Detected ref type: {ref_type}")
 
-            # Try direct checkout
             try:
                 _run_git_command(["git", "checkout", ref], cwd=repo_path)
             except subprocess.CalledProcessError:
@@ -975,13 +973,9 @@ def load_modules(
         except Exception as e:
             logger.warning(f"Unexpected error during checkout of '{repo_name}': {e}")
 
-
-
-    # ---------------- helper: checkout to default HEAD ---------------- #
     def _checkout_to_default_head(repo_name, repo_path, logger):
         """Ensure repo is checked out to the default remote HEAD (usually main/master)."""
         try:
-            # Determine default remote branch
             remote_default = _run_git_command(
                 ["git", "symbolic-ref", "refs/remotes/origin/HEAD"], cwd=repo_path
             )
@@ -999,30 +993,28 @@ def load_modules(
         except Exception as e:
             logger.warning(f"Unexpected error during default head checkout for '{repo_name}': {e}")
 
-
     # ---------------- main logic ---------------- #
 
     for item in paths:
         repo_name, ref = _parse_repo_spec(item)
-        repo_path = pathlib.Path(repo_name).expanduser().resolve()
 
-        # ⭐ If this module is already loaded, skip early
+        # ⭐ Resolve potential local path relative to the CALLER's file
+        repo_path = _resolve_from_caller(repo_name)
+
         if repo_name in sys.modules:
             logger.info(f"🧩 Module '{repo_name}' already loaded — skipping repository and import.")
             continue
 
-        # Clone if missing
         if not repo_path.exists():
-            logger.info(f"Repository path not found: {repo_name}. Attempting clone...")
+            logger.info(f"Repository path not found relative to caller: {repo_name}. Attempting clone...")
             cloned = _try_clone_repo(repo_name, ref)
             if cloned is None or not cloned.exists():
                 logger.error(f"Path not found and cloning failed: {repo_name}")
                 raise FileNotFoundError(f"Path not found and cloning failed: {repo_name}")
             repo_path = cloned
         else:
-            logger.info(f"📁 Repository '{repo_name}' already exists locally at {repo_path}")
+            logger.info(f"📁 Repository '{repo_name}' found at {repo_path}")
 
-        # skip scanning same repo twice
         if repo_path in seen_paths:
             logger.info(f"ℹ️  Repository '{repo_name}' already processed — skipping.")
             continue
@@ -1038,7 +1030,6 @@ def load_modules(
         else:
             logger.error(f"Invalid path type: {repo_path}")
             raise ValueError(f"Invalid path: {repo_path}")
-
 
     # ---------------- import phase ---------------- #
 
@@ -1062,5 +1053,6 @@ def load_modules(
 
     logger.info(f"📦 Successfully loaded {len(imported_modules)} module(s): {', '.join(imported_modules)}")
     return imported_modules
+
 
 
