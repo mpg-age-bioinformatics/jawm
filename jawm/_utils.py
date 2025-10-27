@@ -40,33 +40,6 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
     dict
         Merged var (always returned).
     """
-
-    def _expand_relpaths_in_value(val, cwd=None):
-        """
-        Expand leading './' to '<cwd>/'.
-        Treat '\./' as literal './' (remove the backslash).
-        Works recursively on dicts/lists.
-        """
-        import os
-        if cwd is None:
-            cwd = os.getcwd()
-
-        if isinstance(val, str):
-            if val.startswith(r"\./"):
-                return val[1:]  # literal './'
-            if val.startswith("./"):
-                return os.path.join(cwd, val[2:])
-            return val
-
-        if isinstance(val, dict):
-            return {k: _expand_relpaths_in_value(v, cwd) for k, v in val.items()}
-
-        if isinstance(val, (list, tuple)):
-            converted = [_expand_relpaths_in_value(x, cwd) for x in val]
-            return type(val)(converted) if isinstance(val, tuple) else converted
-
-        return val
-
     def load_single_file(path, process_name=None):
         ext = os.path.splitext(path)[1].lower()
         vars_dict = {}
@@ -256,3 +229,70 @@ def _add_prefix_aliases(d, prefixes=("mk.", "map.")):
                     d.setdefault(short, d[k])
                     break
     return d
+
+
+def _expand_relpaths_in_value(val, cwd=None, skip_keys=None):
+    r"""
+    Expand path prefixes in strings recursively.
+
+    Supported expansions:
+    - './' → <cwd>/
+    - '\./' → literal './'
+    - '~/': expanded to user home only if JAWM_EXPAND_HOME=true
+
+    Controlled by environment variables:
+    ------------------------------------
+    JAWM_EXPAND_PATH=true|false   # Enable/disable './' expansion
+    JAWM_EXPAND_HOME=true|false   # Enable/disable '~/'
+
+    Parameters
+    ----------
+    val : any
+        Input value (str, dict, list, or tuple).
+    cwd : str, optional
+        Base directory for relative expansion (default: os.getcwd()).
+    skip_keys : set[str] | None
+        Dict keys to skip during recursion.
+
+    Returns
+    -------
+    any
+        Expanded value (same structure as input).
+    """
+    import os
+
+    # Environment flags
+    expand_path = os.getenv("JAWM_EXPAND_PATH", "true").strip().lower() not in ("false", "0", "no")
+    expand_home = os.getenv("JAWM_EXPAND_HOME", "false").strip().lower() in ("true", "1", "yes")
+
+    if not expand_path and not expand_home:
+        return val  # skip all expansions entirely
+
+    if cwd is None:
+        cwd = os.getcwd()
+
+    if isinstance(val, str):
+        if val.startswith(r"\./"):
+            return val[1:]  # literal './'
+
+        if expand_path and val.startswith("./"):
+            return os.path.join(cwd, val[2:])
+
+        if expand_home and val.startswith("~/"):
+            return os.path.expanduser(val)
+
+        return val
+
+    if isinstance(val, dict):
+        return {
+            k: _expand_relpaths_in_value(v, cwd, skip_keys)
+            if not (skip_keys and k in skip_keys)
+            else v
+            for k, v in val.items()
+        }
+
+    if isinstance(val, (list, tuple)):
+        converted = [_expand_relpaths_in_value(x, cwd, skip_keys) for x in val]
+        return type(val)(converted) if isinstance(val, tuple) else converted
+
+    return val

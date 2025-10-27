@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 # Setup method registration for dynamic injection into the main Process class
 from ._method_lib import register_method
+from ._utils import _expand_relpaths_in_value
 
 __methods__ = []
 register = register_method(__methods__)
@@ -114,32 +115,6 @@ def _parse_yaml_config(self, param_file):
     :param param_file: A string (single file or directory) or a list of YAML file paths.
     :return: Dictionary with merged global and process-specific parameters.
     """
-
-    def _expand_relpaths_in_value(val, cwd=None):
-        """
-        Expand leading './' to '<cwd>/'.
-        Treat '\./' as literal './'.
-        Works recursively on dicts/lists.
-        """
-        import os
-        if cwd is None:
-            cwd = os.getcwd()
-
-        if isinstance(val, str):
-            if val.startswith(r"\./"):
-                return val[1:]
-            if val.startswith("./"):
-                return os.path.join(cwd, val[2:])
-            return val
-
-        if isinstance(val, dict):
-            return {k: _expand_relpaths_in_value(v, cwd) for k, v in val.items()}
-
-        if isinstance(val, list):
-            return [_expand_relpaths_in_value(x, cwd) for x in val]
-
-        return val
-
     yaml_params = {"global": {}, "process": {}}
 
     # Ensure param_file is a list

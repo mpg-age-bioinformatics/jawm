@@ -1352,6 +1352,7 @@ print("\n>>> Test 26: Deep-merge (constructor) for var/env/manager_slurm/environ
 
 tmp = None
 try:
+    os.environ["JAWM_EXPAND_PATH"] = "FALSE"
     tmp = tempfile.mkdtemp(prefix="merge_ctor_")
     params_yaml = os.path.join(tmp, "params.yaml")
 
@@ -1405,6 +1406,7 @@ except Exception as e:
     failed += 1
 
 finally:
+    os.environ.pop("JAWM_EXPAND_PATH", None)
     if tmp and os.path.isdir(tmp):
         shutil.rmtree(tmp, ignore_errors=True)
 
