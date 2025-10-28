@@ -32,3 +32,5 @@ Check out the contents of
 my_first_wf.py
 ```
 to see how jawm works.
+
+Availabe workflows can be found [here (GitHub.com)](https://github.com/mpg-age-bioinformatics?q=jawm_&type=all&language=&sort=).
