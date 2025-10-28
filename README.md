@@ -26,7 +26,7 @@ jawm-dev init my_first_wf -s local
 Test it (requires docker):
 ```
 cd jawm_my_first_wf
-jawm my_first_wf -p ./yaml/docker.yaml
+jawm my_first_wf.py -p ./yaml/docker.yaml
 ```
 
 Check out the contents of 
