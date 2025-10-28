@@ -460,6 +460,27 @@ def _git_cache_root(cli_flag_path=None):
 
     return Path("~/.jawm/git").expanduser()
 
+
+def _synth_git_target(module: str, server: str, user: str) -> str:
+    """
+    Build a git SSH target from server/user/module.
+    Supports optional @ref suffix:
+        repo
+        repo@tag
+        org/repo
+        org/repo@commit
+    """
+    name, sep, ref = module.partition('@')
+
+    # If user did not specify org, assume provided --user
+    if '/' not in name:
+        name = f"{user}/{name}"
+
+    target = f"git@{server}:{name}.git"
+    if sep:  # module had @ref
+        target = f"{target}@{ref}"
+    return target
+
 # ---  End of git related vars and methods --- #
 
 
@@ -547,55 +568,18 @@ def main():
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
     parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
     parser.add_argument("--git-cache", help="Path for jawm's git cache (default: ~/.jawm/git)")
-    parser.add_argument(
-            "--server",
-            default="github.com",
-            help="Git server host or URL (use 'local' to skip remote). Default: github.com",
-        )
-    parser.add_argument(
-            "--user",
-            default="mpg-age-bioinformatics",
-            help="Git username/organization for remote. Default: mpg-age-bioinformatics",
-        )
-    parser.add_argument(
-        "--no-web",
-        dest="no_web",
-        action="store_true",
-        default=False,
-        help="Disable online workflow lookup when workflow not found locally. Default: online scanning is enabled.",
-    )
+    parser.add_argument("--server", default="github.com", help="Git server host or URL (use 'local' to skip remote). Default: github.com")
+    parser.add_argument("--user", default="mpg-age-bioinformatics", help="Git username/organization for remote. Default: mpg-age-bioinformatics")
+    parser.add_argument("--no-web", dest="no_web", action="store_true", default=False,help="Disable online workflow lookup when workflow not found locally. Default: online scanning is enabled.")
     parser.add_argument("-V", "--version", action="version", version=f"jawm {_VERSION}")
 
     args, unknown_args = parser.parse_known_args()
-
-
-
-    def _synth_git_target(module: str, server: str, user: str) -> str:
-        """
-        Build a git SSH target from server/user/module.
-        Supports optional @ref suffix:
-            repo
-            repo@tag
-            org/repo
-            org/repo@commit
-        """
-        name, sep, ref = module.partition('@')
-
-        # If user did not specify org, assume provided --user
-        if '/' not in name:
-            name = f"{user}/{name}"
-
-        target = f"git@{server}:{name}.git"
-        if sep:  # module had @ref
-            target = f"{target}@{ref}"
-        return target
-
-    # ---- PLACE THIS RIGHT BEFORE your existing `_is_git_target(args.module)` block ----
 
     # Only synthesize git URL if:
     #  (1) module path does NOT exist locally, AND
     #  (2) module is NOT already a git URL / git-like target.
     if not Path(args.module).exists() and not _is_git_target(args.module) and (not args.no_web):
+        print(f"[jawm.cli] Module '{args.module}' not found locally — attempting online lookup...")
         args.module = _synth_git_target(args.module, args.server, args.user)
 
     # If module is a git repo target, clone/cache and rewrite args.module to local 
