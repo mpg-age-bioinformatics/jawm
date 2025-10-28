@@ -326,10 +326,10 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
         sys.exit(1)
 
     # Remove leftover git metadata/ignore
-    for item in [".gitignore"]:
-        p = target / item
-        if p.exists():
-            (shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink())
+    # for item in [".gitignore"]:
+    #     p = target / item
+    #     if p.exists():
+    #         (shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink())
 
     # Rename demo.py → {module_name}.py
     template_py = target / "demo.py"
@@ -468,10 +468,11 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
     else:
         print(f"⚠️ Git init skipped: {err}")
 
-    print(f"\n✅ Project initialized at: {target}")
-    print(f"   cd {repo_name}")
-    print(f"   jawm {module_name}.py")
-
+    print(f"\n✅ Project initialized at: {target}\n")
+    print(f"💻 Test it with docker by running:\n")
+    print(f" $ cd {repo_name} && jawm {module_name}.py -p ./yaml/docker.yaml\n")
+    print(f"💻 or by using the jawm-test utility:\n")
+    print(f" $ cd {repo_name} && jawm-test\n")
 
 # ----------------------------------------------------------
 #  Main method for jawm-dev command

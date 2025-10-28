@@ -566,11 +566,12 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
         var={}
 
     # script_name = os.path.basename(sys.argv[0])
-    workflows=[ s for s in workflows if s != sys.argv[0] ]
+    # workflows=[ s for s in workflows if s != sys.argv[0] ]
+    workflows=workflows[1:]
     if not workflows :
         workflows=["main"]
     else :
-        workflows=workflows[1:][0]
+        workflows=workflows[0]
 
         if "," in workflows :
             workflows=workflows.split(",")
