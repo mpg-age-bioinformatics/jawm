@@ -6,7 +6,7 @@ This module provides utility functions to support common operations in jawm work
 Can be called with `jawm.utils.method_name()`.
 
 """
-
+from __future__ import annotations
 import os
 import yaml
 import fnmatch
