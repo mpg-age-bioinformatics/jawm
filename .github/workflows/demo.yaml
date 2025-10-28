@@ -47,7 +47,6 @@ jobs:
         run: |
           echo "JAWM_MODULE=demo" >> $GITHUB_ENV      
 
-
       - name: Install jawm
         run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
