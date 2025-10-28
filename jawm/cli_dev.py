@@ -381,7 +381,7 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
     _replace("demo_submodule", f"{module_name}_submodule")
 
     # --- If user != default, adjust test workflow to use modules.yaml instead of modules.webhook.yaml ---
-    if user != "mpg-age-bioinformatics":
+    if ( user != "mpg-age-bioinformatics") or ( server == "local" ):
         wf = target / ".github" / "workflows" / "test.yaml"
         if wf.exists():
             try:
@@ -423,6 +423,7 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
         ".github/workflows/python.yaml",
         "test/apptainer.txt",
         "test/yaml/apptainer.yaml",
+        "main.py"
     ]:
         p = target / rel
         if p.exists():
