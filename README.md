@@ -14,7 +14,7 @@ just another workflow manager
 pip install git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git
 ```
 
-## Developing and testing
+## Running jawm
 
 Start your first jawm workflow:
 ```
