@@ -557,6 +557,13 @@ def main():
             default="mpg-age-bioinformatics",
             help="Git username/organization for remote. Default: mpg-age-bioinformatics",
         )
+    parser.add_argument(
+        "--no-web",
+        dest="no_web",
+        action="store_true",
+        default=False,
+        help="Disable online workflow lookup when workflow not found locally. Default: online scanning is enabled.",
+    )
     parser.add_argument("-V", "--version", action="version", version=f"jawm {_VERSION}")
 
     args, unknown_args = parser.parse_known_args()
@@ -588,14 +595,14 @@ def main():
     # Only synthesize git URL if:
     #  (1) module path does NOT exist locally, AND
     #  (2) module is NOT already a git URL / git-like target.
-    if not Path(args.module).exists() and not _is_git_target(args.module):
+    if not Path(args.module).exists() and not _is_git_target(args.module) and (not args.no_web):
         args.module = _synth_git_target(args.module, args.server, args.user)
 
     # If module is a git repo target, clone/cache and rewrite args.module to local 
     _git_info_line = None
     _original_module = args.module
 
-    if _is_git_target(args.module):
+    if _is_git_target(args.module) and (not args.no_web):
         cache_root = _git_cache_root(getattr(args, "git_cache", None))
         cache_root.mkdir(parents=True, exist_ok=True)
         resolved = _resolve_git_to_local(args.module, cache_root)
