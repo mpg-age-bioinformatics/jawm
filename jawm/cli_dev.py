@@ -501,17 +501,17 @@ def main():
             help="Base module name (without prefix). Example: 'demo' → repo 'jawm_demo', file 'demo.py'.",
         )
         init_parser.add_argument(
-            "--server",
+            "-s", "--server",
             default="github.com",
             help="Git server host or URL (use 'local' to skip remote). Default: github.com",
         )
         init_parser.add_argument(
-            "--user",
+            "-u", "--user",
             default="mpg-age-bioinformatics",
             help="Git username/organization for remote. Default: mpg-age-bioinformatics",
         )
         init_parser.add_argument(
-            "--prefix", "--module-prefix",
+            "-p", "--prefix", "--module-prefix",
             dest="module_prefix",
             default="jawm_",
             help="Repository directory prefix. Default: jawm_",

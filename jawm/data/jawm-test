@@ -191,6 +191,14 @@ if [[ -d ${JAWM_REPO} ]] ; then
 
 fi
 
+if [ ${#JAWM_VERSIONS[@]} -eq 0 ]; then
+    JAWM_VERSIONS=("local")
+fi
+
+if [ ${#PYTHON_VERSIONS[@]} -eq 0 ]; then
+    PYTHON_VERSIONS=("system")
+fi
+
 # Example usage
 echo "Runner: $RUNNER"
 echo "Dispatched: $DISPATCHED"
