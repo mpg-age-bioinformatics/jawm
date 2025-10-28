@@ -481,6 +481,17 @@ def _synth_git_target(module: str, server: str, user: str) -> str:
         target = f"{target}@{ref}"
     return target
 
+
+def _parse_git_target(target: str):
+    """
+    Split a git target like 'org/repo@tag' into ('repo', 'tag' or None).
+    """
+    name = target.split("/")[-1]
+    repo, sep, ref = name.partition("@")
+    repo = repo.replace(".git", "")
+    return repo, ref or None
+
+
 # ---  End of git related vars and methods --- #
 
 
@@ -576,6 +587,7 @@ def main():
     args, unknown_args = parser.parse_known_args()
 
     # --- Module label and timestamp ---
+    module_raw = args.module
     module_label = os.path.basename(os.path.abspath(args.module)).replace(".py", "")
     now = datetime.datetime.now()
     timestamp = now.strftime('%Y%m%d_%H%M%S')
@@ -611,7 +623,6 @@ def main():
     #  (1) module path does NOT exist locally, AND
     #  (2) module is NOT already a git URL / git-like target.
     if not Path(args.module).exists() and not _is_git_target(args.module) and (not args.no_web):
-        logger.info(f"Module '{args.module}' not found locally — attempting online lookup...")
         args.module = _synth_git_target(args.module, args.server, args.user)
 
     # If module is a git repo target, clone/cache and rewrite args.module to local 
@@ -622,16 +633,88 @@ def main():
         cache_root = _git_cache_root(getattr(args, "git_cache", None))
         cache_root.mkdir(parents=True, exist_ok=True)
 
-        try:
-            resolved = _resolve_git_to_local(args.module, cache_root)
-        except Exception as e:
-            logger.error(
-                f"Failed to fetch workflow '{args.module}' from remote.\n"
-                f"Reason: {e}"
-            )
-            logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
-            logger.error(f"Ending jawm module script from jawm command with exit code 2")
-            sys.exit(2)
+        # ------------------------------------------------------
+        # Handle case where local folder already exists for <repo>@<tag>
+        # ------------------------------------------------------
+        repo_part = args.module.split("/")[-1]
+        repo_name, sep, ref = repo_part.partition("@")
+        repo_name = repo_name.replace(".git", "")
+        ref = ref or None
+
+        dst = Path.cwd() / repo_name
+        if dst.exists():
+            logger.info(f"Found existing local folder: {dst}")
+
+            commit_file = dst / ".commit"
+            if not commit_file.exists():
+                logger.error(f"Local folder '{dst}' exists but is missing .commit — cannot verify tag/ref.")
+                logger.error("Please delete or rename the folder and re-run.")
+                logger.error(f"Ending jawm module script from jawm command with exit code 1")
+                sys.exit(1)
+
+            local_commit = commit_file.read_text(encoding="utf-8", errors="ignore").strip()
+
+            # Try to resolve commit hash for requested ref/tag
+            try:
+                ref_commit = None
+                if ref:
+                    remote_url = f"git@{args.server}:{args.user}/{repo_name}.git"
+                    result = subprocess.run(
+                        ["git", "ls-remote", remote_url, ref],
+                        capture_output=True, text=True, check=True
+                    )
+                    for line in result.stdout.splitlines():
+                        if line.endswith(f"refs/tags/{ref}") or line.endswith(f"refs/heads/{ref}"):
+                            ref_commit = line.split()[0]
+                            break
+                else:
+                    ref_commit = local_commit  # no tag given → accept current hash
+
+                if not ref_commit:
+                    logger.error(f"Could not resolve remote ref '{ref}' for {repo_name}")
+                    logger.error(f"Ending jawm module script from jawm command with exit code 1")
+                    sys.exit(1)
+
+                if local_commit != ref_commit:
+                    logger.error(
+                        f"Existing folder '{dst}' has commit {local_commit[:8]}, "
+                        f"but requested tag/ref '{ref}' points to {ref_commit[:8]}."
+                    )
+                    logger.error("Please delete or rename the folder and re-run.")
+                    logger.error(f"Ending jawm module script from jawm command with exit code 1")
+                    sys.exit(1)
+
+                # Matching hash — reuse folder, but continue execution
+                logger.info(f"Local folder '{dst}' already matches requested ref '{ref}' — reusing.")
+                args.module = str(dst)
+                _git_info_line = f"[git] reused local folder '{dst}' (commit {local_commit[:8]}) for '{args.module}'"
+
+                # Do NOT return or exit — just skip cloning and continue
+                skip_clone = True
+
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to verify remote ref '{ref}' for {repo_name}: {e}")
+                logger.error(f"Ending jawm module script from jawm command with exit code 1")
+                sys.exit(1)
+        else:
+            skip_clone = False
+
+        # --- Only perform clone if skip_clone is False ---
+        if not skip_clone:
+            logger.info(f"Module '{module_raw}' not found locally — attempting online lookup...")
+            try:
+                resolved = _resolve_git_to_local(args.module, cache_root)
+            except Exception as e:
+                logger.error(
+                    f"Failed to fetch workflow '{args.module}' from remote.\n"
+                    f"Reason: {e}"
+                )
+                logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
+                logger.error(f"Ending jawm module script from jawm command with exit code 2")
+                sys.exit(1)
+        else:
+            logger.info(f"Reusing existing local folder '{dst}' (commit {local_commit[:8]}) — skipping online lookup.")
+            resolved = str(dst)
 
         # Determine repo_name from: cache_root/<safe_repo>/<sha>/repo_name/<...>
         try:
@@ -649,22 +732,27 @@ def main():
         # Destination in current working directory
         dst = Path.cwd() / repo_name
 
-        # Ensure resolved is a directory
-        resolved_path = Path(resolved)
-        if not resolved_path.is_dir():
-            raise RuntimeError(f"Resolved git path is not a directory: {resolved}")
+        if not skip_clone:
+            # Ensure resolved is a directory
+            resolved_path = Path(resolved)
+            if not resolved_path.is_dir():
+                raise RuntimeError(f"Resolved git path is not a directory: {resolved}")
 
-        # Copy (clean replace)
-        if dst.exists():
-            shutil.rmtree(dst)
+            # Copy (clean replace)
+            if dst.exists():
+                shutil.rmtree(dst)
 
-        shutil.copytree(resolved_path, dst)
+            shutil.copytree(resolved_path, dst)
+        else:
+            # Skipped cloning — reusing local folder
+            resolved_path = Path(resolved)
+            logger.info(f"Reusing existing folder: {resolved_path}")
 
         # Point args.module at the **local working copy**
         args.module = str(dst)
 
-        # (Optional) Update logging line
-        _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
+        if not skip_clone:
+            _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
 
         # args.module = str(resolved)
         # _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}'"
