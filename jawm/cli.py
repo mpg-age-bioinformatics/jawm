@@ -575,11 +575,43 @@ def main():
 
     args, unknown_args = parser.parse_known_args()
 
+    # --- Module label and timestamp ---
+    module_label = os.path.basename(os.path.abspath(args.module)).replace(".py", "")
+    now = datetime.datetime.now()
+    timestamp = now.strftime('%Y%m%d_%H%M%S')
+    timestamp_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
+
+    # --- CLI log file path ---
+    base_logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
+    run_logs_dir = os.path.join(base_logs_dir, "jawm_runs")
+    os.makedirs(run_logs_dir, exist_ok=True)
+    cli_log_file = os.path.join(run_logs_dir, f"{module_label}_{timestamp}.log")
+
+    # --- Start global tee BEFORE any prints/logging so we catch everything ---
+    _start_global_tee(cli_log_file, mode="w")
+
+    # --- Configure logging: stream ONLY (to sys.stdout which is tee'd), no FileHandler needed ---
+    log_formatter = logging.Formatter(
+        "[%(asctime)s] - %(levelname)s - %(name)s :: %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    )
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.handlers.clear()
+
+    console_handler = logging.StreamHandler(sys.stdout)  # goes through tee
+    console_handler.setFormatter(log_formatter)
+    root_logger.addHandler(console_handler)
+
+    logger = logging.getLogger(f"jawm.cli|{module_label}")
+    logger.info("Initiating jawm module script from jawm command")
+
+
     # Only synthesize git URL if:
     #  (1) module path does NOT exist locally, AND
     #  (2) module is NOT already a git URL / git-like target.
     if not Path(args.module).exists() and not _is_git_target(args.module) and (not args.no_web):
-        print(f"[jawm.cli] Module '{args.module}' not found locally — attempting online lookup...")
+        logger.info(f"Module '{args.module}' not found locally — attempting online lookup...")
         args.module = _synth_git_target(args.module, args.server, args.user)
 
     # If module is a git repo target, clone/cache and rewrite args.module to local 
@@ -589,7 +621,17 @@ def main():
     if _is_git_target(args.module) and (not args.no_web):
         cache_root = _git_cache_root(getattr(args, "git_cache", None))
         cache_root.mkdir(parents=True, exist_ok=True)
-        resolved = _resolve_git_to_local(args.module, cache_root)
+
+        try:
+            resolved = _resolve_git_to_local(args.module, cache_root)
+        except Exception as e:
+            logger.error(
+                f"Failed to fetch workflow '{args.module}' from remote.\n"
+                f"Reason: {e}"
+            )
+            logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
+            logger.error(f"Ending jawm module script from jawm command with exit code 2")
+            sys.exit(2)
 
         # Determine repo_name from: cache_root/<safe_repo>/<sha>/repo_name/<...>
         try:
@@ -633,36 +675,6 @@ def main():
     if args.variables is not None and isinstance(args.variables, list) and len(args.variables) == 1:
         args.variables = args.variables[0]
 
-    # --- Module label and timestamp ---
-    module_label = os.path.basename(os.path.abspath(args.module)).replace(".py", "")
-    now = datetime.datetime.now()
-    timestamp = now.strftime('%Y%m%d_%H%M%S')
-    timestamp_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
-
-    # --- CLI log file path ---
-    base_logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
-    run_logs_dir = os.path.join(base_logs_dir, "jawm_runs")
-    os.makedirs(run_logs_dir, exist_ok=True)
-    cli_log_file = os.path.join(run_logs_dir, f"{module_label}_{timestamp}.log")
-
-    # --- Start global tee BEFORE any prints/logging so we catch everything ---
-    _start_global_tee(cli_log_file, mode="w")
-
-    # --- Configure logging: stream ONLY (to sys.stdout which is tee'd), no FileHandler needed ---
-    log_formatter = logging.Formatter(
-        "[%(asctime)s] - %(levelname)s - %(name)s :: %(message)s",
-        "%Y-%m-%d %H:%M:%S",
-    )
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    root_logger.handlers.clear()
-
-    console_handler = logging.StreamHandler(sys.stdout)  # goes through tee
-    console_handler.setFormatter(log_formatter)
-    root_logger.addHandler(console_handler)
-
-    logger = logging.getLogger(f"jawm.cli|{module_label}")
-    logger.info("Initiating jawm module script from jawm command")
     if _git_info_line:
         logger.info(_git_info_line)
     logger.info(f"Logging terminal output to: {cli_log_file}")
