@@ -537,6 +537,44 @@ def main():
         )
         sys.exit(0)
 
+    elif args.command == "nf2jm":
+        # Subparser for the init command (positional module name)
+        nf2jm_parser = argparse.ArgumentParser(
+            prog="jawm-dev nf2jm",
+            description="Convert a Nextflow repo (URL or path) into a JAWM mirror.",
+        )
+        nf2jm_parser.add_argument(
+            "-s", "--source",
+            required=True,
+            help="GitHub URL, git URL, or local path to a Nextflow repo.",
+        )
+        nf2jm_parser.add_argument(
+            "-o", "--out",
+            required=True,
+            help="Output directory for the generated JAWM mirror",
+        )
+        nf2jm_parser.add_argument(
+            "-m", "--module",
+            help="Python module name to generate (default: derived from repo name)",
+        )
+
+        # If no args (no name provided), show help instead of error
+        if not args.args:
+            init_parser.print_help()
+            sys.exit(0)
+
+        nf2jm_args = nf2jm_parser.parse_args(args.args)
+
+        if not nf2jm_args.name:
+            nf2jm_parser.error("the following arguments are required: name")
+
+        # _run_nf2jm(
+        #     source=nf2jm_args.source,
+        #     out=nf2jm_args.out,
+        #     module=nf2jm_args.module,
+        # )
+        sys.exit(0)
+
 
    
     elif args.command not in _VALID_CMDS:
