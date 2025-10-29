@@ -332,7 +332,7 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
     #         (shutil.rmtree(p, ignore_errors=True) if p.is_dir() else p.unlink())
 
     # Rename demo.py → {module_name}.py
-    template_py = target / "demo.py"
+    template_py = target / "advanced.py"
     module_py = target / f"{module_name}.py"
     if template_py.exists():
         try:
@@ -413,16 +413,16 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
             print(f"⚠️ Failed to process README.md: {e}")
 
     # ==== NEW: edit tests.txt (truncate after 'Main workflow test;') ====
-    tests_txt = target / "test" / "tests.txt"
-    if tests_txt.exists():
-        try:
-            content = tests_txt.read_text(encoding="utf-8")
-            # Replace any 'Main workflow test;...' on a line with just 'Main workflow test;'
-            content = re.sub(r'(Main workflow test;)[^\n]*', r'\1', content)
-            tests_txt.write_text(content, encoding="utf-8")
-            print("✂️  Updated test/tests.txt (trimmed after 'Main workflow test;').")
-        except Exception as e:
-            print(f"⚠️ Failed to update test/tests.txt: {e}")
+    # tests_txt = target / "test" / "tests.txt"
+    # if tests_txt.exists():
+    #     try:
+    #         content = tests_txt.read_text(encoding="utf-8")
+    #         # Replace any 'Main workflow test;...' on a line with just 'Main workflow test;'
+    #         content = re.sub(r'(Main workflow test;)[^\n]*', r'\1', content)
+    #         tests_txt.write_text(content, encoding="utf-8")
+    #         print("✂️  Updated test/tests.txt (trimmed after 'Main workflow test;').")
+    #     except Exception as e:
+    #         print(f"⚠️ Failed to update test/tests.txt: {e}")
 
     # Remove unwanted template files (including apptainer-related tests)
     for rel in [
