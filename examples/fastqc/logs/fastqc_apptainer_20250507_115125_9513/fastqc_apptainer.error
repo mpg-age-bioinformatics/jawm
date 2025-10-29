@@ -1,9 +1,0 @@
-/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.UTF-8)
-perl: warning: Setting locale failed.
-perl: warning: Please check that your locale settings:
-	LANGUAGE = "en_US:en",
-	LC_ALL = "en_US.UTF-8",
-	LANG = "en_US.UTF-8"
-    are supported and installed on your system.
-perl: warning: Falling back to the standard locale ("C").
-Started analysis of reads.fastq

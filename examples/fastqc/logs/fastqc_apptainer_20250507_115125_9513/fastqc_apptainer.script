@@ -1,3 +1,0 @@
-#!/bin/bash
-mkdir output
-fastqc -o output/ input/reads.fastq

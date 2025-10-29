@@ -1,4 +1,0 @@
-#!/usr/bin/env Rscript
-cat("Hello from R
-")
-print(2 + 2)

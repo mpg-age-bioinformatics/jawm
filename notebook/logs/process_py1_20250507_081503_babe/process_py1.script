@@ -1,4 +1,0 @@
-#!/usr/bin/env python3
-print("Print some fruits name:")
-for fruit in ["Apple", "Banana", "Ananas"]:
-    print(f"Fruit: {fruit}")

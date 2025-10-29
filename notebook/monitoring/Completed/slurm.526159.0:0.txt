@@ -1,4 +1,0 @@
-Job ID: 526159
-Job Name: r_example
-Path: /nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs_slurm/r_example_20250507_090305_8027/r_example.slurm
-Exit Code: 0:0

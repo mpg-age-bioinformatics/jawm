@@ -1,1 +1,0 @@
-/nexus/posix0/MAGE-flaski/service/posit/home/hamin/JAWM/notebook/logs/r_example_20250507_080136_f76a/r_example.script
