@@ -374,7 +374,7 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
                     pass
 
     _replace("demo", module_name)
-    _replace("demo.py", f"{module_name}.py")
+    _replace("advanced.py", f"{module_name}.py")
     _replace("jawm_demo", repo_name)
     _replace("jawm_demo_submodule", f"jawm_{module_name}_submodule")
     _replace("demo_submodule.py", f"{module_name}_submodule.py")
@@ -397,9 +397,18 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
     readme = target / "README.md"
     if readme.exists():
         try:
+            # read lines
             lines = readme.read_text(encoding="utf-8").splitlines()
-            readme.write_text("\n".join(lines[:2] + lines[6:]) + "\n", encoding="utf-8")
-            print("🧹 Cleaned README.md (removed template header block)")
+
+            # line numbers to remove (0-based indexing)
+            remove_indices = {4, 5, 17, 19, 20, 21, 22}
+
+            # create new content without those lines
+            cleaned = [line for idx, line in enumerate(lines) if idx not in remove_indices]
+
+            # write back
+            readme.write_text("\n".join(cleaned) + "\n", encoding="utf-8")
+            print("🧹 Cleaned README.md (removed specific unwanted lines)")
         except Exception as e:
             print(f"⚠️ Failed to process README.md: {e}")
 
@@ -423,7 +432,8 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
         ".github/workflows/python.yaml",
         "test/apptainer.txt",
         "test/yaml/apptainer.yaml",
-        "main.py"
+        "main.py",
+        "simple.py"
     ]:
         p = target / rel
         if p.exists():
