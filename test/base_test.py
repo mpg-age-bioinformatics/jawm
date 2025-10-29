@@ -2033,9 +2033,6 @@ finally:
 print("\n>>> Test 37: Path expansion logic and environment toggles")
 
 try:
-    import os
-    from jawm import Process
-
     cwd = os.getcwd()
     home = os.path.expanduser("~")
 
@@ -2114,6 +2111,69 @@ try:
 except Exception as e:
     print(f"❌ Failed: {e}")
     failed += 1
+
+
+print("\n>>> Test 38: hash_content() behavior — content-only vs name-sensitive")
+
+try:
+    tmpdir = tempfile.mkdtemp(prefix="hashcontent_")
+
+    # --- Setup files ---
+    f1 = os.path.join(tmpdir, "a.txt")
+    f2 = os.path.join(tmpdir, "b.txt")
+    f3 = os.path.join(tmpdir, "c.txt")
+
+    with open(f1, "w") as fh: fh.write("hello world\n")
+    with open(f2, "w") as fh: fh.write("hello world\n")
+    with open(f3, "w") as fh: fh.write("hello world!!\n")  # slightly different
+
+    # --- A) Content-only mode ---
+    h1 = utils.hash_content([f1, f2])
+    h2 = utils.hash_content([f2, f1])
+    h3 = utils.hash_content([f1])
+    h4 = utils.hash_content([f3])
+
+    assert h1 == h2, "❌ Hash should be order-independent in content-only mode"
+    assert h1 != h3, "❌ Combined hash should differ from a single file (aggregate content)"
+    assert h1 != h4, "❌ Different contents should yield different hashes"
+    print("   ✓ Content-only mode works correctly")
+
+    # --- B) Name-sensitive mode ---
+    h_name_a = utils.hash_content([f1], consider_name=True)
+    h_name_b = utils.hash_content([f2], consider_name=True)
+    h_name_c = utils.hash_content([f3], consider_name=True)
+
+    assert h_name_a != h_name_b, "❌ Name-sensitive mode should differ for different filenames"
+    assert h_name_a != h_name_c, "❌ Different content should yield different hashes"
+    print("   ✓ Name-sensitive mode differentiates filenames and contents")
+
+    # --- C) Directory hashing consistency ---
+    subdir = os.path.join(tmpdir, "nested")
+    os.makedirs(subdir, exist_ok=True)
+    f4 = os.path.join(subdir, "f1.txt")
+    f5 = os.path.join(subdir, "f2.txt")
+    with open(f4, "w") as fh: fh.write("abc")
+    with open(f5, "w") as fh: fh.write("xyz")
+
+    dir_hash_1 = utils.hash_content(subdir, consider_name=False)
+    dir_hash_2 = utils.hash_content(subdir, consider_name=False)
+    dir_hash_name = utils.hash_content(subdir, consider_name=True)
+
+    assert dir_hash_1 == dir_hash_2, "❌ Hash should be consistent across runs"
+    assert isinstance(dir_hash_1, str) and len(dir_hash_1) == 64, "❌ Output should be SHA256 hex digest"
+    assert dir_hash_1 != dir_hash_name, "❌ Including names should change hash value"
+    print("   ✓ Directory hashing stable and consistent")
+
+    print("✅ Passed: hash_content() behavior test")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
 
 
 
