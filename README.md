@@ -29,11 +29,10 @@ cd jawm_my_first_wf
 jawm my_first_wf.py -p ./yaml/docker.yaml
 ```
 
-Check out the contents of 
+To see how jawm works check out the contents of 
 ```
 my_first_wf.py
 ```
-to see how jawm works.
 
 The workflow you just generated is based on [jawm_demo](https://github.com/mpg-age-bioinformatics/jawm_demo). Check it out for more examples on how to create workflows with jawm.
 
