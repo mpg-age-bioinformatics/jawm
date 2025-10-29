@@ -593,6 +593,12 @@ def main():
     timestamp = now.strftime('%Y%m%d_%H%M%S')
     timestamp_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
 
+    # --- Support //subpath syntax for git repos ---
+    subpath = None
+    if "//" in args.module:
+        args.module, subpath = args.module.split("//", 1)
+        subpath = subpath.strip("/")
+
     # --- CLI log file path ---
     base_logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
     run_logs_dir = os.path.join(base_logs_dir, "jawm_runs")
@@ -710,7 +716,7 @@ def main():
                     f"Reason: {e}"
                 )
                 logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
-                logger.error(f"Ending jawm module script from jawm command with exit code 2")
+                logger.error(f"Ending jawm module script from jawm command with exit code 1")
                 sys.exit(1)
         else:
             logger.info(f"Reusing existing local folder '{dst}' (commit {local_commit[:8]}) — skipping online lookup.")
@@ -753,6 +759,18 @@ def main():
 
         if not skip_clone:
             _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
+
+        # --- Append subpath inside the repo if provided ---
+        if subpath:
+            target_path = Path(dst) / subpath
+            if not target_path.exists():
+                logger.error(f"Specified subpath '{subpath}' not found in repo '{repo_name}'. Please check the path.")
+                logger.error(f"Ending jawm module script from jawm command with exit code 1")
+                sys.exit(1)
+            args.module = str(target_path)
+            logger.info(f"Targeting subpath inside repo: {target_path}")
+        else:
+            args.module = str(dst)
 
         # args.module = str(resolved)
         # _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}'"
@@ -817,6 +835,7 @@ def main():
             _apply_param("var_file", args.variables)
         except Exception as e:
             logger.error(f"Failed to load variables from {args.variables} — {e}")
+            logger.error(f"Ending jawm module script from jawm command with exit code 2")
             sys.exit(2)
 
     # --- Resolve module path ---
