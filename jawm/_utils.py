@@ -120,6 +120,7 @@ def hash_content(paths, hash_func=hashlib.sha256,
         exclude_files (list[str], optional): List of file name patterns to exclude.
         allowed_extensions (list[str], optional): Only consider allowed files if a directory provided.
         recursive (bool, optional): Whether to descend into subdirectories (default: True).
+        consider_name (bool, optional): Whether to consider the file names while hashing (default: False).
 
     Returns:
         str: Hex digest representing the combined hash of all provided files

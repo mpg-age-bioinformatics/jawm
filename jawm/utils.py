@@ -438,7 +438,8 @@ def kubernetes_available(v=False):
 
 def write_hash_file(paths, hash_file, hash_func=hashlib.sha256, 
                     v=True, exclude_dirs=None, exclude_files=None,
-                    allowed_extensions=None, recursive=True):
+                    allowed_extensions=None, recursive=True,
+                    consider_name=False):
     """
     Compute the combined hash of files/folders and write it to a file.
     If the file already exists, check if the stored hash matches the current hash
@@ -453,6 +454,7 @@ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256,
         exclude_files (list[str], optional): File patterns to exclude.
         allowed_extensions (list[str] | None): When hashing directories, only count these extensions.
         recursive (bool): Recurse into subdirectories (default: True).
+        consider_name (bool, optional): Whether to consider the file names while hashing (default: False).
 
     Returns:
         bool: True if the hash was written or matched the existing hash, 
