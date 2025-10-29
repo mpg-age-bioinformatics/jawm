@@ -469,9 +469,11 @@ def write_module(out_dir: Path, module_name: str, processes: list):
             desc_entries = ""
         desc_block = f",\n    desc={{\n        {desc_entries}\n    }}"
 
+        # >>> CHANGED: insert when=True immediately before script
         block = (
             f"{p['name']}=jawm.Process(\n"
             f"    name=\"{p['name']}\",\n"
+            f"    when=True,\n"
             f"    script=\"\"\"\\\n{script}\n\"\"\"{desc_block},\n"
             f"    container=\"{container}\""
         )
@@ -539,7 +541,6 @@ This is an automated jawm mirror of a nexflow-{module_name_}.
 You will have to control and correct the code.
 
 Initiate a jawm_{module_name_} somewhere else to have a full jawm backbone:
-
 ```
 cd ~/
 jawm-dev init {module_name_}
