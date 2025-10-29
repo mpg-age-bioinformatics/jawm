@@ -624,6 +624,14 @@ def main():
     logger = logging.getLogger(f"jawm.cli|{module_label}")
     logger.info("Initiating jawm module script from jawm command")
 
+    # --- Define helper for consistent error exits ---
+    def _errlog_exit(excode=1):
+        """
+        Generic helper to log a final error and exit cleanly with the given code.
+        """
+        logger.error(f"Ending jawm module script from jawm command with exit code {excode}")
+        sys.exit(excode)
+
 
     # Only synthesize git URL if:
     #  (1) module path does NOT exist locally, AND
@@ -655,8 +663,7 @@ def main():
             if not commit_file.exists():
                 logger.error(f"Local folder '{dst}' exists but is missing .commit — cannot verify tag/ref.")
                 logger.error("Please delete or rename the folder and re-run.")
-                logger.error(f"Ending jawm module script from jawm command with exit code 1")
-                sys.exit(1)
+                _errlog_exit(1)
 
             local_commit = commit_file.read_text(encoding="utf-8", errors="ignore").strip()
 
@@ -678,8 +685,7 @@ def main():
 
                 if not ref_commit:
                     logger.error(f"Could not resolve remote ref '{ref}' for {repo_name}")
-                    logger.error(f"Ending jawm module script from jawm command with exit code 1")
-                    sys.exit(1)
+                    _errlog_exit(1)
 
                 if local_commit != ref_commit:
                     logger.error(
@@ -687,8 +693,7 @@ def main():
                         f"but requested tag/ref '{ref}' points to {ref_commit[:8]}."
                     )
                     logger.error("Please delete or rename the folder and re-run.")
-                    logger.error(f"Ending jawm module script from jawm command with exit code 1")
-                    sys.exit(1)
+                    _errlog_exit(1)
 
                 # Matching hash — reuse folder, but continue execution
                 logger.info(f"Local folder '{dst}' already matches requested ref '{ref}' — reusing.")
@@ -700,8 +705,7 @@ def main():
 
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to verify remote ref '{ref}' for {repo_name}: {e}")
-                logger.error(f"Ending jawm module script from jawm command with exit code 1")
-                sys.exit(1)
+                _errlog_exit(1)
         else:
             skip_clone = False
 
@@ -716,8 +720,7 @@ def main():
                     f"Reason: {e}"
                 )
                 logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
-                logger.error(f"Ending jawm module script from jawm command with exit code 1")
-                sys.exit(1)
+                _errlog_exit(1)
         else:
             logger.info(f"Reusing existing local folder '{dst}' (commit {local_commit[:8]}) — skipping online lookup.")
             resolved = str(dst)
@@ -765,8 +768,7 @@ def main():
             target_path = Path(dst) / subpath
             if not target_path.exists():
                 logger.error(f"Specified subpath '{subpath}' not found in repo '{repo_name}'. Please check the path.")
-                logger.error(f"Ending jawm module script from jawm command with exit code 1")
-                sys.exit(1)
+                _errlog_exit(1)
             args.module = str(target_path)
             logger.info(f"Targeting subpath inside repo: {target_path}")
         else:
@@ -794,8 +796,7 @@ def main():
         for p in items:
             if not os.path.exists(p):
                 logger.error(f"{label} path not found: {p} (*** TRIGGERING EXIT ***)")
-                logger.error(f"Ending jawm module script from jawm command with exit code 2")
-                sys.exit(2)
+                _errlog_exit(2)
 
     _validate_paths("Parameter", args.parameters)
     _validate_paths("Variable", args.variables)
@@ -835,8 +836,7 @@ def main():
             _apply_param("var_file", args.variables)
         except Exception as e:
             logger.error(f"Failed to load variables from {args.variables} — {e}")
-            logger.error(f"Ending jawm module script from jawm command with exit code 2")
-            sys.exit(2)
+            _errlog_exit(2)
 
     # --- Resolve module path ---
     source_path = os.path.abspath(args.module)
@@ -852,10 +852,10 @@ def main():
             module_path = os.path.join(source_path, py_files[0])
         else:
             logger.error(f"Directory {source_path} must contain only one .py file or a main.py")
-            sys.exit(2)
+            _errlog_exit(2)
     else:
         logger.error(f"Invalid module path: {source_path}")
-        sys.exit(2)
+        _errlog_exit(2)
 
     # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---
     # distinct exit code so callers/CI can detect reference mismatches
@@ -1309,7 +1309,7 @@ def main():
                 logger.error("[hash] Aborting user-defined hash computation — missing files detected.")
                 if overwrite:
                     logger.error("[hash] The .hash file will NOT be overwritten even if 'overwrite: true' is set.")
-                sys.exit(EXIT_HASH_REFERENCE_MISMATCH)
+                _errlog_exit(EXIT_HASH_REFERENCE_MISMATCH)
 
             userdef_files_csv = "-"
             if paths:
@@ -1363,10 +1363,10 @@ def main():
                 expected = _resolve_reference_hash_cli(reference)
                 if not expected:
                     logger.error(f"[hash] Invalid reference provided: {reference!r}")
-                    sys.exit(EXIT_HASH_REFERENCE_MISMATCH)
+                    _errlog_exit(EXIT_HASH_REFERENCE_MISMATCH)
                 if userdef_hash != expected:
-                    logger.error("[hash] ❌  Generated user-defined hash does NOT match reference — aborting with EXITCODE 73  ❌")
-                    sys.exit(EXIT_HASH_REFERENCE_MISMATCH)
+                    logger.error("[hash] ❌  Generated user-defined hash does NOT match reference ❌")
+                    _errlog_exit(EXIT_HASH_REFERENCE_MISMATCH)
                 else:
                     logger.info("[hash] ✅  Generated user-defined hash matched reference  ✅")
 
