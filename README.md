@@ -35,6 +35,6 @@ my_first_wf.py
 ```
 to see how jawm works.
 
-The workflow you just generated is based on [jawm_demo](https://github.com/mpg-age-bioinformatics/jawm_demo) - check it out more examples on creating workflows with jawm (eg. within jupyter notebooks ).
+The workflow you just generated is based on [jawm_demo](https://github.com/mpg-age-bioinformatics/jawm_demo) - check it out for more examples on how to create workflows with jawm.
 
 Availabe workflows can be found [here (GitHub.com)](https://github.com/mpg-age-bioinformatics?q=jawm_&type=all&language=&sort=).
