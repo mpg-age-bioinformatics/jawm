@@ -105,7 +105,8 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
 
 def hash_content(paths, hash_func=hashlib.sha256, 
                  exclude_dirs=None, exclude_files=None,
-                 allowed_extensions=None, recursive=True):
+                 allowed_extensions=None, recursive=True,
+                 consider_name=False):
     """
     Return a combined hash digest for multiple files and/or folders,
     including their contents and structure, excluding specified directories
@@ -151,7 +152,10 @@ def hash_content(paths, hash_func=hashlib.sha256,
             fname = os.path.basename(path)
             if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
                 continue
-            h.update(fname.encode())
+            
+            if consider_name:
+                h.update(fname.encode())
+
             with open(path, "rb") as f:
                 while chunk := f.read(8192):
                     h.update(chunk)
@@ -183,8 +187,9 @@ def hash_content(paths, hash_func=hashlib.sha256,
                     fpath = os.path.join(root, fname)
                     relpath = os.path.relpath(fpath, path)
 
-                    # Include relative path
-                    h.update(relpath.encode())
+                    if consider_name:
+                        # Include relative path
+                        h.update(relpath.encode())
 
                     # Include file content
                     with open(fpath, "rb") as f:
