@@ -59,40 +59,17 @@ GIT_PAT = re.compile(
 
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
 
-def _looks_like_sha(s: str) -> bool:
+def _looks_like_sha(s):
     return bool(_SHA_RE.match(s or ""))
 
-def _is_git_target(s: str) -> bool:
+
+def _is_git_target(s):
     if os.path.exists(s):            # never treat existing paths as git
         return False
-    # # --- local offline: file://absolute/path/to/repo(.git)[@ref][//subdir] ---
-    # return s.startswith("file://") or bool(GIT_PAT.match(s))
-    # # --- local offline: end ---
     return bool(GIT_PAT.match(s))
 
-def _normalize_git_url(target: str):
-    # # --- local offline: file://absolute/path/to/repo(.git)[@ref][//subdir] ---
-    # if target.startswith("file://"):
-    #     rest = target[len("file://"):]  # '/tmp/.../origin.git[@ref][//subdir]'
-    #     # split off //subdir first (so we don't pass it to 'git clone')
-    #     subdir = ""
-    #     if "//" in rest:
-    #         path_plus_ref, subdir = rest.split("//", 1)
-    #     else:
-    #         path_plus_ref = rest
-    #     # now split @ref from the path
-    #     if "@" in path_plus_ref:
-    #         path_part, ref = path_plus_ref.split("@", 1)
-    #     else:
-    #         path_part, ref = path_plus_ref, None
 
-    #     # ensure it's absolute after the scheme
-    #     if not path_part.startswith("/"):
-    #         path_part = os.path.abspath(path_part)
-
-    #     url = "file://" + path_part
-    #     return url, ref, (subdir or "").strip("/")
-    # # --- fall through to your existing https/ssh/gh handling below ---
+def _normalize_git_url(target):
 
     m = GIT_PAT.match(target)
     if not m:
@@ -144,7 +121,7 @@ def _git(*args, cwd=None, check=True):
     return r
 
 
-def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
+def _resolve_git_to_local(target, cache_root):
     """
     Resolve a git target to a local cached folder or subpath.
 
@@ -163,7 +140,7 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
 
         _SCP_RE = re.compile(r'^(?:(?P<user>[\w\-.]+)@)?(?P<host>[\w\-.]+):(?P<path>.+)$')
 
-        def sanitize_repo(u: str) -> str:
+        def sanitize_repo(u):
             s = u.strip()
             if '//' in s:
                 s = s.split('//', 1)[1]
@@ -179,7 +156,7 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
             s = re.sub(r'/+', '/', s)
             return s
 
-        def _find_latest_cached_dir(base: Path) -> Path | None:
+        def _find_latest_cached_dir(base):
             """Return the newest 7-hex-named subdir (used only for no-ref caches)."""
             if not base.exists():
                 return None
@@ -191,13 +168,13 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
                 return None
             return max(candidates, key=lambda p: p.stat().st_mtime)
 
-        def _write_full_sha_marker(dest: Path, full_sha: str) -> None:
+        def _write_full_sha_marker(dest, full_sha):
             try:
                 (dest / ".commit").write_text(full_sha + "\n", encoding="utf-8")
             except Exception:
                 pass  # non-fatal
 
-        def _folder_label(user_ref: str | None, full_sha: str) -> str:
+        def _folder_label(user_ref, full_sha):
             """
             Cache folder segment representing what the user asked for:
               - no ref      -> <shortsha>
@@ -212,14 +189,14 @@ def _resolve_git_to_local(target: str, cache_root: Path) -> Path:
             safe_ref = re.sub(r'[^A-Za-z0-9_.-]+', "_", user_ref)
             return f"{safe_ref}@{short}"
 
-        def _rev_parse_commit(expr: str) -> str | None:
+        def _rev_parse_commit(expr):
             r = subprocess.run(
                 ["git", "rev-parse", f"{expr}^{{commit}}"],
                 cwd=tmp, text=True, capture_output=True
             )
             return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
 
-        def _resolve_short_sha(prefix: str) -> str | None:
+        def _resolve_short_sha(prefix):
             """
             Try to resolve a short SHA by fetching lightweight refs first,
             then progressively deepening history (blobless) until the prefix resolves.
@@ -447,7 +424,7 @@ def _git_cache_root(cli_flag_path=None):
       - Else if env JAWM_GIT_CACHE is set, use it as-is (resolved).
       - Else default to "~/.jawm/git".
     """
-    def _normalize(p: Path) -> Path:
+    def _normalize(p):
         # treat "." or "./" specially → <cwd>/git
         s = str(p)
         if s in (".", "./"):
@@ -464,7 +441,7 @@ def _git_cache_root(cli_flag_path=None):
     return Path("~/.jawm/git").expanduser()
 
 
-def _synth_git_target(module: str, server: str, user: str) -> str:
+def _synth_git_target(module, server, user):
     """
     Build a git SSH target from server/user/module.
     Supports optional @ref suffix:
@@ -485,7 +462,7 @@ def _synth_git_target(module: str, server: str, user: str) -> str:
     return target
 
 
-def _parse_git_target(target: str):
+def _parse_git_target(target):
     """
     Split a git target like 'org/repo@tag' into ('repo', 'tag' or None).
     """
@@ -867,7 +844,7 @@ def main():
             logger.error(f"Directory {source_path} must contain only one .py file or a main.py")
             _errlog_exit(2)
     else:
-        logger.error(f"Invalid module path: {source_path}")
+        logger.error(f"Invalid module path: {module_raw}")
         _errlog_exit(2)
 
     # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---
