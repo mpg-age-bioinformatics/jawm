@@ -30,9 +30,9 @@ python simple.py
 jawm simple.py
 ```
 
-## Creating your firt jawm workfow
+## Developing your firt jawm workfow
 
-Create your first jawm workflow:
+You can develop your first jawm workflow by:
 ```
 jawm-dev init my_first_wf -s local
 ```
