@@ -4,6 +4,7 @@ nf_to_jawm.py
 Convert a Nextflow repo (Git URL, GitHub URL, or local path) into a JAWM mirror.
 """
 
+from typing import Optional
 import argparse
 import re
 import shutil
@@ -294,7 +295,7 @@ def parse_config_containers(texts: dict):
 
 # -------------------------- slurm parsing (brace-balanced) --------------------------
 
-def _extract_balanced_block(text: str, start_pos: int) -> str | None:
+def _extract_balanced_block(text: str, start_pos: int) -> Optional[str]:
     """
     Given a position right before a '{' (or right after the 'withName:...' match),
     find the next '{' and return the brace-balanced body between that '{' and its matching '}'.
