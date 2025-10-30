@@ -596,8 +596,18 @@ def main():
     # --- Support //subpath syntax for git repos ---
     subpath = None
     if "//" in args.module:
-        args.module, subpath = args.module.split("//", 1)
-        subpath = subpath.strip("/")
+        # Detect true URL-style prefixes to avoid breaking schemes
+        if re.match(r"^(?:https://|http://|ssh://|file://|git\+https://)", args.module):
+            # URL-based repos → split only on the last // (keeps protocol intact)
+            if args.module.count("//") > 1:
+                args.module, subpath = args.module.rsplit("//", 1)
+                args.module = args.module.rstrip("/")
+                subpath = subpath.strip("/")
+        else:
+            # Shorthand or pseudo-schemes (gh:, git@, github.com/repo)
+            args.module, subpath = args.module.split("//", 1)
+            args.module = args.module.rstrip("/")
+            subpath = subpath.strip("/")
 
     # --- CLI log file path ---
     base_logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
