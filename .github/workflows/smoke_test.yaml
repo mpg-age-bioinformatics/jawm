@@ -1,4 +1,4 @@
-name: jawm Smoke Tests for Core and Git Cases
+name: jawm Smoke Tests
 
 on: [push, pull_request]
 
@@ -44,7 +44,12 @@ jobs:
       - name: 🐍 Set up Python 3.12
         uses: actions/setup-python@v4
         with:
-          python-version: 3.12
+          python-version: 3.
+          
+      - name: 🔑 Setup SSH key for GitHub access
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.JAWM_BIOINFORMATICS_KEY }}
 
       - name: 📦 Install jawm as editable package
         run: pip install -e .
