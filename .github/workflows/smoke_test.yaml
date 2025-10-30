@@ -44,7 +44,7 @@ jobs:
       - name: 🐍 Set up Python 3.12
         uses: actions/setup-python@v4
         with:
-          python-version: 3.
+          python-version: 3.12
           
       - name: 🔑 Setup SSH key for GitHub access
         uses: webfactory/ssh-agent@v0.9.1
@@ -56,3 +56,43 @@ jobs:
 
       - name: 🌐 Run Git integration test (only once)
         run: python test/git_test.py
+
+  # ─────────────────────────────
+  #  Global notification handler
+  # ─────────────────────────────
+  notifications:
+    runs-on: ubuntu-latest
+    name: 🔔 Workflow Notifications
+    needs: [core-tests, git-tests]  # run after both finish
+    if: always()  # always run, even if one fails
+
+    steps:
+      - name: Succeeded
+        if: success()
+        run: |
+          echo "✅ SMOKETEST PASSED!"
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr '"' "'" | tr -d '\n')
+          generate_post_data()
+          {
+            cat << EOF
+          {
+            "text": "✅ *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* SMOKETEST PASSED! (${COMMIT_MSG}) ✅"
+          }
+          EOF
+          }
+          curl -H "Content-Type: application/json" -X POST -d "$(generate_post_data)" ${{ secrets.SLACK_JAWM_WEBHOOK }}
+
+      - name: Slack Failure Notification
+        if: failure()
+        run: |
+          echo "🚫 SMOKETEST FAILED!"
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr '"' "'" | tr -d '\n')
+          generate_post_data()
+          {
+            cat << EOF
+          {
+            "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* SMOKETEST FAILED! \n📝 Commit: ${COMMIT_MSG}\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
+          }
+          EOF
+          }
+          curl -H "Content-Type: application/json" -X POST -d "$(generate_post_data)" ${{ secrets.SLACK_JAWM_WEBHOOK }}
