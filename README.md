@@ -5,7 +5,7 @@ just another workflow manager
 
 - Python based and python-like
 - Continuous smooth learning curve
-- Code fully independent of framework
+- Workflow code fully independent of framework
 - Notebook ready and data scientist friendly
 - Local and external storage agnostic
 - Executors: local, Slurm, Kubernetes
