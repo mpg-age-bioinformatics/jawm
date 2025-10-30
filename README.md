@@ -18,7 +18,21 @@ pip install git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git
 
 ## Running jawm
 
-Start your first jawm workflow:
+```
+# clone the demo module
+git clone git@github.com:mpg-age-bioinformatics/jawm_demo.git
+
+# simple workflow
+cd jawm_demo
+python simple.py
+
+# simple workflow with using the jawm executable
+jawm simple.py
+```
+
+## Creating your firt jawm workfow
+
+Create your first jawm workflow:
 ```
 jawm-dev init my_first_wf -s local
 ```
@@ -29,10 +43,7 @@ cd jawm_my_first_wf
 jawm my_first_wf.py -p ./yaml/docker.yaml
 ```
 
-To see how jawm works check out the contents of 
-```
-my_first_wf.py
-```
+[Read the Docs](https://github.com/mpg-age-bioinformatics/jawm) for more information on how to create workflows with jawm.
 
 The workflow you just generated is based on [jawm_demo](https://github.com/mpg-age-bioinformatics/jawm_demo). Check it out for more examples on how to create workflows with jawm.
 
