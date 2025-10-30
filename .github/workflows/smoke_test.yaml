@@ -73,13 +73,13 @@ jobs:
       - name: Succeeded
         if: success()
         run: |
-          echo "✅ SMOKETEST PASSED!"
+          echo "✅ Smoketest Passed!"
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr '"' "'" | tr -d '\n')
           generate_post_data()
           {
             cat << EOF
           {
-            "text": "✅ *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* SMOKETEST PASSED! (${COMMIT_MSG}) ✅"
+            "text": "✅ *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest Passed! (${COMMIT_MSG}) ✅"
           }
           EOF
           }
@@ -88,13 +88,13 @@ jobs:
       - name: Slack Failure Notification
         if: failure()
         run: |
-          echo "🚫 SMOKETEST FAILED!"
+          echo "🚫 Smoketest FAILED!"
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr '"' "'" | tr -d '\n')
           generate_post_data()
           {
             cat << EOF
           {
-            "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* SMOKETEST FAILED! \n📝 Commit: ${COMMIT_MSG}\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
+            "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest FAILED! (${COMMIT_MSG}) 🚫\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
           }
           EOF
           }
