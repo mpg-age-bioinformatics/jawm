@@ -3,10 +3,14 @@
 Integration test for jawm CLI Git workflow logic.
 
 Covers:
-  ✅ Normal clone & subpath resolution (default, tag, branch, HEAD)
+  ✅ HTTPS, SSH, SCP (git@)
+  ✅ Shorthand syntax (repo@tag, user/repo@branch)
+  ✅ Tags, branches
+  ✅ Subdirectory and file targets (//examples/demo.py)
   ✅ Safety guard (existing repo with mismatched commit)
-  ✅ Missing file handling
+  ✅ Missing file handling (graceful fail)
   ✅ Cache reuse verification
+  ✅ .git removed and .commit exists after clone
 """
 
 import os
@@ -21,6 +25,10 @@ from pathlib import Path
 # -------------------------------------------------------
 
 REMOTE_REPO = "https://github.com/mpg-age-bioinformatics/jawm_git_test"
+SSH_REPO = "ssh://git@github.com/mpg-age-bioinformatics/jawm_git_test.git"
+SCP_REPO = "git@github.com:mpg-age-bioinformatics/jawm_git_test.git"
+LOCAL_REPO = f"file://{Path.home()}/jawm/test/jawm_git_test.git"  # adjust if needed
+
 GIT_USER = "mpg-age-bioinformatics"
 GIT_SERVER = "github.com"
 
@@ -31,7 +39,7 @@ GIT_SERVER = "github.com"
 JAWM_EXE = shutil.which("jawm") or "jawm"
 TEST_ROOT = Path(tempfile.mkdtemp(prefix="jawm_git_test_live_"))
 LOGS_DIR = TEST_ROOT / "logs"
-os.makedirs(LOGS_DIR, exist_ok=True)
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 passed, failed = 0, 0
 
@@ -56,8 +64,7 @@ def run_jawm(target: str, expect_fail: bool = False, clean_dir=True):
     if clean_dir and work_dir.exists():
         print(f"🧹 Cleaning existing folder: {work_dir}")
         shutil.rmtree(work_dir)
-
-    os.makedirs(work_dir, exist_ok=True)
+    work_dir.mkdir(parents=True, exist_ok=True)
 
     args = [
         JAWM_EXE,
@@ -67,41 +74,69 @@ def run_jawm(target: str, expect_fail: bool = False, clean_dir=True):
         "--user", GIT_USER,
     ]
 
+    print(f"\n→ Running in {work_dir}")
+    print(f"   Target: {target}")
     start = time.time()
     result = subprocess.run(args, text=True, capture_output=True, cwd=work_dir)
     elapsed = time.time() - start
+    print(f"   Exit code: {result.returncode} | Duration: {elapsed:.1f}s")
 
-    print(f"\n→ Running in {work_dir}")
-    print(f"Exit code: {result.returncode} | Duration: {elapsed:.1f}s")
-    print(result.stdout[:400])
+    if result.stdout:
+        print(result.stdout)
     if result.stderr:
-        print(result.stderr[:200])
+        print(result.stderr)
 
     if expect_fail:
         assert result.returncode != 0, "Expected failure but got success"
     else:
         assert result.returncode == 0, f"Expected success, got {result.returncode}"
+
+    # Verify .commit and .git correctness if success
+    if not expect_fail:
+        for repo_dir in work_dir.rglob("jawm_git_test"):
+            if repo_dir.is_dir():
+                commit_file = repo_dir / ".commit"
+                assert commit_file.exists(), f"{commit_file} missing!"
+                assert not (repo_dir / ".git").exists(), f"{repo_dir} still has .git!"
+                print(f"   ✅ Verified .commit exists and .git removed in {repo_dir}")
+
     print("✅ OK")
 
 
 # -------------------------------------------------------
-# DEFINE TESTS
+# DEFINE TEST MATRIX
 # -------------------------------------------------------
 
 print(f"\n>>> Starting GitHub integration tests using {REMOTE_REPO}")
 
 tests = [
-    ("root@default",          f"{REMOTE_REPO}"),
-    ("root@tag(v1.0.0)",      f"{REMOTE_REPO}@v1.0.0"),
-    ("branch main",           f"{REMOTE_REPO}@main//examples/demo.py"),
-    ("dir@default",           f"{REMOTE_REPO}//examples"),
-    ("file@default",          f"{REMOTE_REPO}//main.py"),
-    ("file@tag(v1.0.0)",      f"{REMOTE_REPO}@v1.0.0//main.py"),
-    ("missing file",          f"{REMOTE_REPO}@v1.0.0////no_such_file.py", True),
+    # --- HTTPS tests ---
+    ("https root@default",          f"{REMOTE_REPO}"),
+    ("https tag",                   f"{REMOTE_REPO}@v1.0.0"),
+    ("https subdir",                f"{REMOTE_REPO}//examples"),
+    ("https file path",             f"{REMOTE_REPO}//main.py"),
+    ("https branch",                f"{REMOTE_REPO}@main//examples/demo.py"),
+
+    # --- SSH / SCP style ---
+    ("ssh tag",                     f"{SSH_REPO}@v1.0.0"),
+    ("scp shorthand tag",           f"{SCP_REPO}@v1.0.0"),
+    ("ssh subpath",                 f"{SSH_REPO}@main//examples/demo.py"),
+
+    # --- shorthand expansion ---
+    ("user/repo shorthand",         "jawm_git_test"),
+    ("user/repo ref shorthand",     "jawm_git_test@main"),
+    ("user/repo path shorthand",    "jawm_git_test@v1.0.0//examples/demo.py"),
+    ("org/repo shorthand",          "mpg-age-bioinformatics/jawm_git_test@main"),
+
+    # --- missing file (graceful fail) ---
+    ("https missing file",          f"{REMOTE_REPO}@v1.0.0////no_such_file.py", True),
+
+    # --- cache reuse ---
+    ("cache reuse",                 f"{REMOTE_REPO}"),
 ]
 
 # -------------------------------------------------------
-# RUN NORMAL TESTS (each in its own folder)
+# RUN TESTS
 # -------------------------------------------------------
 
 for label, target, *flags in tests:
@@ -120,26 +155,24 @@ for label, target, *flags in tests:
 
 print("\n--- safety check: existing folder with different commit ---")
 try:
-    # The tag test will use this work dir
     safe_label = "github_com_mpg-age-bioinformatics_jawm_git_test_v1_0_0"
     work_dir = TEST_ROOT / safe_label
-    os.makedirs(work_dir, exist_ok=True)
+    work_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1️⃣ First clone a known version (main)
-    run_jawm(f"{REMOTE_REPO}", expect_fail=False, clean_dir=True)
+    # Clone once to create the .commit
+    run_jawm(f"{REMOTE_REPO}@v1.0.0", expect_fail=False, clean_dir=True)
 
-    # 2️⃣ Locate the exact .commit file in the directory that will be reused
+    # Inject fake commit in the reused folder
     commit_file = work_dir / "jawm_git_test" / ".commit"
     if commit_file.exists():
         current = commit_file.read_text().strip()
-        print(f"🧩 Found .commit for safety test at {commit_file} (current={current[:10]}...)")
         fake_sha = "0000000000000000000000000000000000000000"
         commit_file.write_text(fake_sha + "\n")
-        print(f"Injected fake commit SHA into {commit_file} (was {current[:10]}...)")
+        print(f"🧩 Injected fake commit into {commit_file} (was {current[:10]}...)")
     else:
-        print(f"⚠️ .commit not found at {commit_file}")
+        raise RuntimeError(f".commit not found at {commit_file}")
 
-    # 3️⃣ Run jawm again on the same target — should now fail due to mismatch
+    # Run again — must fail due to mismatch
     run_jawm(f"{REMOTE_REPO}@v1.0.0", expect_fail=True, clean_dir=False)
     passed += 1
     print("✅ Passed: safety guard triggered correctly")
@@ -149,7 +182,7 @@ except Exception as e:
     failed += 1
 
 # -------------------------------------------------------
-# CACHE REUSE TEST
+# CACHE REUSE BEHAVIOR TEST
 # -------------------------------------------------------
 
 print("\n>>> Testing cache reuse behavior")

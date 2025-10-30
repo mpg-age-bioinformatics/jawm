@@ -37,20 +37,23 @@ except md.PackageNotFoundError:
 # ---  Git related vars and methods --- #
 GIT_PAT = re.compile(
     r"""
-    ^(?P<scheme>(?:https://|git@|ssh://|gh:))?
+    ^(?P<scheme>(?:https://|ssh://|git@|gh:|file://)?)
     (?P<host_repo>
         (?:
-            # HTTPS (or bare host after scheme): host[:port]/seg/seg[/seg...] (.git optional)
-            [\w\-.]+(?:\.[\w\-.]+)+(?::\d+)?(?:/[~\w\-.]+){2,}(?:\.git)?
-          | # SCP-like: host:seg[/seg...]
+            # HTTPS or SSH URL form (allow optional user@)
+            (?:[\w\-.]+@)?[\w\-.]+(?:\.[\w\-.]+)+(?::\d+)?(?:/[~\w\-.]+){2,}(?:\.git)?
+          | # SCP-like: git@host:org/repo(.git optional)
             [\w\-.]+:(?:[~\w\-.]+/){1,}[~\w\-.]+(?:\.git)?
-          | # gh:org/repo
+          | # file:// absolute path
+            file://(?:/[^\s@]+)+
+          | # gh:org/repo shortcut
             gh:[\w\-.]+/[\w\-.]+
         )
     )
-    (?:@(?P<ref>[\w./\-]+))?
-    (?:\/\/(?P<subdir>.*))?
-    $""",
+    (?:@(?P<ref>[\w./\-]+?))?             # optional @ref (non-greedy)
+    (?:\/\/(?P<subdir>.*))?              # optional //subdir
+    $
+    """,
     re.X,
 )
 
