@@ -36,6 +36,15 @@ md5_file() {
   fi
 }
 
+array_is() {
+  # $1 = expected value, rest = array elements
+  local expected="$1"; shift
+  local arr=("$@")
+
+  # Must have exactly one element AND match
+  [[ ${#arr[@]} -eq 1 && "${arr[0]}" == "$expected" ]]
+}
+
 ############################################################
 # Parse arguments
 ############################################################
@@ -180,21 +189,27 @@ fi
 ############################################################
 # preparing pyenv
 ############################################################
-export PATH="$HOME/.pyenv/bin:$PATH"
-if command -v pyenv >/dev/null 2>&1; then
-  echo "pyenv is already installed"
-else
-  echo "pyenv not found, installing..."
-  curl https://pyenv.run | bash
-  echo "pyenv installed successfully."
-  export PATH="$HOME/.pyenv/bin:$PATH"
-fi
 
-# Initialize pyenv for this process (no need to source shell rc files)
-eval "$(pyenv init --path)"
-eval "$(pyenv init -)"
-if command -v pyenv-virtualenv-init >/dev/null 2>&1; then
-  eval "$(pyenv virtualenv-init -)"
+if ! array_is "system" "${PYTHON_VERSIONS[@]}" || \
+   ! array_is "local"  "${JAWM_VERSIONS[@]}" ; then
+  
+  export PATH="$HOME/.pyenv/bin:$PATH"
+  if command -v pyenv >/dev/null 2>&1; then
+    echo "pyenv is already installed"
+  else
+    echo "pyenv not found, installing..."
+    curl https://pyenv.run | bash
+    echo "pyenv installed successfully."
+    export PATH="$HOME/.pyenv/bin:$PATH"
+  fi
+
+  # Initialize pyenv for this process (no need to source shell rc files)
+  eval "$(pyenv init --path)"
+  eval "$(pyenv init -)"
+  if command -v pyenv-virtualenv-init >/dev/null 2>&1; then
+    eval "$(pyenv virtualenv-init -)"
+  fi
+
 fi
 
 ############################################################
@@ -233,7 +248,12 @@ for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
   fi
 done
 
-echo "Your python versions and environments can be found under: ~/.pyenv/versions/"
+if ! array_is "system" "${PYTHON_VERSIONS[@]}" || \
+   ! array_is "local"  "${JAWM_VERSIONS[@]}" ; then
+
+  echo "Your python versions and environments can be found under: ~/.pyenv/versions/"
+
+fi
 
 ############################################################
 # get latest jawm tag and latest commit (only if needed)
@@ -244,72 +264,78 @@ echo "Your python versions and environments can be found under: ~/.pyenv/version
 ############################################################
 # install different jawm versions
 ############################################################
-for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
-  for JAWM_VERSION in "${JAWM_VERSIONS[@]}"; do
 
-    if [[ "$PYTHON_VERSION" == "system" ]]; then
-      echo "Using system Python for jawm@${JAWM_VERSION}"
-      PYTHON_BIN="$(command -v python3 || command -v python || true)"
-      if [[ -z "$PYTHON_BIN" ]]; then
-        echo "❌ No system Python found! Please install python3."
-        exit 1
+if ! array_is "system" "${PYTHON_VERSIONS[@]}" || \
+   ! array_is "local"  "${JAWM_VERSIONS[@]}" ; then
+
+  for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
+    for JAWM_VERSION in "${JAWM_VERSIONS[@]}"; do
+
+      if [[ "$PYTHON_VERSION" == "system" ]]; then
+        echo "Using system Python for jawm@${JAWM_VERSION}"
+        PYTHON_BIN="$(command -v python3 || command -v python || true)"
+        if [[ -z "$PYTHON_BIN" ]]; then
+          echo "❌ No system Python found! Please install python3."
+          exit 1
+        fi
+        # Ensure user-site bin on PATH for pip --user
+        USER_BIN="$($PYTHON_BIN -c 'import site,sys; sys.stdout.write(site.USER_BASE + "/bin\n")' 2>/dev/null || true)"
+        if [ -n "$USER_BIN" ]; then export PATH="$USER_BIN:$PATH"; fi
+
+        if [[ "$JAWM_VERSION" == "local" ]]; then
+          if [[ -d "$JAWM_REPO" ]]; then
+            echo "(Re)Installing local jawm from $JAWM_REPO (system Python)"
+            pip install --user --force-reinstall "$JAWM_REPO"
+            echo "✅ System jawm install complete."
+          else
+            echo "INFO: No jawm path '$JAWM_REPO' was given." >&2
+            # exit 1
+          fi
+        else
+          # Install from Git
+          echo "Installing 'jawm@${JAWM_VERSION}' (system Python)"
+          pip install --user "git+ssh://git@${JAWM_REPO}@${JAWM_VERSION}"
+          echo "✅ System jawm install complete."
+        fi
+        continue
       fi
-      # Ensure user-site bin on PATH for pip --user
-      USER_BIN="$($PYTHON_BIN -c 'import site,sys; sys.stdout.write(site.USER_BASE + "/bin\n")' 2>/dev/null || true)"
-      if [ -n "$USER_BIN" ]; then export PATH="$USER_BIN:$PATH"; fi
+
+      # pyenv-based Pythons
+      ENV_NAME="py${PYTHON_VERSION}-jawm.${JAWM_VERSION}"
+      if pyenv virtualenvs --bare | grep -qx "$ENV_NAME"; then
+        echo "Virtual environment '$ENV_NAME' already exists."
+      else
+        echo "Creating virtual environment '$ENV_NAME'"
+        pyenv virtualenv "$PYTHON_VERSION" "$ENV_NAME"
+      fi
+
+      # Activate
+      # shellcheck disable=SC1090
+      pyenv activate "$ENV_NAME"
+      export PATH="$HOME/.pyenv/versions/${ENV_NAME}/bin/:$PATH"
 
       if [[ "$JAWM_VERSION" == "local" ]]; then
         if [[ -d "$JAWM_REPO" ]]; then
-          echo "Installing local jawm from $JAWM_REPO (system Python)"
-          pip install --user --force-reinstall "$JAWM_REPO"
+          echo "Installing jawm from $JAWM_REPO in $ENV_NAME."
+          pip install --force-reinstall "$JAWM_REPO"
         else
           echo "ERROR: Local jawm path '$JAWM_REPO' not found." >&2
+          pyenv deactivate
           exit 1
         fi
       else
-        # Install from Git
-        echo "Installing 'jawm@${JAWM_VERSION}' (system Python)"
-        pip install --user "git+ssh://git@${JAWM_REPO}@${JAWM_VERSION}"
+        if pyenv exec pip show jawm >/dev/null 2>&1; then
+          echo "'jawm' already installed in $ENV_NAME; reinstalling pinned rev."
+        fi
+        echo "Installing 'jawm@${JAWM_VERSION}' in $ENV_NAME."
+        pip install "git+ssh://git@${JAWM_REPO}@${JAWM_VERSION}"
       fi
-      echo "✅ System jawm install complete."
-      continue
-    fi
 
-    # pyenv-based Pythons
-    ENV_NAME="py${PYTHON_VERSION}-jawm.${JAWM_VERSION}"
-    if pyenv virtualenvs --bare | grep -qx "$ENV_NAME"; then
-      echo "Virtual environment '$ENV_NAME' already exists."
-    else
-      echo "Creating virtual environment '$ENV_NAME'"
-      pyenv virtualenv "$PYTHON_VERSION" "$ENV_NAME"
-    fi
-
-    # Activate
-    # shellcheck disable=SC1090
-    pyenv activate "$ENV_NAME"
-    export PATH="$HOME/.pyenv/versions/${ENV_NAME}/bin/:$PATH"
-
-    if [[ "$JAWM_VERSION" == "local" ]]; then
-      if [[ -d "$JAWM_REPO" ]]; then
-        echo "Installing jawm from $JAWM_REPO in $ENV_NAME."
-        pip install --force-reinstall "$JAWM_REPO"
-      else
-        echo "ERROR: Local jawm path '$JAWM_REPO' not found." >&2
-        pyenv deactivate
-        exit 1
-      fi
-    else
-      if pyenv exec pip show jawm >/dev/null 2>&1; then
-        echo "'jawm' already installed in $ENV_NAME; reinstalling pinned rev."
-      fi
-      echo "Installing 'jawm@${JAWM_VERSION}' in $ENV_NAME."
-      pip install "git+ssh://git@${JAWM_REPO}@${JAWM_VERSION}"
-    fi
-
-    echo "Installed jawm binary: $(command -v jawm || true)"
-    pyenv deactivate
+      echo "Installed jawm binary: $(command -v jawm || true)"
+      pyenv deactivate
+    done
   done
-done
+fi
 
 ############################################################
 # set module tag(s)
