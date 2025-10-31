@@ -128,6 +128,8 @@ class Process:
         format="[%(asctime)s] - %(levelname)s - %(name)s :: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
+    # Define cls level logger for special uses
+    logger_wait = logging.getLogger("Process|WAIT")
 
     
     def __init__(
@@ -968,7 +970,7 @@ class Process:
             elif isinstance(allowed_exit, list):
                 allowed_exit = [str(code).strip() for code in allowed_exit]
             else:
-                if log: print("Process.wait | WARNING :: Unsupported format for allowed_exit, skipping check.")
+                if log: cls.logger_wait.warning("Unsupported format for allowed_exit, skipping check.")
                 allowed_exit = "all"
 
         # Normalize single process to list
@@ -1002,7 +1004,7 @@ class Process:
 
                     # Require 3 stable cycles for confirmation
                     if stable_cycles >= 3:
-                        if log: print(f"Process.wait | INFO :: Registry stabilized with {len(procs)} total processes.")
+                        if log: cls.logger_wait.info(f"Registry stabilized with {len(procs)} total processes.")
                         break
 
                     time.sleep(poll_interval)
@@ -1027,12 +1029,12 @@ class Process:
                 elif isinstance(item, str):
                     p = cls.registry.get(item)
                     if p is None:
-                        if log: print(f"Process.wait | WARNING :: No registered process for: {item}")
+                        if log: cls.logger_wait.warning(f"No registered process for: {item}")
                         success = False
                     else:
                         procs.append(p)
                 else:
-                    if log: print(f"Process.wait | WARNING :: Unsupported process reference: {item}")
+                    if log: cls.logger_wait.warning(f"Unsupported process reference: {item}")
                     success = False
 
         # ---------------------------
@@ -1065,7 +1067,7 @@ class Process:
                             time.sleep(poll)
                             f.seek(where)
             except Exception as e:
-                if log: print(f"Process.wait | WARNING :: Tail failed for {path}: {e}")
+                if log: cls.logger_wait.warning(f"Tail failed for {path}: {e}")
 
         # Start tailers for ALL selected processes up-front, so they run concurrently
         tail_state = {}  # proc -> {"stop": Event, "threads": [Thread,...]}
@@ -1151,6 +1153,6 @@ class Process:
                     for t in ts["threads"]:
                         t.join(timeout=1.0)
 
-        if log: print(f"Process.wait | INFO :: Wait completed for {len(procs)} process(es).")
+        if log: cls.logger_wait.info(f"Wait completed for {len(procs)} process(es).")
         return success
 
