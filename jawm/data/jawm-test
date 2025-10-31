@@ -186,7 +186,6 @@ if [ -f "$DOWNLOADS_FILE" ]; then
           gunzip "$filename"
           ;;
       esac
-fi
     fi
     # Verify MD5
     hash_actual="$(md5_file "$filename")" || { echo "Checksum tool not found."; exit 1; }
