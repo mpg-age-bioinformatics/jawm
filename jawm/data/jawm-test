@@ -169,7 +169,8 @@ if [ -f "$DOWNLOADS_FILE" ]; then
     url="$3"
     echo "$filename $url"
     if [ ! -f "$filename" ]; then
-      wget -O "$filename" "$url"
+      # wget -O "$filename" "$url"
+      curl -L -o "$filename" "$url"
     fi
     # Verify MD5
     hash_actual="$(md5_file "$filename")" || { echo "Checksum tool not found."; exit 1; }
