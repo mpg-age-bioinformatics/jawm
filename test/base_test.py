@@ -2175,7 +2175,7 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-print("\n>>> Test 33: YAML Parsing — Multi-name and Merge Behavior")
+print("\n>>> Test 39: YAML Parsing — Multi-name and Merge Behavior")
 try:
     tmpdir = tempfile.mkdtemp(prefix="test_multi_name_")
     yaml_path = os.path.join(tmpdir, "params.yaml")
