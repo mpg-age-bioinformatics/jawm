@@ -30,6 +30,8 @@ python simple.py
 jawm simple.py
 ```
 
+Take a look at the [jawm_demo](https://github.com/mpg-age-bioinformatics/jawm_demo) for more demos of jawm workflows.
+
 ## Developing your first jawm workfow
 
 You can develop your first jawm workflow by:
@@ -44,7 +46,5 @@ jawm my_first_wf.py -p ./yaml/docker.yaml
 ```
 
 [Read the Docs](https://github.com/mpg-age-bioinformatics/jawm) for more information on how to create workflows with jawm.
-
-The workflow you just generated is based on [jawm_demo](https://github.com/mpg-age-bioinformatics/jawm_demo). Check it out for more examples on how to create workflows with jawm.
 
 Availabe workflows can be found [here (GitHub.com)](https://github.com/mpg-age-bioinformatics?q=jawm_&type=all&language=&sort=).
