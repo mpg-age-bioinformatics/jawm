@@ -139,10 +139,14 @@ def _parse_yaml_config(self, param_file):
                 yaml_data = _expand_relpaths_in_value(yaml_data, os.getcwd())
         except Exception as e:
             # It may not log in error summary if self.error_summary_file is not yet there
-            self._log_error_summary(f"Failed to load YAML file {yaml_file}: {str(e)}", type_text="ErrorYAML")
-            self.__class__.stop_future_event.set()
-            ter_err = f"Failed to load YAML file {yaml_file}:\n\n{str(e)}"
-            raise ValueError(ter_err)
+            try:
+                self._log_error_summary(f"Failed to load/parse YAML file {yaml_file}: {str(e)}", type_text="ErrorYAML")
+            except:
+                pass
+            if hasattr(self.__class__, "stop_future_event"):
+                self.__class__.stop_future_event.set()
+            ter_err = f"Failed to load/parse YAML file {yaml_file}:\n{str(e)}"
+            raise ValueError(ter_err) from None
 
         if isinstance(yaml_data, dict):
             yaml_data = [yaml_data]
