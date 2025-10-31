@@ -30,7 +30,7 @@ python simple.py
 jawm simple.py
 ```
 
-Take a look at the [jawm_demo](https://github.com/mpg-age-bioinformatics/jawm_demo) for more demos of jawm workflows.
+Take a look at [jawm_demo](https://github.com/mpg-age-bioinformatics/jawm_demo) for more demos of jawm workflows.
 
 ## Developing your first jawm workfow
 
