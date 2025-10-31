@@ -797,10 +797,13 @@ class Process:
         Returns:
             dict: { "killed": [...], "failed": [...] }
         """
+        # --- Grace period for processes that just started ---
+        time.sleep(float(os.getenv("JAWM_WAIT_GRACE", "0.3")))
+
         killed = []
         failed = []
-
         seen = set()
+        
         for proc in cls.registry.values():
             if not isinstance(proc, cls):
                 continue

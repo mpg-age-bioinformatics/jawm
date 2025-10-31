@@ -1362,8 +1362,14 @@ def main():
 
     except Exception:
         logger.exception("Failed to execute module script")
+        try:
+            logger.warning("Cleaning up any active process(es) due to exception!")
+            Process.kill_all()
+        except Exception as e:
+            logger.warning(f"Cleanup up during exception failed: {e}")
         # If module raised SystemExit, prefer that code; else generic failure
         sys.exit(exit_code_from_script if exit_code_from_script is not None else 1)
+
     finally:
         time.sleep(0.2)
         if exit_code_def == 0:
