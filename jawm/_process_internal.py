@@ -157,13 +157,18 @@ def _parse_yaml_config(self, param_file):
             # Merge into global scope
             if scope == "global":
                 yaml_params["global"].update(entry)
-            # Merge Process specific config with wildcard enabled
-            elif scope == "process" and name and self.name: 
-                if fnmatch.fnmatch(self.name, name):
-                    if self.name not in yaml_params["process"]:
-                        yaml_params["process"][self.name] = entry.copy()
-                    else:
-                        yaml_params["process"][self.name].update(entry)
+
+            # Merge Process-specific config (supports single name or list of names)
+            elif scope == "process" and name and self.name:
+                # Normalize name to a list
+                names = name if isinstance(name, (list, tuple)) else [name]
+                for n in names:
+                    if fnmatch.fnmatch(self.name, n):
+                        if self.name not in yaml_params["process"]:
+                            yaml_params["process"][self.name] = entry.copy()
+                        else:
+                            yaml_params["process"][self.name].update(entry)
+                        break  # stop after first match
 
     return yaml_params
 

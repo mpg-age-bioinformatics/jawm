@@ -2175,6 +2175,52 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+print("\n>>> Test 33: YAML Parsing — Multi-name and Merge Behavior")
+try:
+    tmpdir = tempfile.mkdtemp(prefix="test_multi_name_")
+    yaml_path = os.path.join(tmpdir, "params.yaml")
+
+    # Create YAML file with both single-string and list names
+    with open(yaml_path, "w") as f:
+        f.write("""
+- scope: process
+  name: "p1"
+  manager: "local"
+
+- scope: process
+  name: ["p1", "p2"]
+  desc: "shared description"
+  manager: "slurm"
+
+- scope: process
+  name: "p2"
+  retries: 3
+""")
+
+    # Create two processes, p1 and p2
+    p1 = Process(name="p1", script="#!/bin/bash\necho hi", param_file=yaml_path)
+    p2 = Process(name="p2", script="#!/bin/bash\necho hi", param_file=yaml_path)
+
+    # --- Assertions ---
+    # p1 should merge both its single and list entries; last manager wins ("slurm")
+    assert p1.manager == "slurm", f"❌ p1 manager not merged correctly, got {p1.manager}"
+    assert p1.desc == "shared description", "❌ p1 did not inherit desc from list entry"
+
+    # p2 should pick list-based + its own entry, merging manager and retries
+    assert p2.manager == "slurm", f"❌ p2 manager not from list entry, got {p2.manager}"
+    assert p2.desc == "shared description", "❌ p2 did not inherit desc from shared list entry"
+    assert p2.retries == 3, "❌ p2 did not merge its own retries"
+
+    print("✅ Passed: YAML list-of-names and repeated process merging works")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 
 
 # -----------------------------
