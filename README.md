@@ -30,7 +30,7 @@ python simple.py
 jawm simple.py
 ```
 
-## Developing your firt jawm workfow
+## Developing your first jawm workfow
 
 You can develop your first jawm workflow by:
 ```
