@@ -26,7 +26,7 @@ git clone git@github.com:mpg-age-bioinformatics/jawm_demo.git
 cd jawm_demo
 python simple.py
 
-# simple workflow with using the jawm executable
+# simple workflow using the jawm executable
 jawm simple.py
 ```
 
