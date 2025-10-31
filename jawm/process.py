@@ -130,6 +130,7 @@ class Process:
     )
     # Define cls level logger for special uses
     logger_wait = logging.getLogger("Process|WAIT")
+    logger_kill = logging.getLogger("Process|KILL")
 
     
     def __init__(
@@ -693,16 +694,16 @@ class Process:
 
         proc = cls.registry.get(identifier)
         if not proc:
-            print(f"No process found with identifier: {identifier}")
+            cls.logger_kill.info(f"No process found with identifier: {identifier}")
             return False
 
         if proc.finished_event.is_set():
-            print(f"{proc.name}|{proc.hash} :: Process already finished — nothing to kill.")
+            cls.logger_kill.info(f"{proc.name}|{proc.hash} :: Process already finished — nothing to kill.")
             return False
 
         runtime_id = proc.runtime_id
         if not runtime_id:
-            print(f"{proc.name}|{proc.hash} :: Process has no recorded PID or job ID.")
+            cls.logger_kill.info(f"{proc.name}|{proc.hash} :: Process has no recorded PID or job ID.")
             return False
 
         killed = False
@@ -771,7 +772,7 @@ class Process:
                         f.write(f"PID/Job ID: {runtime_id}\n")
                         f.write(f"Manager: {proc.manager}\n")
                 except Exception as file_error:
-                    print(f"Failed to write killer file: {file_error}")
+                    cls.logger_kill.warning(f"Failed to write killer file: {file_error}")
 
             # Log to error summary
             if hasattr(proc, "_log_error_summary"):
@@ -781,11 +782,11 @@ class Process:
             proc.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
             proc.finished_event.set()
 
-            print(f"{proc.name}|{proc.hash} :: Process (ID: {runtime_id}) killed successfully.")
+            cls.logger_kill.info(f"{proc.name}|{proc.hash} :: Process (ID: {runtime_id}) killed successfully.")
             return True
 
         else:
-            print(f"{proc.name}|{proc.hash} :: {error_message}")
+            cls.logger_kill.warning(f"{proc.name}|{proc.hash} :: {error_message}")
             if hasattr(proc, "_log_error_summary"):
                 proc._log_error_summary(error_message, type_text="Killer")
             return False
@@ -820,15 +821,13 @@ class Process:
                 else:
                     failed.append(proc.name + "|" + proc.hash)
 
-        print(f"\n Killed processes: {len(killed)}")
-        for pid in killed:
-            print(f"  - {pid}")
-        
+        if killed:
+            cls.logger_kill.info(f"Killed processes ({len(killed)}):\n  - " + "\n  - ".join(killed))
+        else:
+            cls.logger_kill.info("Killed processes: 0")
+
         if failed:
-            print(f"\nFailed to kill (may not have executed yet): {len(failed)}")
-            for pid in failed:
-                print(f"  - {pid}")
-            print("\n")
+            cls.logger_kill.warning(f"Failed to kill (may not have executed yet): {len(failed)}\n  - " + "\n  - ".join(failed))
         
         return {
             "killed": killed,
@@ -892,7 +891,7 @@ class Process:
                 os._exit(130)
 
             cls._sigint_fired = True
-            print("\nCtrl+C detected — terminating running jawm jobs...")
+            cls.logger_kill.info("Ctrl+C detected — terminating running jawm jobs...")
 
             try:
                 cls.kill_all()
