@@ -491,6 +491,32 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
 #  lsvar: extract {{variables}} per jawm.Process script
 # ----------------------------------------------------------
 
+DESC_BLOCK_RE = re.compile(
+    r"\bdesc\s*=\s*\{(.*?)\}",
+    re.DOTALL
+)
+
+KEY_IN_DESC_RE = re.compile(r'["\']([A-Za-z0-9_.]+)["\']\s*:')
+
+def _extract_desc_vars(text: str):
+    """
+    Return {process_name: set(desc_keys)}
+    """
+    desc_map = {}
+    for m in PROC_BLOCK_RE.finditer(text):
+        proc_name = m.group("name")
+        block = m.group(0)  # full jawm.Process(...) block
+        desc_match = DESC_BLOCK_RE.search(block)
+        if desc_match:
+            desc_text = desc_match.group(1)
+            keys = set(KEY_IN_DESC_RE.findall(desc_text))
+        else:
+            keys = set()
+        desc_map[proc_name] = keys
+    return desc_map
+
+
+
 PROC_BLOCK_RE = re.compile(
     r'''(?P<procvar>\w+)\s*=\s*jawm\.Process\(\s*
         (?:(?:.|\n)*?)\bname\s*=\s*["'](?P<name>[^"']+)["']       
@@ -514,6 +540,143 @@ def _extract_process_vars(text: str) -> "OrderedDict[str, list[str]]":
         found[proc_name] = vars_in_script
     return found
 
+import re
+import sys
+from pathlib import Path
+from collections import OrderedDict
+
+# --- Regexes for parts *within* a single jawm.Process(...) block ---
+_NAME_RE = re.compile(r'\bname\s*=\s*["\'](?P<name>[^"\']+)["\']')
+# triple-quoted script: """...""" or '''...'''
+_SCRIPT_RE = re.compile(r'\bscript\s*=\s*(?P<q>"{3}|\'{3})\\?\n?(?P<body>.*?)(?P=q)', re.DOTALL)
+# desc mapping (we only need keys)
+_DESC_RE = re.compile(r'\bdesc\s*=\s*\{(?P<desc>.*?)\}', re.DOTALL)
+# keys inside desc dict
+_DESC_KEY_RE = re.compile(r'["\']([A-Za-z0-9_.]+)["\']\s*:')
+
+# {{var}} occurrences inside the script body
+_DBL_BRACE_VAR_RE = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
+
+# Find each `jawm.Process(` occurrence
+_PROCESS_START_RE = re.compile(r'jawm\.Process\s*\(')
+
+def _find_matching_paren(text: str, open_pos: int) -> int:
+    """
+    Given index at '(' of 'jawm.Process(', return index of its matching ')' (exclusive).
+    Handles strings (single, double, triple) to avoid counting parens inside them.
+    Returns -1 if no match found.
+    """
+    i = open_pos
+    n = len(text)
+    depth = 0
+    in_str = False
+    str_delim = ""
+    triple = False
+
+    while i < n:
+        ch = text[i]
+
+        if in_str:
+            # Handle escapes
+            if ch == '\\':
+                i += 2
+                continue
+            # Check for triple-quote end or normal string end
+            if triple:
+                if text.startswith(str_delim * 3, i):
+                    in_str = False
+                    triple = False
+                    i += 3
+                    continue
+                else:
+                    i += 1
+                    continue
+            else:
+                if ch == str_delim:
+                    in_str = False
+                i += 1
+                continue
+
+        # Not in a string: handle string starts
+        if ch in ('"', "'"):
+            # triple?
+            if i + 2 < n and text[i:i+3] == ch * 3:
+                in_str = True
+                triple = True
+                str_delim = ch
+                i += 3
+            else:
+                in_str = True
+                triple = False
+                str_delim = ch
+                i += 1
+            continue
+
+        # Parenthesis tracking
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth -= 1
+            if depth == 0:
+                return i  # index of matching ')'
+        i += 1
+
+    return -1
+
+def _iter_process_blocks(text: str):
+    """
+    Yield tuples (block_text, start_idx, end_idx) for each full jawm.Process(...) block.
+    """
+    for m in _PROCESS_START_RE.finditer(text):
+        # find '(' right after match
+        after = m.end() - 1
+        if text[after] != '(':
+            # find first '(' after
+            open_idx = text.find('(', m.end() - 1)
+            if open_idx == -1:
+                continue
+        else:
+            open_idx = after
+        close_idx = _find_matching_paren(text, open_idx)
+        if close_idx == -1:
+            continue
+        yield (text[m.start():close_idx+1], m.start(), close_idx+1)
+
+def _extract_from_block(block: str):
+    """
+    From a single jawm.Process(...) block:
+      - return (process_name, script_vars_set, desc_keys_set)
+    Missing parts just return empty sets/None appropriately.
+    """
+    name_m = _NAME_RE.search(block)
+    name = name_m.group('name') if name_m else None
+
+    script_vars = set()
+    sm = _SCRIPT_RE.search(block)
+    if sm:
+        body = sm.group('body')
+        script_vars = set(_DBL_BRACE_VAR_RE.findall(body))
+
+    desc_keys = set()
+    dm = _DESC_RE.search(block)
+    if dm:
+        desc_body = dm.group('desc')
+        desc_keys = set(_DESC_KEY_RE.findall(desc_body))
+
+    return name, script_vars, desc_keys
+
+def _extract_all(text: str):
+    """
+    Returns OrderedDict: {process_name: (script_vars_set, desc_keys_set)}
+    Only includes entries where a name is found.
+    """
+    out = OrderedDict()
+    for block, *_ in _iter_process_blocks(text):
+        name, svars, dkeys = _extract_from_block(block)
+        if name:
+            out[name] = (svars, dkeys)
+    return out
+
 def _run_lsvar(path: str) -> int:
     """
     Read a Python file containing jawm.Process(...) definitions, print YAML with:
@@ -521,6 +684,8 @@ def _run_lsvar(path: str) -> int:
       name: "<process_name>"
       var:
         <variable>: ""
+    Also warn (to STDERR) if a variable used in script is NOT present in desc={...},
+    and NOTE (to STDERR) for variables present in desc but unused in the script.
     """
     p = Path(path)
     if not p.exists() or not p.is_file():
@@ -532,19 +697,38 @@ def _run_lsvar(path: str) -> int:
         print(f"❌ Failed to read file: {e}")
         return 2
 
-    proc_vars = _extract_process_vars(text)
-    for name, vars_ in proc_vars.items():
+    proc_map = _extract_all(text)
+
+    for name, (script_vars, desc_keys) in proc_map.items():
+        # ---- WARN for missing in desc ----
+        missing = sorted(script_vars - desc_keys, key=str.lower)
+        for v in missing:
+            print(
+                f"WARNING: variable '{v}' used in script of process '{name}' "
+                f"but not defined in desc{{}}",
+                file=sys.stderr
+            )
+
+        # ---- OPTIONAL NOTE for unused in script ----
+        unused = sorted(desc_keys - script_vars, key=str.lower)
+        for k in unused:
+            print(
+                f"NOTE: variable '{k}' defined in desc{{}} of process '{name}' "
+                f"but not used in the script.",
+                file=sys.stderr
+            )
+
+        # ---- YAML output (stdout) ----
         print("- scope: process")
         print(f"  name: \"{name}\"")
-        if vars_:
+        if script_vars:
             print("  var:")
-            for v in vars_:
+            for v in sorted(script_vars, key=str.lower):
                 print(f"    {v}: \"\"")
         else:
             print("  var: {}")
+
     return 0
-
-
 
 # ----------------------------------------------------------
 #  Main method for jawm-dev command
@@ -552,7 +736,7 @@ def _run_lsvar(path: str) -> int:
 
 def main():
     parser = argparse.ArgumentParser(description="jawm-dev - Developer CLI for the jawm workflow manager")
-    parser.add_argument("command", nargs="?", help="Developer command to execute (init, download, test, help)")
+    parser.add_argument("command", nargs="?", help="Developer command to execute (init, lsvar, help)")
     parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments passed to the command")
     parser.add_argument("-V", "--version", action="version", version=f"jawm-dev {_VERSION}", help="Show jawm-dev version and exit")
 
@@ -612,7 +796,7 @@ def main():
     elif args.command == "lsvar":
         lsvar_parser = argparse.ArgumentParser(
             prog="jawm-dev lsvar",
-            description="List {{variables}} used inside each jawm.Process script block as YAML.",
+            description="List {{variables}} used inside each jawm. Process script block as YAML.",
         )
         lsvar_parser.add_argument(
             "file",
