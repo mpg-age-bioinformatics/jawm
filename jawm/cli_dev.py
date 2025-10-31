@@ -140,38 +140,84 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
             return False
 
     def _github_create_repo(owner: str, name: str) -> bool:
-        # Prefer GitHub CLI: creates empty, private repo (no README)
+        """
+        Create a PRIVATE, EMPTY GitHub repository named `name`.
+        Tries GitHub CLI first; if unavailable, uses REST API with a token.
+        With the REST API, it always tries the ORG endpoint first and then the USER endpoint,
+        printing detailed errors if anything fails.
+        """
+        # Prefer GitHub CLI
         if _gh_installed():
             proc = subprocess.run(
                 ["gh", "repo", "create", f"{owner}/{name}", "--private", "--confirm"],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
             )
+            if proc.returncode != 0:
+                print("❌ GitHub CLI repo creation failed:")
+                print(proc.stderr.decode(errors="replace").strip())
             return proc.returncode == 0
+
+        # REST API fallback
         token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
         if not token:
             print("⚠️  GitHub repo creation skipped: set GITHUB_TOKEN (or GH_TOKEN) or install gh.")
             return False
-        headers = {"Authorization": f"Bearer {token}",
-                   "Accept": "application/vnd.github+json",
-                   "X-GitHub-Api-Version": "2022-11-28",
-                   "Content-Type": "application/json"}
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "Content-Type": "application/json",
+        }
         payload = json.dumps({"name": name, "private": True, "auto_init": False}).encode("utf-8")
-        # Try org endpoint
+
+        # --- Try ORG endpoint first ---
+        org_success = False
         try:
-            req = urllib.request.Request(f"https://api.github.com/orgs/{owner}/repos",
-                                         data=payload, headers=headers, method="POST")
+            req = urllib.request.Request(
+                f"https://api.github.com/orgs/{owner}/repos",
+                data=payload, headers=headers, method="POST"
+            )
             with urllib.request.urlopen(req) as resp:
-                return 201 <= resp.status < 300
+                if 201 <= resp.status < 300:
+                    org_success = True
+                else:
+                    # Non-error 2xx but unexpected
+                    print(f"❌ Unexpected GitHub response (org endpoint): HTTP {resp.status}")
         except urllib.error.HTTPError as e:
-            if e.code not in (403, 404, 422):
-                return False
-        # Fallback to user endpoint
+            err_body = e.read().decode(errors="replace").strip()
+            print(f"ℹ️  GitHub org creation attempt failed (will try user endpoint). HTTP {e.code}")
+            if err_body:
+                print(err_body)
+        except Exception as e:
+            print("ℹ️  Unexpected error during org repo creation attempt (will try user endpoint):")
+            print(str(e))
+
+        if org_success:
+            return True
+
+        # --- Fallback: USER endpoint ---
         try:
-            req = urllib.request.Request("https://api.github.com/user/repos",
-                                         data=payload, headers=headers, method="POST")
+            req = urllib.request.Request(
+                "https://api.github.com/user/repos",
+                data=payload, headers=headers, method="POST"
+            )
             with urllib.request.urlopen(req) as resp:
-                return 201 <= resp.status < 300
-        except Exception:
+                if 201 <= resp.status < 300:
+                    return True
+                print(f"❌ Unexpected GitHub response (user endpoint): HTTP {resp.status}")
+                return False
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode(errors="replace").strip()
+            print("❌ GitHub API error while creating repository in your user account:")
+            print(f"HTTP {e.code}")
+            if err_body:
+                print(err_body)
+            return False
+        except Exception as e:
+            print("❌ Unexpected error while creating GitHub repo (user endpoint):")
+            print(str(e))
             return False
 
     # ---------- GitLab ----------
