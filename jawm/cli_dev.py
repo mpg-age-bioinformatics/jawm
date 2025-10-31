@@ -10,7 +10,6 @@ from importlib import resources
 import re
 from collections import OrderedDict
 
-
 # ----------------------------------------------------------
 #   Version detection (module scope)
 # ----------------------------------------------------------
@@ -394,6 +393,33 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
             except Exception as e:
                 print(f"⚠️ Failed to modify .github/workflows/test.yaml: {e}")
 
+    # --- Comment out push/pull_request/schedule triggers in test workflow ---
+    wf = target / ".github" / "workflows" / "test.yaml"
+    if wf.exists():
+        try:
+            text = wf.read_text(encoding="utf-8").splitlines()
+            new_lines = []
+            in_block = False
+            for line in text:
+                stripped = line.lstrip()
+                if stripped.startswith(("push:", "pull_request:", "schedule:")):
+                    in_block = True
+                if in_block and stripped and not stripped.startswith("#"):
+                    new_lines.append("# " + line)
+                    # stop block when indentation ends
+                    if stripped.startswith("- cron:") or stripped.startswith("branches:"):
+                        continue
+                else:
+                    new_lines.append(line)
+                # end block when blank line or new top-level section
+                if in_block and (not stripped or (not line.startswith(" ") and not stripped.startswith("#"))):
+                    in_block = False
+
+            wf.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+            print("⏸️  Disabled push/pull_request/schedule triggers in test workflow.")
+        except Exception as e:
+            print(f"⚠️ Failed to disable test.yaml triggers: {e}")
+
 
     # Remove lines 3–6 from README.md
     readme = target / "README.md"
@@ -539,11 +565,6 @@ def _extract_process_vars(text: str) -> "OrderedDict[str, list[str]]":
         vars_in_script = sorted(set(DOUBLE_BRACE_VAR_RE.findall(script)), key=str.lower)
         found[proc_name] = vars_in_script
     return found
-
-import re
-import sys
-from pathlib import Path
-from collections import OrderedDict
 
 # --- Regexes for parts *within* a single jawm.Process(...) block ---
 _NAME_RE = re.compile(r'\bname\s*=\s*["\'](?P<name>[^"\']+)["\']')
