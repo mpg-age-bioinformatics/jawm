@@ -7,6 +7,8 @@ import zipfile
 import io
 from pathlib import Path
 from importlib import resources
+import re
+from collections import OrderedDict
 
 
 # ----------------------------------------------------------
@@ -30,7 +32,7 @@ except md.PackageNotFoundError:
 #  Helper var and methods for jawm-dev command
 # ----------------------------------------------------------
 
-_VALID_CMDS = {"init"}
+_VALID_CMDS = {"init", "lsvar"}
 
 _TEMPLATE_ZIP = "https://github.com/mpg-age-bioinformatics/jawm_demo/archive/refs/heads/main.zip"
 
@@ -484,6 +486,66 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
     print(f"💻 or by using the jawm-test utility:\n")
     print(f" $ cd {repo_name} && jawm-test\n")
 
+
+# ----------------------------------------------------------
+#  lsvar: extract {{variables}} per jawm.Process script
+# ----------------------------------------------------------
+
+PROC_BLOCK_RE = re.compile(
+    r'''(?P<procvar>\w+)\s*=\s*jawm\.Process\(\s*
+        (?:(?:.|\n)*?)\bname\s*=\s*["'](?P<name>[^"']+)["']       
+        (?:(?:.|\n)*?)\bscript\s*=\s*(?P<q>"{3}|'{3})\\?\n?          
+        (?P<script>.*?)(?P=q)                                      
+    ''',
+    re.VERBOSE | re.DOTALL
+)
+
+DOUBLE_BRACE_VAR_RE = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
+
+def _extract_process_vars(text: str) -> "OrderedDict[str, list[str]]":
+    """
+    Returns OrderedDict mapping process name -> sorted unique vars used as {{var}} in its script.
+    """
+    found = OrderedDict()
+    for m in PROC_BLOCK_RE.finditer(text):
+        proc_name = m.group("name")
+        script = m.group("script")
+        vars_in_script = sorted(set(DOUBLE_BRACE_VAR_RE.findall(script)), key=str.lower)
+        found[proc_name] = vars_in_script
+    return found
+
+def _run_lsvar(path: str) -> int:
+    """
+    Read a Python file containing jawm.Process(...) definitions, print YAML with:
+    - scope: process
+      name: "<process_name>"
+      var:
+        <variable>: ""
+    """
+    p = Path(path)
+    if not p.exists() or not p.is_file():
+        print(f"❌ File not found: {path}")
+        return 2
+    try:
+        text = p.read_text(encoding="utf-8")
+    except Exception as e:
+        print(f"❌ Failed to read file: {e}")
+        return 2
+
+    proc_vars = _extract_process_vars(text)
+    for name, vars_ in proc_vars.items():
+        print("- scope: process")
+        print(f"  name: \"{name}\"")
+        if vars_:
+            print("  var:")
+            for v in vars_:
+                print(f"    {v}: \"\"")
+        else:
+            print("  var: {}")
+    return 0
+
+
+
 # ----------------------------------------------------------
 #  Main method for jawm-dev command
 # ----------------------------------------------------------
@@ -546,6 +608,29 @@ def main():
             module_prefix=init_args.module_prefix,
         )
         sys.exit(0)
+
+    elif args.command == "lsvar":
+        lsvar_parser = argparse.ArgumentParser(
+            prog="jawm-dev lsvar",
+            description="List {{variables}} used inside each jawm.Process script block as YAML.",
+        )
+        lsvar_parser.add_argument(
+            "file",
+            nargs="?",
+            help="Path to a Python file containing jawm.Process(...) definitions.",
+        )
+
+        # Show help if no args
+        if not args.args:
+            lsvar_parser.print_help()
+            sys.exit(0)
+
+        lsvar_args = lsvar_parser.parse_args(args.args)
+        if not lsvar_args.file:
+            lsvar_parser.error("the following arguments are required: file")
+
+        rc = _run_lsvar(lsvar_args.file)
+        sys.exit(rc)
 
     # elif args.command == "nf2jm":
     #     # Subparser for the init command (positional module name)
