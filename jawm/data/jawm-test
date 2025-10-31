@@ -172,12 +172,21 @@ if [ -f "$DOWNLOADS_FILE" ]; then
       # wget -O "$filename" "$url"
       curl -L -o "$filename" "$url"
       # If it ends with .tar.gz or .tgz, extract it
+
       case "$filename" in
         *.tar.gz|*.tgz)
-          echo "Extracting $filename..."
+          echo "Extracting tar archive $filename..."
           tar -xzf "$filename"
           ;;
+        *.fastq.gz)
+          echo "Leaving FASTQ gzipped: $filename"
+          ;;
+        *.gz)
+          echo "Decompressing $filename..."
+          gunzip "$filename"
+          ;;
       esac
+fi
     fi
     # Verify MD5
     hash_actual="$(md5_file "$filename")" || { echo "Checksum tool not found."; exit 1; }
