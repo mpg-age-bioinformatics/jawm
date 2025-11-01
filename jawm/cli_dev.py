@@ -818,7 +818,7 @@ def main():
         # Subparser for the init command (positional module name)
         init_parser = argparse.ArgumentParser(
             prog="jawm-dev init",
-            description="Initialize a new jawm workflow project from the jawm_template repository.",
+            description="Initialize a new jawm workflow project from the jawm_demo repository.",
         )
         init_parser.add_argument(
             "name",
