@@ -28,12 +28,6 @@ import logging
 __all__ = ["read_variables", "hash_content", "batch_process_file", "script_to_yaml", "docker_available", "apptainer_available", "write_hash_file"]
 
 
-# logger = logging.getLogger("jawm.utils")
-# print("Handlers:", logger.handlers)
-# print("Propagate:", logger.propagate)
-# logger.info("This should appear in the CLI log!")
-
-
 # ------------------------------------------------------------
 #   Create (and/or execute) a Process per file in a directory
 # ------------------------------------------------------------
@@ -326,6 +320,7 @@ def docker_available(v=False):
         Docker found: Docker version 24.0.2, build cb74dfc
         True
     """
+    logger = logging.getLogger("jawm.utils|docker_available")
     try:
         # Run "docker --version" to check availability
         result = subprocess.run(
@@ -336,17 +331,17 @@ def docker_available(v=False):
             check=True
         )
         if v:
-            print("Docker found:", result.stdout.strip())
+            logger.info("Docker found:", result.stdout.strip())
         return True
     except FileNotFoundError:
         # "docker" command not found
         if v:
-            print("Docker is not installed or not in PATH.")
+            logger.error("Docker is not installed or not in PATH.")
         return False
     except subprocess.CalledProcessError as e:
         # Docker exists but returned an error
         if v:
-            print("Docker command failed:", e.stderr.strip())
+            logger.error("Docker command failed:", e.stderr.strip())
         return False
 
 
@@ -372,6 +367,7 @@ def apptainer_available(v=False):
         Apptainer found: apptainer version 1.2.3
         True
     """
+    logger = logging.getLogger("jawm.utils|apptainer_available")
     try:
         # Run "apptainer --version" to check availability
         result = subprocess.run(
@@ -382,17 +378,17 @@ def apptainer_available(v=False):
             check=True
         )
         if v:
-            print("Apptainer found:", result.stdout.strip())
+            logger.info("Apptainer found:", result.stdout.strip())
         return True
     except FileNotFoundError:
         # "apptainer" command not found
         if v:
-            print("Apptainer is not installed or not in PATH.")
+            logger.error("Apptainer is not installed or not in PATH.")
         return False
     except subprocess.CalledProcessError as e:
         # apptainer exists but returned an error
         if v:
-            print("Apptainer command failed:", e.stderr.strip())
+            logger.error("Apptainer command failed:", e.stderr.strip())
         return False
     
 
@@ -411,6 +407,7 @@ def kubernetes_available(v=False):
         bool: True if kubectl is installed and responds successfully,
               otherwise False.
     """
+    logger = logging.getLogger("jawm.utils|kubernetes_available")
     try:
         result = subprocess.run(
             ["kubectl", "version"],
@@ -420,19 +417,19 @@ def kubernetes_available(v=False):
             check=True
         )
         if v:
-            print("Kubernetes available:", result.stdout.strip())
+            logger.info("Kubernetes available:", result.stdout.strip())
         return True
     except FileNotFoundError:
         if v:
-            print("kubectl is not installed or not in PATH.")
+            logger.error("kubectl is not installed or not in PATH.")
         return False
     except subprocess.CalledProcessError as e:
         if v:
-            print("kubectl command failed:", (e.stderr or e.stdout).strip())
+            logger.error("kubectl command failed:", (e.stderr or e.stdout).strip())
         return False
     except Exception as e:
         if v:
-            print("Unexpected error while checking Kubernetes:", str(e))
+            logger.error("Unexpected error while checking Kubernetes:", str(e))
         return False
 
 
@@ -460,6 +457,7 @@ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256,
         bool: True if the hash was written or matched the existing hash, 
               False if the existing hash differs.
     """
+    logger = logging.getLogger("jawm|[hash]")
     current_hash = hash_content(paths, hash_func=hash_func,
                                 allowed_extensions=allowed_extensions, 
                                 exclude_dirs=exclude_dirs, 
@@ -471,18 +469,16 @@ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256,
         stored_hash = hash_file.read_text().strip()
         if stored_hash == current_hash:
             if v:
-                print(f"Hash matches existing file: {hash_file}")
+                logger.info(f"Hash matches existing file: {hash_file}")
             return True
         else:
             if v:
-                print(f"Hash differs from existing file: {hash_file}")
-                print(f"  stored:   {stored_hash}")
-                print(f"  computed: {current_hash}")
+                logger.wrning(f"Hash differs from existing file: {hash_file}\nStored={stored_hash}\nComputed={current_hash}")
             return False
     else:
         hash_file.write_text(current_hash)
         if v:
-            print(f"Hash written to: {hash_file}")
+            logger.info(f"Hash written to: {hash_file}")
         return True
 
 
@@ -531,6 +527,8 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
     In code:
         workflows = parse_arguments(["main", "submodule2"])
     """
+
+    logger = logging.getLogger("jawm.utils|parse_arguments")
 
     parser = argparse.ArgumentParser(
         description=description
@@ -585,8 +583,8 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
     not_found=[ s for s in workflows if s not in available_workflows ] 
 
     if not_found :
-        print("The following workflows could not be found:", ",".join(not_found) )
-        print("Available workflows:", ",".join(available_workflows) )
+        logger.warning("The following workflows could not be found:", ",".join(not_found) )
+        logger.info("Available workflows:", ",".join(available_workflows) )
         sys.exit(1)
 
     return workflows, var, args, unknown_args
