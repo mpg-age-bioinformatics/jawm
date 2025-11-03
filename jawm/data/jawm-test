@@ -4,6 +4,187 @@
 # Portable helpers (Linux + macOS)
 ############################################################
 
+print_help() {
+  cat <<EOF
+NAME
+  $(basename "$0") — run predefined jawm test workflows and compare their outputs to stored reference hashes. \
+By default it uses your local jawm installation and your system Python, but it can optionally install and use \
+specific Python versions via pyenv, as well as specific jawm versions, for reproducible multi-environment testing.
+
+SYNOPSIS
+  $(basename "$0") [options]
+
+DESCRIPTION
+  This script can:
+    • Download and verify test input data (via a "downloads file"; MD5 checked, auto-extract .tar.gz/.tgz/.gz).
+    • Optionally set up multiple Python versions using pyenv.
+    • Install one or more jawm versions (from a local path or a Git ref) into those environments
+      or into the system Python.
+    • Determine module versions/tags to test (from the current repo, GitHub actions context, or explicit list).
+    • Run jawm workflows listed in a tests file, compare output hashes, and optionally update them.
+
+  Paths you pass are normalized to absolute paths. macOS and Linux are supported.
+
+OPTIONS
+  -r, --runner <local|github|download>
+        Select runner mode (default: ${RUNNER:-local})
+          local     → run from the current checkout.
+          github    → use GitHub Actions environment variables to name versions.
+          download  → only download & verify data, then exit.
+
+  -d, --dispatch
+        Treat the run as "dispatched" (affects how module tags are chosen).
+
+  -y, --yaml <file...>
+        One or more extra YAML files to pass to jawm as overrides (appended after -p).
+        May be repeated or followed by multiple files until the next option.
+
+  -o, --override
+        When a test's generated hash differs from the stored hash, overwrite the stored hash.
+
+      --no-override
+        Opposite of --override (default behavior).
+
+  -i, --ignore
+        Do not stop on jawm failures or hash mismatches; continue tests and keep stored hashes
+        unless --override is also set.
+
+  -m, --module_versions <version...>
+        Explicit list of module versions/tags to test (skips auto-detection).
+        Examples: --module_versions current v1.2.3 4f3a2c1
+
+  -p, --python_versions <ver...>
+        Python versions to use. Use "system" to use the current system Python.
+        Any non-"system" versions are managed with pyenv (installed if missing).
+        Default: ${PYTHON_VERSIONS[*]:-system}
+
+      --skip_python_versions <ver...>
+        Remove specific versions from the -p list after parsing.
+
+  -j, --jawm_versions <ver...>
+        jawm versions to install/test. Use "local" to install from --jawm_repo if it's a path,
+        or from git if it’s a repo URL. Default: ${JAWM_VERSIONS[*]:-local}
+
+      --jawm_repo <path|host/org/repo.git>
+        Local jawm source path or Git repository to install from.
+        If a local directory is detected, jawm version is forced to "local".
+        Default: ${JAWM_REPO}
+
+  -t, --tests_file <file>
+        Semicolon-separated tests list (see "TESTS FILE FORMAT").
+        Default: ${TESTS_FILE}
+
+      --downloads_file <file>
+        Space-separated downloads list (see "DOWNLOADS FILE FORMAT").
+        If the file exists, data is downloaded/verified before tests.
+        Default: ${DOWNLOADS_FILE}
+
+  -h, --help
+        Show this help and exit.
+
+BEHAVIOR OVERVIEW
+  • Downloads:
+      - Reads the downloads file if present. For each line "<md5> <filename> <url>":
+          * Downloads with curl -L -o <filename> <url>
+          * Extracts *.tar.gz / *.tgz, leaves *.fastq.gz compressed, gunzips other *.gz
+          * Verifies MD5 using md5sum (Linux) or md5 (macOS)
+      - If --runner=download, the script exits after downloads/verification.
+
+  • Python/jawm setup:
+      - If you request any Python version other than "system" OR any jawm version other than "local",
+        pyenv is bootstrapped (if missing), versions are installed as needed, and virtualenvs named:
+          py<python>-jawm.<jawm>
+      - For system Python, jawm is installed with "pip --user" and the user bin dir is added to PATH.
+      - For local jawm installs, --jawm_repo must be a directory.
+      - For git-based jawm installs, it uses: git+ssh://git@<--jawm_repo>@<version>
+
+  • Module version selection (when -m/--module_versions is not supplied):
+      - local runner:
+          * "current" code tag is always included.
+          * If --dispatch is set, and a tag exists, the latest tag is also included.
+      - github runner (expects GITHUB_REF_NAME / GITHUB_REF_TYPE):
+          * Writes CODE_TAG and VERSION_TAG to \$GITHUB_ENV.
+          * If --dispatch is set → test both CODE_TAG and VERSION_TAG.
+          * If building a tag → test VERSION_TAG only.
+          * Otherwise → test CODE_TAG only.
+
+  • Tests execution:
+      - For each Python × jawm × module version combo, runs each test via:
+          jawm <module> <workflow> -l <logs_folder> -p <params> <yaml...>
+      - Compares generated hash from "\$LOGS_FOLDER/jawm_hashes/<module>.hash"
+        with the stored hash in the tests file.
+      - With --override, mismatches update the tests file; otherwise mismatches fail
+        (unless --ignore).
+
+DEFAULT PATHS
+  Tests file:      ${TESTS_FILE}
+  Downloads file:  ${DOWNLOADS_FILE}
+  Logs folder:     ${LOGS_FOLDER}
+  Project root:    ${FULLPATH}
+
+TESTS FILE FORMAT
+  The file is semicolon-separated; the first line is preserved as-is (typically a header).
+  Subsequent non-empty, non-comment lines are:
+
+    <MODULE> ; <WORKFLOW> ; <PARAMS> ; "<NAME>" ; <HASH>
+
+  • <MODULE>   : Python module path used by jawm (e.g., mymod.py)
+  • <WORKFLOW> : Workflow name/alias expected by jawm
+  • <PARAMS>   : Parameters passed after "-p" (exactly as a single field; may contain spaces)
+  • "<NAME>"   : Descriptive name (kept quoted)
+  • <HASH>     : Expected output hash (may be empty to accept and write first result)
+
+DOWNLOADS FILE FORMAT
+  Each non-empty, non-comment line:
+
+    <MD5SUM> <FILENAME> <URL>
+
+  Behavior:
+    • *.tar.gz / *.tgz → extracted
+    • *.fastq.gz       → left compressed
+    • other *.gz       → gunzipped
+    • All files are MD5-verified; mismatch causes exit 1.
+
+EXIT STATUS
+  0  Success
+  1  Error (invalid options; download/MD5 failure; jawm failure; hash mismatch without --override;
+     missing Python/jawm when required; or other runtime errors)
+
+ENVIRONMENT / PREREQUISITES
+  Required tools: curl, tar, gunzip, git, md5sum (Linux) or md5 (macOS).
+  For pyenv-managed installs: build deps for CPython on your OS (e.g., openssl, zlib, readlines, etc.).
+  GitHub runner mode uses: GITHUB_REF_NAME, GITHUB_REF_TYPE, GITHUB_ENV.
+
+EXAMPLES
+  # 1) Use system Python and local jawm from a local path, run tests:
+  $(basename "$0") --jawm_repo ./jawm -p system
+
+  # 2) Download-only (fetch data and verify, then exit):
+  $(basename "$0") --runner download --downloads_file ./test/data.txt
+
+  # 3) Test multiple Pythons via pyenv and two jawm versions (git tags/commits):
+  $(basename "$0") -p 3.10.14 3.11.9 --skip_python_versions 3.10.14 \\
+                   -j v1.2.0 4f3a2c1 --jawm_repo github.com/mpg-age-bioinformatics/jawm.git
+
+  # 4) Supply extra YAML overrides:
+  $(basename "$0") -y conf/base.yaml conf/override.yaml
+
+  # 5) Accept new hashes on change:
+  $(basename "$0") --override
+
+  # 6) Keep going even if a test fails (do not update hashes):
+  $(basename "$0") --ignore
+
+NOTES
+  • When --jawm_repo points to a local directory, jawm versions are forced to "local".
+  • User site bin is added to PATH when using system Python so that the jawm binary is found.
+  • Temporary file <tests_file>.tmp is used during hash updates; it replaces the original on success.
+EOF
+}
+
+
+
+
 # Portable absolute path resolver (avoids readlink -f)
 abspath() {
   # usage: abspath <path>
@@ -99,11 +280,7 @@ while [[ $# -gt 0 ]]; do
     -t|--tests_file) TESTS_FILE="$2"; shift 2 ;;
     --downloads_file) DOWNLOADS_FILE="$(abspath "$2")"; shift 2 ;;
     -h|--help)
-      cat <<'EOF'
-Usage:
-  $(basename "$0") [options]
-...
-EOF
+      print_help
       exit 0
       ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
