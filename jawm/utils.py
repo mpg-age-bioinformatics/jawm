@@ -473,7 +473,7 @@ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256,
             return True
         else:
             if v:
-                logger.wrning(f"Hash differs from existing file: {hash_file}\nStored={stored_hash}\nComputed={current_hash}")
+                logger.warning(f"Hash differs from existing file: {hash_file}\nStored={stored_hash}\nComputed={current_hash}")
             return False
     else:
         hash_file.write_text(current_hash)
