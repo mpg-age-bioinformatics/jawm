@@ -129,8 +129,8 @@ class Process:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
     # Define cls level logger for special uses
-    logger_wait = logging.getLogger("Process|WAIT")
-    logger_kill = logging.getLogger("Process|KILL")
+    logger_wait = logging.getLogger("jawm.Process|WAIT")
+    logger_kill = logging.getLogger("jawm.Process|KILL")
 
     
     def __init__(
