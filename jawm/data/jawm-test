@@ -360,7 +360,7 @@ if [ -f "$DOWNLOADS_FILE" ]; then
           ;;
         *.gz)
           echo "Decompressing $filename..."
-          gunzip "$filename"
+          gunzip -k "$filename"
           ;;
       esac
     fi
