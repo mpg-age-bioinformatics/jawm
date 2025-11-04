@@ -1,0 +1,214 @@
+diff --git a/jawm/utils.py b/jawm/utils.py
+index 65e5412..717e8b1 100644
+--- a/jawm/utils.py
++++ b/jawm/utils.py
+@@ -739,15 +739,15 @@ def load_modules(
+     # ⭐ Determine modules_root relative to CALLER
+     if modules_root is not None:
+         modules_root = _resolve_from_caller(modules_root)
+-        logger.info(f"📦 Using modules_root argument (relative to caller): {modules_root}")
++        logger.info(f"Using modules_root argument (relative to caller): {modules_root}")
+     else:
+         env_modules_path = os.getenv("JAWM_MODULES_PATH")
+         if env_modules_path:
+             modules_root = _resolve_from_caller(env_modules_path)
+-            logger.info(f"📦 Using JAWM_MODULES_PATH (relative to caller if not absolute): {modules_root}")
++            logger.info(f"Using JAWM_MODULES_PATH (relative to caller if not absolute): {modules_root}")
+         else:
+             modules_root = (caller_base / ".submodules").resolve()
+-            logger.info(f"📦 Using default modules directory next to caller: {modules_root}")
++            logger.info(f"Using default modules directory next to caller: {modules_root}")
+ 
+     modules_root.mkdir(parents=True, exist_ok=True)
+ 
+@@ -782,7 +782,7 @@ def load_modules(
+     # helper to get latest tag from remote
+     def _get_latest_tag(https_url):
+         try:
+-            logger.info(f"🔍 Fetching latest tag from {https_url} ...")
++            logger.info(f"Fetching latest tag from {https_url} ...")
+             output = _run_git_command(["git", "ls-remote", "--tags", https_url])
+             tags = []
+             for line in output.splitlines():
+@@ -800,7 +800,7 @@ def load_modules(
+                 nums = re.findall(r"\d+", tag)
+                 return tuple(map(int, nums)) if nums else (0,)
+             latest = sorted(tags, key=version_key, reverse=True)[0]
+-            logger.info(f"🕓 Latest tag detected: {latest}")
++            logger.info(f"Latest tag detected: {latest}")
+             return latest
+         except Exception as e:
+             logger.warning(f"Failed to fetch latest tag for {https_url}: {e}")
+@@ -818,7 +818,7 @@ def load_modules(
+                 logger.warning(f"Falling back to default branch for '{repo_name}' (no tags).")
+ 
+         if dest_dir.exists():
+-            logger.info(f"📁 Repository '{repo_name}' already exists at {dest_dir}")
++            logger.info(f"Repository '{repo_name}' already exists at {dest_dir}")
+             try:
+                 current_head = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
+                 remote_name = _run_git_command(["git", "remote"], cwd=dest_dir) or "origin"
+@@ -846,30 +846,30 @@ def load_modules(
+ 
+                 if upstream_branch and remote_latest_commit:
+                     logger.info(
+-                        f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | Tracking: {upstream_branch}"
++                        f"Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | Tracking: {upstream_branch}"
+                     )
+-                    logger.info(f"🔸 Latest remote commit: {remote_latest_commit[:10]}")
++                    logger.info(f"Latest remote commit: {remote_latest_commit[:10]}")
+                 elif upstream_branch:
+                     logger.info(
+-                        f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | Tracking: {upstream_branch}"
++                        f"Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | Tracking: {upstream_branch}"
+                     )
+-                    logger.info("🔸 Latest remote commit: unavailable (fetch failed)")
++                    logger.info("Latest remote commit: unavailable (fetch failed)")
+                 else:
+                     logger.info(
+-                        f"🔹 Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | No upstream tracking branch"
++                        f"Current HEAD: {current_head[:10]} | Remote: {remote_name} ({remote_url}) | No upstream tracking branch"
+                     )
+ 
+                 if remote_latest_commit and remote_latest_commit != current_head:
+-                    logger.info(f"⬇️  Remote HEAD differs: {remote_latest_commit[:10]} (upstream)")
+-                    logger.info(f"➡️  Pulling latest changes for '{repo_name}' ...")
++                    logger.info(f"Remote HEAD differs: {remote_latest_commit[:10]} (upstream)")
++                    logger.info(f"Pulling latest changes for '{repo_name}' ...")
+                     _run_git_command(["git", "pull"], cwd=dest_dir)
+                     new_head = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
+                     if new_head != current_head:
+-                        logger.info(f"✅ '{repo_name}' updated: {current_head[:10]} → {new_head[:10]}")
++                        logger.info(f"'{repo_name}' updated: {current_head[:10]} → {new_head[:10]}")
+                     else:
+-                        logger.info(f"ℹ️  '{repo_name}' already up to date.")
++                        logger.info(f"'{repo_name}' already up to date.")
+                 else:
+-                    logger.info(f"✅ '{repo_name}' already up to date with remote.")
++                    logger.info(f"'{repo_name}' already up to date with remote.")
+ 
+                 if ref:
+                     _checkout_to_ref(repo_name, dest_dir, ref, logger)
+@@ -883,7 +883,7 @@ def load_modules(
+ 
+             return dest_dir
+ 
+-        logger.info(f"🌀 Cloning '{repo_name}' via HTTPS: {https_url}")
++        logger.info(f"Cloning '{repo_name}' via HTTPS: {https_url}")
+         env = os.environ.copy()
+         env["GIT_TERMINAL_PROMPT"] = "0"
+         env["GIT_ASKPASS"] = "echo"
+@@ -897,9 +897,9 @@ def load_modules(
+                 stderr=subprocess.PIPE,
+                 env=env,
+             )
+-            logger.info(f"✅ Cloned via HTTPS into {dest_dir}")
++            logger.info(f"Cloned via HTTPS into {dest_dir}")
+         except subprocess.CalledProcessError:
+-            logger.warning(f"⚠️  HTTPS clone failed for '{repo_name}', trying SSH ...")
++            logger.warning(f"HTTPS clone failed for '{repo_name}', trying SSH ...")
+             try:
+                 subprocess.run(
+                     ["git", "clone", "--depth", "1", ssh_url, str(dest_dir)],
+@@ -908,15 +908,15 @@ def load_modules(
+                     stderr=subprocess.PIPE,
+                     env=env,
+                 )
+-                logger.info(f"✅ Cloned via SSH into {dest_dir}")
++                logger.info(f"Cloned via SSH into {dest_dir}")
+             except subprocess.CalledProcessError as e2:
+-                logger.error(f"❌ Failed to clone '{repo_name}' via both HTTPS and SSH: {e2}")
++                logger.error(f"Failed to clone '{repo_name}' via both HTTPS and SSH: {e2}")
+                 return None
+ 
+         try:
+             branch = _run_git_command(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=dest_dir)
+             head_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=dest_dir)
+-            logger.info(f"📍 '{repo_name}' cloned at branch '{branch}' with HEAD {head_commit[:10]}")
++            logger.info(f"'{repo_name}' cloned at branch '{branch}' with HEAD {head_commit[:10]}")
+         except Exception as e:
+             logger.warning(f"Could not determine current HEAD for '{repo_name}': {e}")
+ 
+@@ -930,7 +930,7 @@ def load_modules(
+     def _checkout_to_ref(repo_name, repo_path, ref, logger):
+         """Checkout to commit, branch, or tag — safely and with logging."""
+         try:
+-            logger.info(f"🔍 Preparing to checkout '{repo_name}' to ref '{ref}' ...")
++            logger.info(f"Preparing to checkout '{repo_name}' to ref '{ref}' ...")
+             try:
+                 _run_git_command(["git", "fetch", "--unshallow"], cwd=repo_path)
+             except subprocess.CalledProcessError:
+@@ -957,17 +957,17 @@ def load_modules(
+                 pass
+ 
+             emoji = {"branch": "🌿", "tag": "🔖", "commit": "💾"}.get(ref_type, "❓")
+-            logger.info(f"{emoji} Detected ref type: {ref_type}")
++            logger.info(f"Detected ref type: {ref_type}")
+ 
+             try:
+                 _run_git_command(["git", "checkout", ref], cwd=repo_path)
+             except subprocess.CalledProcessError:
+-                logger.info(f"⚠️  Direct checkout failed; fetching ref '{ref}' explicitly ...")
++                logger.warning(f"Direct checkout failed; fetching ref '{ref}' explicitly ...")
+                 _run_git_command(["git", "fetch", "origin", ref], cwd=repo_path)
+                 _run_git_command(["git", "checkout", ref], cwd=repo_path)
+ 
+             checked_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=repo_path)
+-            logger.info(f"✅ Checked out '{repo_name}' to {emoji} '{ref}' ({checked_commit[:10]})")
++            logger.info(f"Checked out '{repo_name}' to {emoji} '{ref}' ({checked_commit[:10]})")
+ 
+         except subprocess.CalledProcessError as e:
+             logger.warning(f"Failed to checkout ref '{ref}' for '{repo_name}': {e}")
+@@ -981,13 +981,13 @@ def load_modules(
+                 ["git", "symbolic-ref", "refs/remotes/origin/HEAD"], cwd=repo_path
+             )
+             default_branch = remote_default.split("/")[-1]
+-            logger.info(f"🌿 Default branch for '{repo_name}' is '{default_branch}'")
++            logger.info(f"Default branch for '{repo_name}' is '{default_branch}'")
+ 
+             _run_git_command(["git", "checkout", default_branch], cwd=repo_path)
+             _run_git_command(["git", "pull"], cwd=repo_path)
+ 
+             head_commit = _run_git_command(["git", "rev-parse", "HEAD"], cwd=repo_path)
+-            logger.info(f"✅ '{repo_name}' is now on '{default_branch}' @ {head_commit[:10]}")
++            logger.info(f"'{repo_name}' is now on '{default_branch}' @ {head_commit[:10]}")
+ 
+         except subprocess.CalledProcessError as e:
+             logger.warning(f"Failed to checkout to default HEAD for '{repo_name}': {e}")
+@@ -1003,7 +1003,7 @@ def load_modules(
+         repo_path = _resolve_from_caller(repo_name)
+ 
+         if repo_name in sys.modules:
+-            logger.info(f"🧩 Module '{repo_name}' already loaded — skipping repository and import.")
++            logger.info(f"Module '{repo_name}' already loaded — skipping repository and import.")
+             continue
+ 
+         if not repo_path.exists():
+@@ -1014,10 +1014,10 @@ def load_modules(
+                 raise FileNotFoundError(f"Path not found and cloning failed: {repo_name}")
+             repo_path = cloned
+         else:
+-            logger.info(f"📁 Repository '{repo_name}' found at {repo_path}")
++            logger.info(f"Repository '{repo_name}' found at {repo_path}")
+ 
+         if repo_path in seen_paths:
+-            logger.info(f"ℹ️  Repository '{repo_name}' already processed — skipping.")
++            logger.info(f"Repository '{repo_name}' already processed — skipping.")
+             continue
+         seen_paths.add(repo_path)
+ 
+@@ -1048,11 +1048,11 @@ def load_modules(
+             caller_globals = inspect.currentframe().f_back.f_globals
+             caller_globals[module_name] = module
+             imported_modules.append(module_name)
+-            logger.info(f"✅ Imported module: {module_name} ({file_path})")
++            logger.info(f"Imported module: {module_name} ({file_path})")
+         except Exception as e:
+-            logger.error(f"❌ Failed to import {file_path}: {e}", exc_info=True)
++            logger.error(f"Failed to import {file_path}: {e}", exc_info=True)
+ 
+-    logger.info(f"📦 Successfully loaded {len(imported_modules)} module(s): {', '.join(imported_modules)}")
++    logger.info(f"Successfully loaded {len(imported_modules)} module(s): {', '.join(imported_modules)}")
+     return imported_modules
+ 
+ 
