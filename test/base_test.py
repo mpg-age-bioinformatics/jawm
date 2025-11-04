@@ -2221,6 +2221,44 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+print("\n>>> Test 40: mk./map. variable alias synchronization before execution")
+
+try:
+    # --- A) Initial mk./map. alias creation ---
+    pA = Process(
+        name="alias_sync_A",
+        script="#!/bin/bash\necho A",
+        var={"mk.outDir": "logs_sync_test/mkA", "map.inFile": "data/inputA.txt"},
+        logs_directory="logs_sync_test"
+    )
+
+    # Initially both aliases should exist
+    assert pA.var["outDir"] == "logs_sync_test/mkA", "❌ mk.* alias not created initially"
+    assert pA.var["inFile"] == "data/inputA.txt", "❌ map.* alias not created initially"
+
+    # --- B) Mutate prefixed vars AFTER initialization ---
+    pA.var["mk.outDir"] = "logs_sync_test/updated_dir"
+    pA.var["map.inFile"] = "data/updated_input.txt"
+
+    # The short keys are stale at this point (not yet synced)
+    assert pA.var["outDir"] != "logs_sync_test/updated_dir", "❌ outDir updated too early (pre-execute)"
+    assert pA.var["inFile"] != "data/updated_input.txt", "❌ inFile updated too early (pre-execute)"
+
+    # --- C) Execute to trigger sync ---
+    pA.execute()
+    Process.wait(pA.hash)
+
+    # After execute(), short aliases must be updated
+    assert pA.var["outDir"] == "logs_sync_test/updated_dir", "❌ mk.* alias not synchronized at execute()"
+    assert pA.var["inFile"] == "data/updated_input.txt", "❌ map.* alias not synchronized at execute()"
+
+    print("✅ Passed: mk./map. aliases synchronized correctly before execution")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
 
 
 # -----------------------------
