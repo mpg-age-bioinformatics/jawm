@@ -272,6 +272,17 @@ def clone(self, name=None, param_file=None, **overrides):
     for k in (getattr(self, "_touched_params", set()) or set()):
         base[k] = deepcopy(getattr(self, k))
 
+    # # Smart update for mutable runtime parameters ---
+    # for k, typ in getattr(self.__class__, "parameter_types", {}).items():
+    #     # if the parameter is declared as a dict or list (or accepts one)
+    #     if typ in (dict, list) or (
+    #         isinstance(typ, tuple)
+    #         and any(t in (dict, list) for t in typ)
+    #     ):
+    #         val = getattr(self, k, None)
+    #         if isinstance(val, (dict, list)):
+    #             base[k] = deepcopy(val)
+
     # Don’t pass name/param_file in kwargs
     base.pop("name", None)
     base.pop("param_file", None)
@@ -279,6 +290,9 @@ def clone(self, name=None, param_file=None, **overrides):
     # Apply overrides (filter reserved)
     clean_overrides = {k: v for k, v in overrides.items() if k not in self.reserved_keys}
     base.update(clean_overrides)
+
+    if isinstance(self.var, dict):
+        base["var"] = deepcopy(self.var)
 
     # Return cloned instance
     return self.__class__(name=name or self.name, param_file=param_file or self.param_file, **base)
