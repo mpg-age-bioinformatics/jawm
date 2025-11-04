@@ -59,6 +59,14 @@ def execute(self, depends_on=None):
     # Make the process active by clearing finished_event in case of instance re-use
     self.finished_event.clear()
 
+    # Sync mk./map. prefixed variables with their short aliases
+    if isinstance(self.var, dict):
+        for k, v in list(self.var.items()):
+            if isinstance(k, str):
+                if k.startswith("mk.") or k.startswith("map."):
+                    short_key = k.split(".", 1)[-1]
+                    self.var[short_key] = v
+
     # Override dependencies if provided
     if depends_on is not None:
         self.depends_on = depends_on
