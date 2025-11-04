@@ -611,6 +611,22 @@ def main():
     console_handler.setFormatter(log_formatter)
     root_logger.addHandler(console_handler)
 
+    class _EmojiFormatter(logging.Formatter):
+        EMOJI_MAP = {
+            logging.ERROR: "❌",
+            logging.WARNING: "⚠️",
+            logging.CRITICAL: "🚨",
+        }
+        def format(self, record):
+            emoji = self.EMOJI_MAP.get(record.levelno, "")
+            record.msg = f"{emoji}  {record.msg}" if emoji else record.msg
+            return super().format(record)
+
+    if os.getenv("JAWM_LOG_EMOJI", "1").strip().lower() not in {"0", "false", "no", "off"}:
+        for h in root_logger.handlers:
+            if isinstance(h, logging.StreamHandler) and isinstance(h.formatter, logging.Formatter):
+                h.setFormatter(_EmojiFormatter(h.formatter._fmt, h.formatter.datefmt))
+
     logger = logging.getLogger(f"jawm.cli|{module_label}")
     logger.info("Initiating jawm module script from jawm command")
 

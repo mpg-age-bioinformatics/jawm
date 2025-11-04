@@ -128,6 +128,25 @@ class Process:
         format="[%(asctime)s] - %(levelname)s - %(name)s :: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
+
+    class _EmojiFormatter(logging.Formatter):
+        EMOJI_MAP = {
+            logging.ERROR: "❌",
+            logging.WARNING: "⚠️",
+            logging.CRITICAL: "🚨",
+        }
+        def format(self, record):
+            emoji = self.EMOJI_MAP.get(record.levelno, "")
+            record.msg = f"{emoji}  {record.msg}" if emoji else record.msg
+            return super().format(record)
+
+    if os.getenv("JAWM_LOG_EMOJI", "1").strip().lower() not in {"0", "false", "no", "off"}:
+        root_logger = logging.getLogger()
+        if root_logger.handlers:
+            for h in root_logger.handlers:
+                if isinstance(h, logging.StreamHandler) and isinstance(h.formatter, logging.Formatter):
+                    h.setFormatter(_EmojiFormatter(h.formatter._fmt, h.formatter.datefmt))
+
     # Define cls level logger for special uses
     logger_wait = logging.getLogger("jawm.Process|WAIT")
     logger_kill = logging.getLogger("jawm.Process|KILL")
