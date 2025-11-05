@@ -291,8 +291,14 @@ def clone(self, name=None, param_file=None, **overrides):
     clean_overrides = {k: v for k, v in overrides.items() if k not in self.reserved_keys}
     base.update(clean_overrides)
 
+    # Sync with runtime var and alias
     if isinstance(self.var, dict):
         base["var"] = deepcopy(self.var)
+        for k, v in list(base["var"].items()):
+            if isinstance(k, str) and (k.startswith("mk.") or k.startswith("map.")):
+                short_key = k.split(".", 1)[-1]
+                base["var"][short_key] = v
+
 
     # Return cloned instance
     return self.__class__(name=name or self.name, param_file=param_file or self.param_file, **base)
