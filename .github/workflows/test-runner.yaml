@@ -1,0 +1,16 @@
+name: Self-Hosted Runner Smoke Test
+
+on:
+  workflow_dispatch:  # allows manual trigger
+
+jobs:
+  hello:
+    runs-on: self-hosted
+    steps:
+      - name: Say hello
+        run: |
+          echo "👋 Hello from the OpenStack self-hosted runner!"
+          echo "Hostname: $(hostname)"
+          echo "Date: $(date)"
+          echo "Runner labels:"
+          echo "${RUNNER_NAME} - ${RUNNER_OS} - ${RUNNER_ARCH}"
