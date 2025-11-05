@@ -2260,6 +2260,80 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 41: Process Cloning — Independence, Alias Sync, and Param Inheritance")
+
+try:
+    tmpdir = tempfile.mkdtemp(prefix="test_clone_")
+    yaml_path = os.path.join(tmpdir, "params.yaml")
+
+    # --- A) Create YAML with a default desc and manager ---
+    with open(yaml_path, "w") as f:
+        f.write("""
+- scope: process
+  name: "prob_proc"
+  desc: "YAML"
+  manager_slurm:
+    time: "2h"
+    cpu: "2gb"
+""")
+
+    # --- B) Create initial Process from YAML + inline override ---
+    p1 = Process(
+        name="prob_proc",
+        script="#!/bin/bash\necho test",
+        param_file=yaml_path,
+        desc="INLINE",
+        var={"mk.inFile": "template", "category": "GOTERM_BP_FAT"},
+    )
+
+    assert p1.desc == "INLINE", f"❌ Inline override not applied (got {p1.desc})"
+    assert p1.manager_slurm["time"] == "2h", "❌ manager_slurm not loaded from YAML"
+
+    # --- C) Clone and check inheritance ---
+    p2 = p1.clone()
+    assert p2.desc == "INLINE", f"❌ Clone did not preserve desc correctly (got {p2.desc})"
+    assert p2.manager_slurm == p1.manager_slurm, "❌ manager_slurm not preserved in clone"
+    assert p2.var == p1.var, "❌ var dictionary mismatch in clone"
+    assert p2 is not p1, "❌ Clone is not a new object"
+
+    # --- D) Mutate runtime vars in clone; ensure no cross-contamination ---
+    p2.var["mk.inFile"] = "new_file"
+    p2.var["category"] = "KEGG_PATHWAY"
+
+    # Ensure p1 unchanged
+    assert p1.var["mk.inFile"] == "template", "❌ Parent var modified after clone change"
+    assert p1.var["category"] == "GOTERM_BP_FAT", "❌ Parent var modified after clone change"
+
+    # --- E) Ensure alias sync logic worked on clone creation ---
+    assert "inFile" in p2.var, "❌ Clone did not sync mk./map. alias"
+    assert p2.var["inFile"] == "template", f"❌ Alias in first clone not inherited properly (got {p2.var['inFile']})"
+
+    # --- F) Second-level clone (clone of a clone) ---
+    p3 = p2.clone()
+    # p3 inherits alias values from p2 at clone time
+    assert p3.var["inFile"] == "new_file", f"❌ Second clone did not inherit alias correctly (got {p3.var['inFile']})"
+
+    # Now modify mk.inFile and manually re-sync alias as execute() would
+    p3.var["mk.inFile"] = "second_clone"
+    for k, v in list(p3.var.items()):
+        if isinstance(k, str) and (k.startswith("mk.") or k.startswith("map.")):
+            p3.var[k.split(".", 1)[-1]] = v
+    assert p3.var["inFile"] == "second_clone", "❌ Alias sync failed after manual update"
+
+    # --- G) Hash comparison ---
+    assert p1.hash != p2.hash, "❌ Cloned process should have unique hash"
+    assert p2.hash != p3.hash, "❌ Nested clone should also have unique hash"
+
+    print("✅ Passed: Process cloning preserves runtime independence, syncs aliases, and inherits params correctly")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 
 # -----------------------------
 # Cleanup created directories
