@@ -243,7 +243,7 @@ def _execute_kubernetes(self):
     Writes .id (job name), .exitcode, and .command, and updates monitoring files.
     """
 
-    self.logger.info(f"Executing process {self.name} in Kubernetes")
+    self.logger.info(f"Launching process {self.name} using Kubernetes executor")
     self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
 
     exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")

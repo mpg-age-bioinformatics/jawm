@@ -85,7 +85,7 @@ def _execute_slurm(self):
     Execute the process as a Slurm job.
     :return: None
     """
-    self.logger.info(f"Executing process {self.name} in Slurm")
+    self.logger.info(f"Launching process {self.name} using Slurm executor")
     self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
 
     # Store some common paths for each run attempt

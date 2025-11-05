@@ -17,7 +17,7 @@ def _execute_local(self):
     Execute the process locally with resource constraints.
     :return: None
     """
-    self.logger.info(f"Executing process {self.name} locally.")
+    self.logger.info(f"Launching process {self.name} using Local executor.")
     self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
 
     try:
