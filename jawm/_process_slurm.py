@@ -66,6 +66,10 @@ def _generate_sbatch_command(self):
     """
     sbatch_command = ["sbatch"]
 
+    # Ensure parsable output for consistent job ID parsing
+    if "--parsable" not in self.manager_slurm:
+        sbatch_command.insert(1, "--parsable")
+
     # Add user-provided SLURM options dynamically
     for key, value in self.manager_slurm.items():
         sbatch_command.extend([key, str(value)])
@@ -127,6 +131,8 @@ def _execute_slurm(self):
             with open(command_path, "w") as command_path_file:
                 command_path_file.write(" ".join(sbatch_command))
 
+            job_id = None
+            
             # Submit the job script to Slurm
             result = subprocess.run(
                 sbatch_command,
@@ -137,12 +143,62 @@ def _execute_slurm(self):
 
             # Check submission result
             if result.returncode != 0:
-                self._log_error_summary(result.stderr, type_text="SlurmError")
-                self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}{self._elog_path()}")
-                return 127  # or some non-zero to indicate failure
+                self.logger.warning(f"Found an issue with sbatch (would check if job actually fails to run): {result.stderr}")
+                time.sleep(5)
+
+                try:
+                    job_name = self._sanitize_slurm_name()
+                    who = os.environ.get("USER") or os.getlogin()
+
+                    for attempt in range(1,7):
+                        # Prefer sacct for completed or recently submitted jobs
+                        check = subprocess.run(
+                            [
+                                "sacct", "-u", who,
+                                "--format=JobID,JobName%120,State",
+                                "--noheader",
+                                "--starttime=-1hours"
+                            ],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                        )
+
+                        if check.returncode == 0:
+                            pattern = rf"(\d+)\s+{re.escape(job_name)}\b"
+                            m = re.search(pattern, check.stdout)
+                            if m:
+                                job_id = m.group(1)
+                                break
+
+                        # Fallback to squeue if sacct didn’t find it
+                        if not job_id:
+                            queue = subprocess.run(
+                                ["squeue", "-u", who, "-o", "%.18i %.8j %.2t %.10M %.6D %R", "--sort=-i"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                            )
+                            if queue.returncode == 0:
+                                m = re.search(rf"(\d+)\s+{re.escape(job_name)}\b", queue.stdout)
+                                if m:
+                                    job_id = m.group(1)
+                                    break
+
+                        # Wait before next retry
+                        if not job_id:
+                            time.sleep( 5 *  attempt)
+
+                except Exception as e:
+                    self.logger.warning(f"Slurm job existence check failed: {e}")
+
+                if job_id:
+                    self.logger.info(f"Despite the warning, job went through: Slurm JobID {job_id}")
+                else:
+                    self._log_error_summary(result.stderr, type_text="SlurmError")
+                    self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}{self._elog_path()}")
+                    return 127  # job failed to submit
 
             # Parse job_id from sbatch output
-            job_id = result.stdout.strip().split()[-1]
+            if not job_id:
+                job_id = (result.stdout or "").strip().split(";")[0]
+    
             self.logger.info(f"Process {self.name} submitted as Slurm job {job_id}.")
             self.runtime_id = str(job_id)
             with open(id_path, "w") as id_file:
