@@ -2,6 +2,7 @@ import subprocess
 import threading
 import os
 import time
+import re
 from datetime import datetime
 
 # Setup method registration for dynamic injection into the main Process class
@@ -35,6 +36,8 @@ def _generate_slurm_script(self):
     # Create the Slurm job script
     with open(slurm_script_path, "w") as slurm_script_file:
         slurm_script_file.write("#!/bin/bash\n")  # Slurm script shebang
+
+        slurm_script_file.write(f"#SBATCH --job-name={self._sanitize_slurm_name()}\n") # Slurm job name
         
         # Add SLURM options dynamically
         for key, value in self.manager_slurm.items():
@@ -77,6 +80,16 @@ def _generate_sbatch_command(self):
         sbatch_command.extend(["--error", self.stderr_path])
 
     return sbatch_command
+
+
+@register
+def _sanitize_slurm_name(self):
+    """
+    Return a Slurm-safe job name derived from process name and hash.
+    """
+    base = f"{self.name}_{self.hash}"
+    safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", base)
+    return safe[:80]
 
 
 @register
