@@ -825,6 +825,7 @@ class Process:
         killed = []
         failed = []
         seen = set()
+        slurm_cleanup_issue = False
         
         for proc in cls.registry.values():
             if not isinstance(proc, cls):
@@ -840,6 +841,18 @@ class Process:
                 else:
                     failed.append(proc.name + "|" + proc.hash)
 
+            # Extra cleanup for slurm
+            if getattr(proc, "manager", None) == "slurm":
+                try:
+                    job_pattern = re.sub(r"[^A-Za-z0-9_\-]+", "_", f"{proc.name}_{proc.hash}")
+                    user = os.environ.get("USER", "")
+                    cmd = ["scancel", "-u", user, "--name", job_pattern]
+                    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    if not result.returncode == 0:
+                        slurm_cleanup_issue = True
+                except Exception as e:
+                    slurm_cleanup_issue = True
+
         if killed:
             cls.logger_kill.info(f"Killed processes ({len(killed)}):\n  - " + "\n  - ".join(killed))
         else:
@@ -847,6 +860,9 @@ class Process:
 
         if failed:
             cls.logger_kill.warning(f"Failed to kill (may not have executed yet): {len(failed)}\n  - " + "\n  - ".join(failed))
+
+        if slurm_cleanup_issue:
+            cls.logger_kill.warning("Some Slurm jobs may still be running. Manual cleanup may be required.")
         
         return {
             "killed": killed,

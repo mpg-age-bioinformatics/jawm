@@ -144,7 +144,7 @@ def _execute_slurm(self):
             # Check submission result
             if result.returncode != 0:
                 self.logger.warning(f"Found an issue with sbatch (would check if job actually fails to run): {result.stderr}")
-                time.sleep(5)
+                time.sleep(10)
 
                 try:
                     job_name = self._sanitize_slurm_name()
@@ -156,8 +156,7 @@ def _execute_slurm(self):
                             [
                                 "sacct", "-u", who,
                                 "--format=JobID,JobName%120,State",
-                                "--noheader",
-                                "--starttime=-1hours"
+                                "--noheader"
                             ],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
                         )
