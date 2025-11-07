@@ -917,9 +917,13 @@ class Process:
         cls._sigint_fired = False
 
         def _on_sigint(sig, frame):
-            # Second Ctrl+C: skip cleanup and hard-exit fast
-            cls.logger_kill.error("Second Ctrl+C detected — try forcing immediate exit.")
+            # If another handler already triggered a hard exit, ignore
+            if getattr(cls, "_force_exiting", False):
+                return
+
             if cls._sigint_fired:
+                cls._force_exiting = True
+                cls.logger_kill.error("Second Ctrl+C detected — forcing immediate exit now!")
                 try:
                     os.killpg(0, signal.SIGKILL)
                 except Exception:
@@ -927,26 +931,24 @@ class Process:
                 os._exit(130)
 
             cls._sigint_fired = True
-            cls.logger_kill.error("Ctrl+C detected — terminating running jawm jobs...")
+            cls.logger_kill.info("Ctrl+C detected — terminating running JAWM jobs...")
 
             try:
                 cls.kill_all()
             except Exception as e:
                 cls.logger_kill.warning(f"Graceful kill_all() failed: {e}")
-            
+
             time.sleep(0.2)
-            cls.logger_kill.info("Press Ctrl+C again to force immediate exit... (manual cleanup may be required)")
+            cls.logger_kill.info("Press Ctrl+C again to abort immediately (manual cleanup may be required).")
 
             try:
-                # Re-arm handler to catch a second Ctrl+C
                 signal.signal(signal.SIGINT, _on_sigint)
             except Exception:
                 pass
 
-            # Give a small grace period
             for _ in range(20):
                 time.sleep(0.2)
-                if cls._sigint_fired:  # if another Ctrl+C happened during wait
+                if cls._sigint_fired:  # second Ctrl+C during wait
                     return
             os._exit(130)
 
