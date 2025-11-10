@@ -143,49 +143,68 @@ def _execute_slurm(self):
 
             # Check submission result
             if result.returncode != 0:
-                self.logger.warning(f"Found an issue with sbatch (would check if job actually fails to run): {result.stderr}")
-                time.sleep(10)
+                stderr = (result.stderr or "").strip()
+                stderr_lc = stderr.lower()
+                # Detect transient / connectivity problems only
+                transient_keywords = [
+                    "socket timed out",
+                    "unable to contact slurm controller",
+                    "slurm_load_jobs",
+                    "connection timed out",
+                    "communication connection failure",
+                    "rpc timeout",
+                    "controller not responding",
+                ]
+                transient_issue = any(k in stderr_lc for k in transient_keywords)
+                
+                if transient_issue:
+                    self.logger.warning(f"Detected transient Slurm issue — will check if job actually went through: {stderr}")
+                
+                    max_retries = int(os.getenv("JAWM_SLURM_TRANSIENT_RETRY", "7"))
+                    sbatch_wait = int(os.getenv("JAWM_SLURM_TRANSIENT_WAIT", "5"))
+                    time.sleep(sbatch_wait)
 
-                try:
-                    job_name = self._sanitize_slurm_name()
-                    who = os.environ.get("USER") or os.getlogin()
+                    try:
+                        job_name = self._sanitize_slurm_name()
+                        who = os.environ.get("USER") or os.getlogin()
 
-                    for attempt in range(1,7):
-                        # Prefer sacct for completed or recently submitted jobs
-                        check = subprocess.run(
-                            [
-                                "sacct", "-u", who,
-                                "--format=JobID,JobName%120,State",
-                                "--noheader"
-                            ],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-                        )
-
-                        if check.returncode == 0:
-                            pattern = rf"(\d+)\s+{re.escape(job_name)}\b"
-                            m = re.search(pattern, check.stdout)
-                            if m:
-                                job_id = m.group(1)
-                                break
-
-                        # Fallback to squeue if sacct didn’t find it
-                        if not job_id:
-                            queue = subprocess.run(
-                                ["squeue", "-u", who, "-o", "%.18i %.8j %.2t %.10M %.6D %R", "--sort=-i"],
+                        for attempt in range(1, max_retries + 1):
+                            # Prefer sacct for completed or recently submitted jobs
+                            check = subprocess.run(
+                                [
+                                    "sacct", "-u", who,
+                                    "--name", job_name,
+                                    "--format=JobID,JobName%120,State",
+                                    "--noheader"
+                                ],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
                             )
-                            if queue.returncode == 0:
-                                m = re.search(rf"(\d+)\s+{re.escape(job_name)}\b", queue.stdout)
+
+                            if check.returncode == 0:
+                                pattern = rf"(\d+)\s+{re.escape(job_name)}\b"
+                                m = re.search(pattern, check.stdout)
                                 if m:
                                     job_id = m.group(1)
                                     break
 
-                        # Wait before next retry
-                        if not job_id:
-                            time.sleep( 5 *  attempt)
+                            # Fallback to squeue if sacct didn’t find it
+                            if not job_id:
+                                queue = subprocess.run(
+                                    ["squeue", "-u", who, "--name", job_name, "-o", "%.18i %.8j %.2t %.10M %.6D %R", "--sort=-i"],
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                                )
+                                if queue.returncode == 0:
+                                    m = re.search(rf"(\d+)\s+{re.escape(job_name)}\b", queue.stdout)
+                                    if m:
+                                        job_id = m.group(1)
+                                        break
 
-                except Exception as e:
-                    self.logger.warning(f"Slurm job existence check failed: {e}")
+                            # Wait before next retry
+                            if not job_id:
+                                time.sleep( sbatch_wait *  attempt)
+
+                    except Exception as e:
+                        self.logger.warning(f"Slurm job existence check failed: {e}")
 
                 if job_id:
                     self.logger.info(f"Despite the warning, job went through: Slurm JobID {job_id}")
@@ -197,6 +216,11 @@ def _execute_slurm(self):
             # Parse job_id from sbatch output
             if not job_id:
                 job_id = (result.stdout or "").strip().split(";")[0]
+                if not job_id or not job_id.isdigit():
+                    msg = f"Invalid or missing Slurm JobID for {self.name}: {result.stdout.strip()}"
+                    self._log_error_summary(msg, type_text="SlurmError")
+                    self.logger.error(f"{msg}{self._elog_path()}")
+                    return 127
     
             self.logger.info(f"Process {self.name} submitted as Slurm job {job_id}.")
             self.runtime_id = str(job_id)
