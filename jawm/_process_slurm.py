@@ -211,6 +211,11 @@ def _execute_slurm(self):
                 else:
                     self._log_error_summary(result.stderr, type_text="SlurmError")
                     self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}{self._elog_path()}")
+                    try:
+                        with open(exitcode_path, "w") as f:
+                            f.write("127")
+                    except Exception:
+                        pass
                     return 127  # job failed to submit
 
             # Parse job_id from sbatch output
@@ -220,6 +225,11 @@ def _execute_slurm(self):
                     msg = f"Invalid or missing Slurm JobID for {self.name}: {result.stdout.strip()}"
                     self._log_error_summary(msg, type_text="SlurmError")
                     self.logger.error(f"{msg}{self._elog_path()}")
+                    try:
+                        with open(exitcode_path, "w") as f:
+                            f.write("127")
+                    except Exception:
+                        pass
                     return 127
     
             self.logger.info(f"Process {self.name} submitted as Slurm job {job_id}.")
