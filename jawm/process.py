@@ -241,7 +241,7 @@ class Process:
             Whether to treat skipped dependencies as acceptable; if False, process only runs when all dependencies succeeded.
 
         manager : str, default="local"
-            Execution backend. Options: "local", "slurm".
+            Execution backend. Options: "local", "slurm", "kubernetes".
 
         env : dict, optional
             Environment variables for the process.

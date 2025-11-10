@@ -56,6 +56,19 @@ def execute(self, depends_on=None):
         None
     """
 
+    # Startup throttling delay for parallel execution
+    if self.parallel:
+        _manager = str(getattr(self, "manager", "") or "").lower()
+        _default_waits = {"local": 0.1, "kubernetes": 0.1, "slurm": 0.3}
+        _base_wait = os.getenv("JAWM_EXECUTE_WAIT")
+        _specific_wait = os.getenv(f"JAWM_EXECUTE_WAIT_{_manager.upper()}")
+        try:
+            _ex_delay = float(_specific_wait or _base_wait or _default_waits.get(_manager, 0.1))
+            if _ex_delay > 0:
+                time.sleep(_ex_delay)
+        except:
+            pass
+
     # Make the process active by clearing finished_event in case of instance re-use
     self.finished_event.clear()
 
