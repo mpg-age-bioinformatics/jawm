@@ -54,6 +54,11 @@ jobs:
       - name: 🧾 Checkout code
         uses: actions/checkout@v3
 
+      - name: 🐍 Set up Python version for consistent CLI behaviour
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
       - name: 📦 Install jawm as editable package
         run: |
           pip install -e .
