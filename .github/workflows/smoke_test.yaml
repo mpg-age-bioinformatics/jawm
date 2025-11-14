@@ -38,6 +38,42 @@ jobs:
 
           echo "▶️ Running jawm with test/base_test.py"
           jawm test/base_test.py
+  
+  # ─────────────────────────────
+  #  Slurm integration test (matrix)
+  # ─────────────────────────────
+  slurm-tests:
+    runs-on: [jawm]
+    strategy:
+      matrix:
+        slurm-major: [20, 22, 24]
+
+    name: "Slurm ${{ matrix.slurm-major }}.x test"
+
+    steps:
+      - name: 🧾 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 📦 Install jawm as editable package
+        run: |
+          pip install -e .
+          pip show jawm || true
+
+      - name: 🧪 Run Slurm test
+        env:
+          SLURM_VERSION: ${{ matrix.slurm-major }}
+        run: |
+          source /etc/profile.d/slurm-use.sh
+          slurm-use $SLURM_VERSION
+
+          echo "🔎 Selected sbatch:"
+          which sbatch
+          sbatch --version
+
+          echo "▶️ Running jawm Slurm test with Slurm $SLURM_VERSION.x"
+          cd test
+          jawm base_test.py -p parameters/slurm.yaml
+
 
   # ─────────────────────────────
   #  Git integration test
