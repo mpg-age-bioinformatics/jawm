@@ -1171,3 +1171,104 @@ def id_files(root=".", ext=".bam", varying_parts=None):
         id_to_paths[chosen] = paths
 
     return id_to_paths
+
+
+
+def get_image(image, mode="auto", v=True):
+    """
+    Pre-pull container images so that Docker/Apptainer won't pull them
+    implicitly at runtime.
+
+    Parameters
+    ----------
+    image : str | list[str]
+        Image reference(s). E.g. "ubuntu:22.04" or ["ubuntu:22.04", "python:3.11"]
+
+    mode : str, default="auto"
+        One of:
+          - "auto"       : prefer docker, fallback apptainer (based on availability)
+          - "docker"     : force Docker pulls
+          - "apptainer"  : force Apptainer/Singularity pulls
+          - "singularity": alias of apptainer
+          - "all"        : try to pull for all container methods
+
+    v : bool, default=True
+        Print log messages.
+
+    Returns
+    -------
+    dict
+        Mapping of image → pull result, e.g.
+        {
+          "ubuntu:22.04": {"ok": True, "method": "docker"},
+          "python:3.11": {"ok": False, "error": "..."}
+        }
+    """
+    logger = logging.getLogger("jawm.utils|get_image")
+    results = {}
+
+    # --- Short embed-normalizer ----
+    def _normalize_apptainer(ref):
+        if not ref:
+            return ref
+        if "://" in ref:
+            return ref
+        if (
+            os.path.exists(ref)
+            or ref.startswith(("/", "./", "../", "~/"))
+            or (ref.lower().endswith(".sif") and os.path.exists(ref))
+        ):
+            return ref
+        return f"docker://{ref}"
+
+    # Normalize inputs
+    if isinstance(image, str):
+        images = [image]
+    else:
+        images = list(image)
+
+    # Resolve mode
+    mode = (mode or "auto").lower().strip()
+    if mode == "singularity":
+        mode = "apptainer"
+
+    if mode == "auto":
+        if docker_available():
+            mode = "docker"
+        elif apptainer_available():
+            mode = "apptainer"
+        else:
+            logger.error("No container engine available to support image pulling.")
+            return results
+    
+    for img in images:
+        try:
+            if mode in ("docker", "all"):
+                if v: logger.info(f"Pulling Docker image: {img}")
+                r = subprocess.run(["docker", "pull", img], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if r.returncode == 0:
+                    results[img] = {"ok": True, "method": "docker"}
+                    if v: logger.info(f"Docker image '{img}' pulled successfully.")
+                else:
+                    results[img] = {"ok": False, "method": "docker", "error": r.stderr or r.stdout}
+                    if v: logger.error(f"Docker pull failed for '{img}': {r.stderr or r.stdout}")
+
+            if mode in ("apptainer", "all"):
+                normalized = _normalize_apptainer(img)
+                if v: logger.info(f"Pulling Apptainer image into cache: {normalized}")
+                r = subprocess.run(
+                    ["apptainer", "pull", "--disable-cache", "/dev/null", normalized],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                if r.returncode == 0:
+                    results[img] = {"ok": True, "method": "apptainer"}
+                    if v: logger.info(f"Apptainer image '{normalized}' pulled successfully.")
+                else:
+                    results[img] = {"ok": False, "method": "apptainer", "error": r.stderr or r.stdout}
+                    logger.error(f"Apptainer pull failed for '{normalized}': {r.stderr or r.stdout}")
+
+        except Exception as e:
+            results[img] = {"ok": False, "error": str(e)}
+            if v: logger.error(f"Error pulling image '{img}': {e}")
+
+    return results
