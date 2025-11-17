@@ -1247,13 +1247,13 @@ def get_image(image, mode="auto", v=True):
         try:
             if mode in ("docker", "all"):
                 if v: logger.info(f"Pulling Docker image: {img}")
-                r = subprocess.run(["docker", "pull", img], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                if r.returncode == 0:
+                rd = subprocess.run(["docker", "pull", img], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if rd.returncode == 0:
                     results[img] = {"ok": True, "method": "docker"}
                     if v: logger.info(f"Docker image '{img}' pulled successfully.")
                 else:
-                    results[img] = {"ok": False, "method": "docker", "error": r.stderr or r.stdout}
-                    if v: logger.error(f"Docker pull failed for '{img}': {r.stderr or r.stdout}")
+                    results[img] = {"ok": False, "method": "docker", "error": rd.stderr or rd.stdout}
+                    if v: logger.error(f"Docker pull failed for '{img}': {rd.stderr or rd.stdout}")
 
             if mode in ("apptainer", "all"):
                 normalized = _normalize_apptainer(img)
