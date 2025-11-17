@@ -332,7 +332,7 @@ def docker_available(v=False):
             check=True
         )
         if v:
-            logger.info("Docker found:", result.stdout.strip())
+            logger.info(f"Docker found: {result.stdout.strip()}")
         return True
     except FileNotFoundError:
         # "docker" command not found
@@ -342,7 +342,7 @@ def docker_available(v=False):
     except subprocess.CalledProcessError as e:
         # Docker exists but returned an error
         if v:
-            logger.error("Docker command failed:", e.stderr.strip())
+            logger.error(f"Docker command failed: {e.stderr.strip()}")
         return False
 
 
@@ -379,7 +379,7 @@ def apptainer_available(v=False):
             check=True
         )
         if v:
-            logger.info("Apptainer found:", result.stdout.strip())
+            logger.info(f"Apptainer found: {result.stdout.strip()}")
         return True
     except FileNotFoundError:
         # "apptainer" command not found
@@ -389,7 +389,7 @@ def apptainer_available(v=False):
     except subprocess.CalledProcessError as e:
         # apptainer exists but returned an error
         if v:
-            logger.error("Apptainer command failed:", e.stderr.strip())
+            logger.error(f"Apptainer command failed: {e.stderr.strip()}")
         return False
     
 
@@ -418,7 +418,7 @@ def kubernetes_available(v=False):
             check=True
         )
         if v:
-            logger.info("Kubernetes available:", result.stdout.strip())
+            logger.info(f"Kubernetes available: {result.stdout.strip()}")
         return True
     except FileNotFoundError:
         if v:
@@ -426,11 +426,11 @@ def kubernetes_available(v=False):
         return False
     except subprocess.CalledProcessError as e:
         if v:
-            logger.error("kubectl command failed:", (e.stderr or e.stdout).strip())
+            logger.error(f"kubectl command failed: {(e.stderr or e.stdout).strip()}")
         return False
     except Exception as e:
         if v:
-            logger.error("Unexpected error while checking Kubernetes:", str(e))
+            logger.error(f"Unexpected error while checking Kubernetes: {str(e)}")
         return False
 
 
@@ -584,8 +584,8 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
     not_found=[ s for s in workflows if s not in available_workflows ] 
 
     if not_found :
-        logger.warning("The following workflows could not be found:", ",".join(not_found) )
-        logger.info("Available workflows:", ",".join(available_workflows) )
+        logger.warning(f"The following workflows could not be found: {','.join(not_found)}")
+        logger.info(f"Available workflows: {','.join(available_workflows)}")
         sys.exit(1)
 
     return workflows, var, args, unknown_args
