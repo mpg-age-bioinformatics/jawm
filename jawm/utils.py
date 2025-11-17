@@ -23,6 +23,8 @@ import importlib.util
 import pathlib
 import warnings
 import logging
+import tempfile
+import uuid
 from collections import defaultdict
 
 
@@ -1256,16 +1258,22 @@ def get_image(image, mode="auto", v=True):
             if mode in ("apptainer", "all"):
                 normalized = _normalize_apptainer(img)
                 if v: logger.info(f"Pulling Apptainer image into cache: {normalized}")
-                r = subprocess.run(
-                    ["apptainer", "pull", "--disable-cache", "/dev/null", normalized],
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-                )
-                if r.returncode == 0:
+
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    tmp_sif = os.path.join(tmpdir, f"{uuid.uuid4().hex}.sif")
+
+                    ra = subprocess.run(
+                        ["apptainer", "pull", tmp_sif, normalized],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                if ra.returncode == 0:
                     results[img] = {"ok": True, "method": "apptainer"}
                     if v: logger.info(f"Apptainer image '{normalized}' pulled successfully.")
                 else:
-                    results[img] = {"ok": False, "method": "apptainer", "error": r.stderr or r.stdout}
-                    logger.error(f"Apptainer pull failed for '{normalized}': {r.stderr or r.stdout}")
+                    results[img] = {"ok": False, "method": "apptainer", "error": ra.stderr or ra.stdout}
+                    logger.error(f"Apptainer pull failed for '{normalized}': {ra.stderr or ra.stdout}")
 
         except Exception as e:
             results[img] = {"ok": False, "error": str(e)}
