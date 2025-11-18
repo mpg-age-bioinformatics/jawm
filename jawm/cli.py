@@ -704,7 +704,7 @@ def main():
                 # Matching hash — reuse folder, but continue execution
                 logger.info(f"Local folder '{dst}' already matches requested ref '{ref}' — reusing.")
                 args.module = str(dst)
-                _git_info_line = f"[git] reused local folder '{dst}' (commit {local_commit[:8]}) for '{args.module}'"
+                _git_info_line = f"[git] Reused local folder '{dst}' (commit {local_commit[:8]}) for '{module_raw}'"
 
                 # Do NOT return or exit — just skip cloning and continue
                 skip_clone = True
@@ -728,7 +728,7 @@ def main():
                 logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
                 _errlog_exit(1)
         else:
-            logger.info(f"Reusing existing local folder '{dst}' (commit {local_commit[:8]}) — skipping online lookup.")
+            # logger.info(f"Reusing existing local folder '{dst}' (commit {local_commit[:8]}) — skipping online lookup.")
             resolved = str(dst)
 
         # Determine repo_name from: cache_root/<safe_repo>/<sha>/repo_name/<...>
@@ -866,7 +866,36 @@ def main():
     # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---
     # distinct exit code so callers/CI can detect reference mismatches
     EXIT_HASH_REFERENCE_MISMATCH = 73
-    
+
+    # --- Handle already pulled git module with .commit ---
+    module_dir = Path(module_path).parent
+
+    commit_file = module_dir.joinpath(".commit")
+    if commit_file.exists():
+        try:
+            commit = commit_file.read_text(encoding="utf-8", errors="ignore").strip()
+            logger.info(f"[git] Git commit stamp: {commit[:8]}")
+
+            commit_mtime = commit_file.stat().st_mtime
+
+            # Calculate latest mtime inside the module directory
+            latest_mtime = 0
+            for root, dirs, files in os.walk(module_dir):
+                dirs[:] = [
+                    d for d in dirs
+                    if d not in {"logs", "__pycache__", ".ipynb_checkpoints", ".mypy_cache"}
+                ]
+                for f in files:
+                    fp = os.path.join(root, f)
+                    try:
+                        latest_mtime = max(latest_mtime, os.path.getmtime(fp))
+                    except:
+                        pass
+
+            if latest_mtime > commit_mtime:
+                logger.warning(f"[git] Local directory modified since export of commit {commit[:8]}")
+        except Exception as e:
+            logger.warning(f"[git] Could not check commit status: {e}")
         
     def _collect_hash_cfg_from_param_sources_cli(param_sources):
         """
