@@ -874,7 +874,7 @@ def main():
     if commit_file.exists():
         try:
             commit = commit_file.read_text(encoding="utf-8", errors="ignore").strip()
-            logger.info(f"[git] Git commit stamp: {commit[:8]}")
+            logger.info(f"[git] Git stamp commit: {commit[:8]}")
 
             commit_mtime = commit_file.stat().st_mtime
 
@@ -896,6 +896,39 @@ def main():
                 logger.warning(f"[git] Local directory modified since export of commit {commit[:8]}")
         except Exception as e:
             logger.warning(f"[git] Could not check commit status: {e}")
+
+    # --- Detect if module_dir is a real git repository ---
+    git_dir = module_dir.joinpath(".git")
+
+    if git_dir.exists() and git_dir.is_dir():
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(module_dir),
+                text=True,
+                capture_output=True,
+            )
+            head = result.stdout.strip()
+            if head:
+                logger.info(f"[git] Git repository HEAD commit: {head[:8]}")
+
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=str(module_dir),
+                text=True,
+                capture_output=True,
+            )
+
+            status_output = result.stdout.strip()
+
+            if status_output:
+                logger.warning("[git] Local git repository is MODIFIED (uncommitted changes present)")
+            else:
+                logger.info("[git] Local git repository is clean (no uncommitted changes)")
+
+        except Exception as e:
+            logger.warning(f"[git] Found local git repo, but could not inspect: {e}")
+
         
     def _collect_hash_cfg_from_param_sources_cli(param_sources):
         """
