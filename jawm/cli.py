@@ -702,7 +702,7 @@ def main():
                     _errlog_exit(1)
 
                 # Matching hash — reuse folder, but continue execution
-                logger.info(f"Local folder '{dst}' already matches requested ref '{ref}' — reusing.")
+                logger.info(f"[git] Local folder '{dst}' already matches requested ref '{ref}' — reusing.")
                 args.module = str(dst)
                 _git_info_line = f"[git] Reused local folder '{dst}' (commit {local_commit[:8]}) for '{module_raw}'"
 
@@ -761,7 +761,7 @@ def main():
         else:
             # Skipped cloning — reusing local folder
             resolved_path = Path(resolved)
-            logger.info(f"Reusing existing folder: {resolved_path}")
+            logger.info(f"[git] Reusing existing folder: {resolved_path}")
 
         # Point args.module at the **local working copy**
         args.module = str(dst)
