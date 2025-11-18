@@ -667,7 +667,7 @@ def main():
 
             commit_file = dst / ".commit"
             if not commit_file.exists():
-                logger.error(f"Local folder '{dst}' exists but is missing .commit — cannot verify tag/ref.")
+                logger.error(f"[git] Local folder '{dst}' exists but is missing .commit — cannot verify tag/ref.")
                 logger.error("Please delete or rename the folder and re-run.")
                 _errlog_exit(1)
 
@@ -690,12 +690,12 @@ def main():
                     ref_commit = local_commit  # no tag given → accept current hash
 
                 if not ref_commit:
-                    logger.error(f"Could not resolve remote ref '{ref}' for {repo_name}")
+                    logger.error(f"[git] Could not resolve remote ref '{ref}' for {repo_name}")
                     _errlog_exit(1)
 
                 if local_commit != ref_commit:
                     logger.error(
-                        f"Existing folder '{dst}' has commit {local_commit[:8]}, "
+                        f"[git] Existing folder '{dst}' has commit {local_commit[:8]}, "
                         f"but requested tag/ref '{ref}' points to {ref_commit[:8]}."
                     )
                     logger.error("Please delete or rename the folder and re-run.")
@@ -722,7 +722,7 @@ def main():
                 resolved = _resolve_git_to_local(args.module, cache_root)
             except Exception as e:
                 logger.error(
-                    f"Failed to fetch workflow '{args.module}' from remote.\n"
+                    f"[git] Failed to fetch workflow '{args.module}' from remote.\n"
                     f"Reason: {e}"
                 )
                 logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
