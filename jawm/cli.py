@@ -932,7 +932,9 @@ def _log_system_info(logger):
 #   Start of the main method
 # ------------------------------------------------------------
 def main():
-    # --- Parse CLI arguments ---
+    # ------------------------------------------------------------
+    #   Parse CLI arguments
+    # ------------------------------------------------------------
     parser = argparse.ArgumentParser(description="jawm - Just Another Workflow Manager")
     parser.add_argument("module", help="Path to a jawm Python script or directory containing the jawm module script with jawm.py or main.py or single .py ('.' for current directory)")
     parser.add_argument("-p", "--parameters", nargs="+", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
@@ -948,14 +950,20 @@ def main():
 
     args, unknown_args = parser.parse_known_args()
 
-    # --- Module label and timestamp ---
+
+    # ------------------------------------------------------------
+    #   Module label and timestamp
+    # ------------------------------------------------------------
     module_raw = args.module
     module_label = os.path.basename(os.path.abspath(args.module)).replace(".py", "")
     now = datetime.datetime.now()
     timestamp = now.strftime('%Y%m%d_%H%M%S')
     timestamp_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
 
-    # --- Support //subpath syntax for git repos ---
+
+    # ------------------------------------------------------------
+    #   Support //subpath syntax for git repos
+    # ------------------------------------------------------------
     subpath = None
     if "//" in args.module:
         # Detect true URL-style prefixes to avoid breaking schemes
@@ -971,16 +979,18 @@ def main():
             args.module = args.module.rstrip("/")
             subpath = subpath.strip("/")
 
-    # --- CLI log file path ---
+    # ------------------------------------------------------------
+    #   CLI log file path & logging with exit method
+    # ------------------------------------------------------------
     base_logs_dir = os.path.abspath(args.logs_directory) if args.logs_directory else os.path.abspath("./logs")
     run_logs_dir = os.path.join(base_logs_dir, "jawm_runs")
     os.makedirs(run_logs_dir, exist_ok=True)
     cli_log_file = os.path.join(run_logs_dir, f"{module_label}_{timestamp}.log")
 
-    # --- Start global tee BEFORE any prints/logging so we catch everything ---
+    # Start global tee BEFORE any prints/logging so we catch everything
     _start_global_tee(cli_log_file, mode="w")
 
-    # --- Configure logging: stream ONLY (to sys.stdout which is tee'd), no FileHandler needed ---
+    # Configure logging: stream ONLY (to sys.stdout which is tee'd), no FileHandler needed
     log_formatter = logging.Formatter(
         "[%(asctime)s] - %(levelname)s - %(name)s :: %(message)s",
         "%Y-%m-%d %H:%M:%S",
@@ -1001,7 +1011,7 @@ def main():
     logger = logging.getLogger(f"jawm.cli|{module_label}")
     logger.info("Initiating jawm module script from jawm command")
 
-    # --- Define helper for consistent error exits ---
+    # Define helper for consistent error exits
     def _errlog_exit(excode=1):
         """
         Generic helper to log a final error and exit cleanly with the given code.
@@ -1010,6 +1020,9 @@ def main():
         sys.exit(excode)
 
 
+    # ------------------------------------------------------------
+    #   Handle git repo as module
+    # ------------------------------------------------------------
     # Only synthesize git URL if:
     #  (1) module path does NOT exist locally, AND
     #  (2) module is NOT already a git URL / git-like target.
@@ -1024,9 +1037,7 @@ def main():
         cache_root = _git_cache_root(getattr(args, "git_cache", None))
         cache_root.mkdir(parents=True, exist_ok=True)
 
-        # ------------------------------------------------------
         # Handle case where local folder already exists for <repo>@<tag>
-        # ------------------------------------------------------
         repo_part = args.module.split("/")[-1]
         repo_name, sep, ref = repo_part.partition("@")
         repo_name = repo_name.replace(".git", "")
@@ -1140,7 +1151,7 @@ def main():
         if not skip_clone:
             _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
 
-        # --- Append subpath inside the repo if provided ---
+        # Append subpath inside the repo if provided
         if subpath:
             target_path = Path(dst) / subpath
             if not target_path.exists():
@@ -1164,7 +1175,11 @@ def main():
         logger.info(_git_info_line)
     logger.info(f"Logging terminal output to: {cli_log_file}")
 
-    # --- Validate paths for -p / --parameters and -v / --variables ---
+
+    # ------------------------------------------------------------
+    #   Validate and process/modify/inject values
+    # ------------------------------------------------------------
+    # Validate paths for -p / --parameters and -v / --variables
     def _validate_paths(label, paths):
         if not paths:
             return
@@ -1178,7 +1193,7 @@ def main():
     _validate_paths("Parameter", args.parameters)
     _validate_paths("Variable", args.variables)
 
-    # --- Import Process and set defaults or overrides ---
+    # Import Process and set defaults or overrides
     from jawm import Process
 
     no_override_params = (
@@ -1202,7 +1217,7 @@ def main():
     if args.resume is not None:
         _apply_param("resume", True)
 
-    # --- Load and inject variables into script namespace ---
+    # Load and inject variables into script namespace
     exec_namespace = {}
     if args.variables:
         try:
@@ -1215,7 +1230,7 @@ def main():
             logger.error(f"Failed to load variables from {args.variables} — {e}")
             _errlog_exit(2)
 
-    # --- Resolve module path ---
+    # Resolve module path
     source_path = os.path.abspath(args.module)
     if os.path.isfile(source_path) and source_path.endswith(".py"):
         module_path = source_path
@@ -1234,10 +1249,14 @@ def main():
         logger.error(f"Invalid module path: {module_raw}")
         _errlog_exit(2)
 
-    # distinct exit code so callers/CI can detect reference mismatches
+    
+    # ------------------------------------------------------------
+    #  Final operations before running the module 
+    # ------------------------------------------------------------
+    # Distinct exit code so callers/CI can detect reference mismatches
     EXIT_HASH_REFERENCE_MISMATCH = 73
 
-    # --- Handle already pulled git module with .commit ---
+    # Handle already pulled git module with .commit
     module_dir = Path(module_path).parent
 
     commit_file = module_dir.joinpath(".commit")
@@ -1269,7 +1288,7 @@ def main():
         except Exception as e:
             logger.warning(f"[git] Could not check commit status: {e}")
 
-    # --- Detect if module_dir is a real git repository ---
+    # Detect if module_dir is a real git repository
     git_dir = module_dir.joinpath(".git")
 
     if git_dir.exists() and git_dir.is_dir():
@@ -1301,7 +1320,10 @@ def main():
         except Exception as e:
             logger.warning(f"[git] Found local git repo, but could not inspect: {e}")
 
-    # --- Run the module script ---
+    
+    # ------------------------------------------------------------
+    #  Run the module script 
+    # ------------------------------------------------------------
     exit_code_from_script = None
     exit_code_def = 0
     _log_system_info(logger)
@@ -1343,7 +1365,11 @@ def main():
                 break
             time.sleep(1)
 
-        # -------- post-run hashing & histories (always reached, even if module sys.exit'ed) --------
+
+        # ------------------------------------------------------------
+        #  Post-run hashing & histories
+        # ------------------------------------------------------------
+        # Always reached, even if module sys.exit'ed
         from jawm._utils import hash_content  # canonical hasher
 
         def _extend_inputs_from_arg(val):
@@ -1362,7 +1388,7 @@ def main():
         auto_files_csv = "-"
         auto_history_path = _input_history_path_cli(logs_dir, resolved_module_path)
 
-        # enumerate candidate inputs (for history files list)
+        # Enumerate candidate inputs (for history files list)
         auto_inputs = [resolved_module_path]
         auto_inputs += _extend_inputs_from_arg(args.parameters)
         auto_inputs += _extend_inputs_from_arg(args.variables)
@@ -1376,7 +1402,7 @@ def main():
         if auto_files_considered:
             auto_files_csv = ",".join(auto_files_considered)
         
-        # compute auto hash (prefix-mode preferred)
+        # Compute auto hash (prefix-mode preferred)
         auto_hash = _compute_run_hash_from_process_prefixes_cli()
         if not auto_hash:
             if auto_inputs:
@@ -1390,7 +1416,7 @@ def main():
             else:
                 auto_hash = hashlib.sha256(b"").hexdigest()
 
-        # append to <wf>_input.history
+        # Append to <wf>_input.history
         _append_history_line_cli(
             logger,
             history_path=auto_history_path,
@@ -1400,9 +1426,12 @@ def main():
             files_csv=auto_files_csv,
         )
 
-        # === Optional USER-DEFINED HASH from -p (scope: hash) ====
+
+        # ------------------------------------------------------------
+        #  Hashing & optional USER-DEFINED HASH from -p (scope: hash)
+        # ------------------------------------------------------------
         # If present: compute content hash using that policy, write <wf>.hash, and append <wf>_user_defined.history
-        # hash schema (from yaml)
+        # Hash schema (from yaml)
         """
         YAML schema for user-defined hash:
 
@@ -1442,7 +1471,7 @@ def main():
             overwrite = cfg.get("overwrite", False)
             reference = cfg.get("reference")
 
-            # --- Validate that all included paths exist before hashing ---
+            # Validate that all included paths exist before hashing
             missing = []
             for p in paths:
                 if not os.path.exists(p):
@@ -1516,7 +1545,11 @@ def main():
                     _errlog_exit(EXIT_HASH_REFERENCE_MISMATCH)
                 else:
                     logger.info("[hash] ✅  Generated user-defined hash matched reference  ✅")
-
+    
+    
+    # ------------------------------------------------------------
+    #  Final exception handling and logging
+    # ------------------------------------------------------------
     except Exception:
         logger.exception("Failed to execute module script")
         try:
