@@ -28,7 +28,7 @@ import uuid
 from collections import defaultdict
 
 
-__all__ = ["read_variables", "hash_content", "batch_process_file", "script_to_yaml", "docker_available", "apptainer_available", "write_hash_file"]
+__all__ = ["read_variables", "hash_content", "batch_process_file", "script_to_yaml", "docker_available", "apptainer_available", "kubernetes_available", "write_hash_file", "parse_arguments", "workflow", "from_file_pairs", "load_modules", "id_files", "get_image"]
 
 
 # ------------------------------------------------------------
