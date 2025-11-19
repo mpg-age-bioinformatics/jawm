@@ -22,7 +22,9 @@ import platform
 from pathlib import Path
 
 
-# --- Version detection (module scope) ---
+# ------------------------------------------------------------
+#   Version detection (module scope)
+# ------------------------------------------------------------
 try:
     from importlib import metadata as md  # py>=3.8
 except Exception:
@@ -34,8 +36,94 @@ try:
     _VERSION = md.version(_PKG_NAME)
 except md.PackageNotFoundError:
     _VERSION = "dev"  
+# ------------------------------------------------------------
+#   End of version detection (module scope)
+# ------------------------------------------------------------
 
-# ---  Git related vars and methods --- #
+
+# ------------------------------------------------------------
+#   Logging and teeing
+# ------------------------------------------------------------
+def _start_global_tee(path, mode="a"):
+    """
+    Mirror everything written to sys.stdout and sys.stderr to the given file,
+    while still showing it on the real terminal. Lives until process exit.
+    """
+    f = open(path, mode, buffering=1, encoding="utf-8")  # line-buffered
+
+    class _Tee(io.TextIOBase):
+        def __init__(self, stream, file_obj, lock=None):
+            self.stream = stream
+            self.file = file_obj
+            self.lock = lock or threading.Lock()
+        def write(self, data):
+            # write to both console and file atomically to preserve ordering
+            with self.lock:
+                # console side (keep strict)
+                self.stream.write(data)
+                self.stream.flush()
+                # file side (be tolerant at shutdown)
+                try:
+                    if not getattr(self.file, "closed", False):
+                        self.file.write(data)
+                        self.file.flush()
+                except Exception:
+                    pass
+            return len(data)
+
+        def flush(self):
+            with self.lock:
+                try:
+                    self.stream.flush()
+                except Exception:
+                    pass
+                try:
+                    if not getattr(self.file, "closed", False):
+                        self.file.flush()
+                except Exception:
+                    pass
+        def isatty(self):
+            # preserve TTY semantics for libraries that check this
+            return getattr(self.stream, "isatty", lambda: False)()
+
+        def writable(self):
+            return True
+
+        def fileno(self):
+            # some libs probe fileno(); prefer the real stream,
+            # fall back to the logfile if needed
+            try:
+                return self.stream.fileno()
+            except Exception:
+                return self.file.fileno()
+
+    lock = threading.Lock()
+    # Redirect program-visible stdio to Tee that writes to the real console and the file
+    sys.stdout = _Tee(sys.__stdout__, f, lock)
+    sys.stderr = _Tee(sys.__stderr__, f, lock)
+
+    # Make sure unhandled exceptions in threads are printed to stderr (captured by tee)
+    def _thread_excepthook(args):
+        traceback.print_exception(args.exc_type, args.exc_value, args.exc_traceback)
+    threading.excepthook = _thread_excepthook
+
+    @atexit.register
+    def _cleanup():
+        # flush & restore real stdio so other atexit handlers behave
+        try:
+            sys.stdout.flush(); sys.stderr.flush()
+        finally:
+            sys.stdout = sys.__stdout__
+            sys.stderr = sys.__stderr__
+            f.close()
+# ------------------------------------------------------------
+#   End of logging and teeing
+# ------------------------------------------------------------
+
+
+# ------------------------------------------------------------
+#   Git related vars and method
+# ------------------------------------------------------------
 GIT_PAT = re.compile(
     r"""
     ^(?P<scheme>(?:https://|ssh://|git@|gh:|file://)?)
@@ -471,83 +559,9 @@ def _parse_git_target(target):
     repo, sep, ref = name.partition("@")
     repo = repo.replace(".git", "")
     return repo, ref or None
-
-
-# ---  End of git related vars and methods --- #
-
-
-def _start_global_tee(path, mode="a"):
-    """
-    Mirror everything written to sys.stdout and sys.stderr to the given file,
-    while still showing it on the real terminal. Lives until process exit.
-    """
-    f = open(path, mode, buffering=1, encoding="utf-8")  # line-buffered
-
-    class _Tee(io.TextIOBase):
-        def __init__(self, stream, file_obj, lock=None):
-            self.stream = stream
-            self.file = file_obj
-            self.lock = lock or threading.Lock()
-        def write(self, data):
-            # write to both console and file atomically to preserve ordering
-            with self.lock:
-                # console side (keep strict)
-                self.stream.write(data)
-                self.stream.flush()
-                # file side (be tolerant at shutdown)
-                try:
-                    if not getattr(self.file, "closed", False):
-                        self.file.write(data)
-                        self.file.flush()
-                except Exception:
-                    pass
-            return len(data)
-
-        def flush(self):
-            with self.lock:
-                try:
-                    self.stream.flush()
-                except Exception:
-                    pass
-                try:
-                    if not getattr(self.file, "closed", False):
-                        self.file.flush()
-                except Exception:
-                    pass
-        def isatty(self):
-            # preserve TTY semantics for libraries that check this
-            return getattr(self.stream, "isatty", lambda: False)()
-
-        def writable(self):
-            return True
-
-        def fileno(self):
-            # some libs probe fileno(); prefer the real stream,
-            # fall back to the logfile if needed
-            try:
-                return self.stream.fileno()
-            except Exception:
-                return self.file.fileno()
-
-    lock = threading.Lock()
-    # Redirect program-visible stdio to Tee that writes to the real console and the file
-    sys.stdout = _Tee(sys.__stdout__, f, lock)
-    sys.stderr = _Tee(sys.__stderr__, f, lock)
-
-    # Make sure unhandled exceptions in threads are printed to stderr (captured by tee)
-    def _thread_excepthook(args):
-        traceback.print_exception(args.exc_type, args.exc_value, args.exc_traceback)
-    threading.excepthook = _thread_excepthook
-
-    @atexit.register
-    def _cleanup():
-        # flush & restore real stdio so other atexit handlers behave
-        try:
-            sys.stdout.flush(); sys.stderr.flush()
-        finally:
-            sys.stdout = sys.__stdout__
-            sys.stderr = sys.__stderr__
-            f.close()
+# ------------------------------------------------------------
+#   End of git related vars and method
+# ------------------------------------------------------------
 
 
 def main():
