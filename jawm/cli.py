@@ -875,7 +875,7 @@ def main():
     if commit_file.exists():
         try:
             commit = commit_file.read_text(encoding="utf-8", errors="ignore").strip()
-            logger.info(f"[git] Git stamp commit: {commit[:8]}")
+            logger.info(f"[git] Found git stamp commit: {commit[:8]}")
 
             commit_mtime = commit_file.stat().st_mtime
 
@@ -895,6 +895,8 @@ def main():
 
             if latest_mtime > commit_mtime:
                 logger.warning(f"[git] Local directory modified since export of commit {commit[:8]}")
+            else:
+                logger.info(f"[git] Local directory likely unchanged since the stamp commit")
         except Exception as e:
             logger.warning(f"[git] Could not check commit status: {e}")
 
