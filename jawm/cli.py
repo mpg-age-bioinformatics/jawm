@@ -116,6 +116,18 @@ def _start_global_tee(path, mode="a"):
             sys.stdout = sys.__stdout__
             sys.stderr = sys.__stderr__
             f.close()
+
+
+class _EmojiFormatter(logging.Formatter):
+        EMOJI_MAP = {
+            logging.ERROR: "❌",
+            logging.WARNING: "⚠️",
+            logging.CRITICAL: "🚨",
+        }
+        def format(self, record):
+            emoji = self.EMOJI_MAP.get(record.levelno, "")
+            record.msg = f"{emoji}  {record.msg}" if emoji else record.msg
+            return super().format(record)            
 # ------------------------------------------------------------
 #   End of logging and teeing
 # ------------------------------------------------------------
@@ -564,6 +576,62 @@ def _parse_git_target(target):
 # ------------------------------------------------------------
 
 
+
+# ------------------------------------------------------------
+#   Other internal helper methods
+# ------------------------------------------------------------
+def _log_system_info(logger):
+    """
+    Log system and runtime metadata; never raises.
+    """
+    try:
+        # Core system info
+        logger.info(f"[sys] jawm: {str(_VERSION)}")
+        logger.info(f"[sys] Python: {platform.python_version()}")
+        logger.info(f"[sys] OS: {platform.platform()}")
+        logger.info(f"[sys] Machine/Arch: {platform.machine()}")
+
+        # Helper for optional external tools
+        def _try_version(cmd, name):
+            try:
+                r = subprocess.run(
+                    cmd, shell=True,
+                    text=True, capture_output=True, timeout=2
+                )
+                out = (r.stdout or r.stderr or "").splitlines()
+                if r.returncode == 0 and out:
+                    logger.info(f"[sys] {name}: {out[0].strip()}")
+            except Exception:
+                pass
+
+        # External tools
+        _try_version("sbatch --version", "Slurm")
+        _try_version("docker --version", "Docker")
+        _try_version("singularity --version", "Singularity")
+        _try_version("apptainer --version", "Apptainer")
+        _try_version("kubectl version --short", "Kubernetes (kubectl)")
+
+    except Exception as e:
+        logger.warning(f"[sys] Could not collect system info: {e}")
+# ------------------------------------------------------------
+#   End of other internal helper methods
+# ------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ------------------------------------------------------------
+#   Start of the main method
+# ------------------------------------------------------------
 def main():
     # --- Parse CLI arguments ---
     parser = argparse.ArgumentParser(description="jawm - Just Another Workflow Manager")
@@ -625,17 +693,6 @@ def main():
     console_handler = logging.StreamHandler(sys.stdout)  # goes through tee
     console_handler.setFormatter(log_formatter)
     root_logger.addHandler(console_handler)
-
-    class _EmojiFormatter(logging.Formatter):
-        EMOJI_MAP = {
-            logging.ERROR: "❌",
-            logging.WARNING: "⚠️",
-            logging.CRITICAL: "🚨",
-        }
-        def format(self, record):
-            emoji = self.EMOJI_MAP.get(record.levelno, "")
-            record.msg = f"{emoji}  {record.msg}" if emoji else record.msg
-            return super().format(record)
 
     if os.getenv("JAWM_LOG_EMOJI", "1").strip().lower() not in {"0", "false", "no", "off"}:
         for h in root_logger.handlers:
@@ -1239,43 +1296,6 @@ def main():
         prefixes = sorted(set(prefixes))
         payload = "\n".join(prefixes).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
-    
-
-    def _log_system_info(logger):
-        """
-        Log system and runtime metadata; never raises.
-        """
-        try:
-            # Core system info
-            logger.info(f"[sys] jawm: {str(_VERSION)}")
-            logger.info(f"[sys] Python: {platform.python_version()}")
-            logger.info(f"[sys] OS: {platform.platform()}")
-            logger.info(f"[sys] Machine/Arch: {platform.machine()}")
-
-            # Helper for optional external tools
-            def _try_version(cmd, name):
-                try:
-                    r = subprocess.run(
-                        cmd, shell=True,
-                        text=True, capture_output=True, timeout=2
-                    )
-                    out = (r.stdout or r.stderr or "").splitlines()
-                    if r.returncode == 0 and out:
-                        logger.info(f"[sys] {name}: {out[0].strip()}")
-                except Exception:
-                    pass
-
-            # External tools
-            _try_version("sbatch --version", "Slurm")
-            _try_version("docker --version", "Docker")
-            _try_version("singularity --version", "Singularity")
-            _try_version("apptainer --version", "Apptainer")
-            _try_version("kubectl version --short", "Kubernetes (kubectl)")
-
-        except Exception as e:
-            logger.warning(f"[sys] Could not collect system info: {e}")
-
-        # --- End of other internal helper methods ---    
 
 
     # --- Run the module script ---
