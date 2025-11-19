@@ -576,6 +576,305 @@ def _parse_git_target(target):
 # ------------------------------------------------------------
 
 
+# ------------------------------------------------------------
+#   Hashing helper methods
+# ------------------------------------------------------------
+def _collect_hash_cfg_from_param_sources_cli(param_sources):
+    """
+    Look through param file(s)/dir for entries with `scope: hash`
+    and merge them into a single cfg.
+
+    Returns a dict like:
+    {
+        "paths": [...],                # from `include` entries (glob/literal)
+        "allowed_extensions": [...],   # or None
+        "exclude_dirs": [...],         # or None
+        "exclude_files": [...],        # or None
+        "recursive": True/False,
+        "overwrite": True/False,
+        "reference": hash string/path
+    }
+    or {} if nothing found.
+    """
+    def _as_list(x):
+        if not x: return []
+        return x if isinstance(x, list) else [x]
+
+    # Gather YAML files from -p (file/dir/list)
+    yaml_files = []
+    if not param_sources:
+        return {}
+    sources = param_sources if isinstance(param_sources, list) else [param_sources]
+    for src in sources:
+        src = os.path.abspath(str(src))
+        if os.path.isdir(src):
+            for f in os.listdir(src):
+                if f.lower().endswith((".yaml", ".yml")):
+                    yaml_files.append(os.path.join(src, f))
+        elif os.path.isfile(src) and src.lower().endswith((".yaml", ".yml")):
+            yaml_files.append(src)
+
+    if not yaml_files:
+        return {}
+
+    # Merge all scope: hash entries
+    merged = {
+        "include": [],
+        "allowed_extensions": None,
+        "exclude_dirs": None,
+        "exclude_files": None,
+        "recursive": True,
+        "overwrite": False,
+        "reference": None
+    }
+
+    def _merge_list_field(key, new_val):
+        if new_val is None:
+            return
+        existing = merged.get(key)
+        if existing is None:
+            merged[key] = _as_list(new_val)
+        else:
+            merged[key] = _as_list(existing) + _as_list(new_val)
+
+    def _take_last_scalar(key, new_val):
+        if new_val is not None:
+            merged[key] = new_val
+
+    for yf in yaml_files:
+        try:
+            data = yaml.safe_load(Path(yf).read_text()) or []
+        except Exception:
+            continue
+        # Allow either a single dict or a list of dicts
+        docs = data if isinstance(data, list) else [data]
+        for entry in docs:
+            if not isinstance(entry, dict):
+                continue
+            if str(entry.get("scope", "")).lower() != "hash":
+                continue
+            # same schema as --hash YAML
+            _merge_list_field("include", entry.get("include"))
+            _take_last_scalar("allowed_extensions", entry.get("allowed_extensions"))
+            _take_last_scalar("exclude_dirs", entry.get("exclude_dirs"))
+            _take_last_scalar("exclude_files", entry.get("exclude_files"))
+            _take_last_scalar("recursive", entry.get("recursive"))
+            _take_last_scalar("overwrite", entry.get("overwrite"))
+            _take_last_scalar("reference", entry.get("reference"))
+
+    if not merged["include"]:
+        return {}
+
+    # Expand globs
+    expanded, seen = [], set()
+    for pat in _as_list(merged["include"]):
+        hits = glob.glob(pat, recursive=True) or [pat]
+        for h in hits:
+            if h not in seen:
+                expanded.append(h); seen.add(h)
+
+    return {
+        "paths": expanded,
+        "allowed_extensions": merged["allowed_extensions"],
+        "exclude_dirs": merged["exclude_dirs"],
+        "exclude_files": merged["exclude_files"],
+        "recursive": True if merged["recursive"] is None else bool(merged["recursive"]),
+        "overwrite": False if merged["overwrite"] is None else bool(merged["overwrite"]),
+        "reference": merged.get("reference"),
+    }
+
+
+def _resolve_reference_hash_cli(ref):
+    """
+    Resolve a reference to a SHA-256 hex string.
+    - If 'ref' is a readable file path, read its first non-empty line.
+    - Else, treat 'ref' as a literal hash string.
+    Returns a normalized lowercase hex string, or None if invalid.
+    """
+    candidate = None
+    try:
+        if isinstance(ref, str) and os.path.isfile(ref):
+            txt = Path(ref).read_text(encoding="utf-8", errors="ignore")
+            for line in txt.splitlines():
+                line = line.strip()
+                if line:
+                    candidate = line
+                    break
+        else:
+            candidate = str(ref).strip()
+    except Exception:
+        return None
+
+    if not candidate:
+        return None
+
+    h = candidate.lower().strip()
+    # allow optional "sha256:" prefix
+    if h.startswith("sha256:"):
+        h = h.split(":", 1)[1].strip()
+
+    # minimal validation for sha256
+    if re.fullmatch(r"[0-9a-f]{64}", h):
+        return h
+    return None
+
+def _enumerate_hash_inputs_cli(paths, *, allowed_extensions=None, exclude_dirs=None, exclude_files=None, recursive=True):
+    """
+    Return a sorted list of concrete files that would be considered for hashing,
+    using the same policy (ext filter, exclude lists, recursion) as hash_content.
+    """
+    if paths is None:
+        return []
+    if isinstance(paths, (str, Path)):
+        paths = [paths]
+
+    allowed_exts = None
+    if allowed_extensions:
+        allowed_exts = set(("." + e.lower().lstrip(".")) for e in allowed_extensions)
+
+    exclude_dirs = exclude_dirs or []
+    exclude_files = exclude_files or []
+
+    collected = []
+
+    def _file_ok(fname):
+        base = os.path.basename(fname)
+        if any(fnmatch.fnmatch(base, pat) for pat in exclude_files):
+            return False
+        if allowed_exts is not None:
+            ext = os.path.splitext(fname)[1].lower()
+            if ext not in allowed_exts:
+                return False
+        return True
+
+    for p in paths:
+        p = os.path.abspath(str(p))
+        if os.path.isfile(p):
+            if _file_ok(p):
+                collected.append(p)
+        elif os.path.isdir(p):
+            if recursive:
+                for root, dirs, files in os.walk(p):
+                    # apply dir excludes (by name pattern)
+                    dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pat) for pat in (exclude_dirs or []))]
+                    for f in files:
+                        fp = os.path.join(root, f)
+                        if _file_ok(fp):
+                            collected.append(fp)
+            else:
+                for f in os.listdir(p):
+                    fp = os.path.join(p, f)
+                    if os.path.isfile(fp) and _file_ok(fp):
+                        collected.append(fp)
+        else:
+            # ignore non-existent, same as the hasher
+            continue
+
+    return sorted(set(collected))
+
+
+def _default_hash_output_path_cli(logs_dir, module_path):
+    """
+    Default hash file under <logs_dir>/jawm_hashes/<module_stem>.hash
+    (single canonical location to compare runs).
+    """
+    wf_stem = os.path.splitext(os.path.basename(module_path))[0]
+    out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, f"{wf_stem}.hash")
+
+
+def _input_history_path_cli(logs_dir, module_path):
+    """
+    Always-written auto history:
+    <logs_dir>/jawm_hashes/<module>_input.history
+    """
+    wf_stem = os.path.splitext(os.path.basename(module_path))[0]
+    out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, f"{wf_stem}_input.history")
+
+
+def _user_defined_history_path_cli(logs_dir, module_path):
+    """
+    Written only when -p contains `scope: hash`:
+    <logs_dir>/jawm_hashes/<module>_user_defined.history
+    """
+    wf_stem = os.path.splitext(os.path.basename(module_path))[0]
+    out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, f"{wf_stem}_user_defined.history")
+
+
+def _append_history_line_cli(logger, history_path, ts, hash_value, log_file, files_csv="-", user_provided=False):
+    """
+    Append: "<timestamp>\t<hash>\t<cli_log_file>\t<comma_separated_files>"
+    to the given history file path.
+    """
+    Path(history_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(history_path, "a", encoding="utf-8") as f:
+        f.write(f"{ts}\t{hash_value}\t{log_file}\t{files_csv}\n")
+    if user_provided:
+        logger.info(f"[hash] Appended history based on user definitions → {history_path}")
+
+
+def _write_and_compare_hash_cli(logger, hash_value, out_path, overwrite=False):
+    """
+    Compare with existing file (if any), print a clear log, and write the new hash.
+    Returns True if written or matched, False if mismatch (but still writes).
+    """
+    outp = Path(out_path)
+    outp.parent.mkdir(parents=True, exist_ok=True)
+    matched = True
+    new = True
+    if outp.exists():
+        stored = outp.read_text().strip()
+        new = False
+        if stored != hash_value:
+            matched = False
+            # Required: log mismatch to CLI output
+            logger.warning(f"[hash] Mismatch for {outp.name}: \nStored={stored} \nComputed={hash_value}")
+        else:
+            logger.info(f"[hash] Matches existing file {outp.name}")
+    if not outp.exists() or overwrite:
+        outp.write_text(hash_value + "\n")
+        logger.info(f"[hash] Wrote current hash to: {outp}")
+    return matched, new
+
+
+def _compute_run_hash_from_process_prefixes_cli():
+    """
+    Default/auto mode: use the first 6 chars of *executed* Processes' hashes.
+
+    We read them via the public API to avoid reaching into internals.
+    Deterministic: sort prefixes; hash the concatenated string.
+    """
+    try:
+        from jawm import Process
+    except Exception:
+        return None  # jawm not available; likely shouldn't happen
+
+    items = Process.list_all()  # [{name, hash, log_path, finished, ...}, ...]
+    prefixes = []
+    for p in items:
+        h = p.get("hash")
+        # consider "executed" as those that have an execution_start timestamp
+        if not h:
+            continue
+        # keep those that actually ran (have an exit code OR are marked finished)
+        # This still includes successful/failed/skipped, which is fine for a run signature.
+        prefixes.append(str(h)[:6])
+
+    if not prefixes:
+        return None
+
+    prefixes = sorted(set(prefixes))
+    payload = "\n".join(prefixes).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()   
+# ------------------------------------------------------------
+#   End of hashing helper methods
+# ------------------------------------------------------------
+
 
 # ------------------------------------------------------------
 #   Other internal helper methods
@@ -935,7 +1234,6 @@ def main():
         logger.error(f"Invalid module path: {module_raw}")
         _errlog_exit(2)
 
-    # --- INTERNAL HELPERS FOR HASHING (CLI-ONLY) ---
     # distinct exit code so callers/CI can detect reference mismatches
     EXIT_HASH_REFERENCE_MISMATCH = 73
 
@@ -1002,301 +1300,6 @@ def main():
 
         except Exception as e:
             logger.warning(f"[git] Found local git repo, but could not inspect: {e}")
-
-        
-    def _collect_hash_cfg_from_param_sources_cli(param_sources):
-        """
-        Look through param file(s)/dir for entries with `scope: hash`
-        and merge them into a single cfg.
-
-        Returns a dict like:
-        {
-            "paths": [...],                # from `include` entries (glob/literal)
-            "allowed_extensions": [...],   # or None
-            "exclude_dirs": [...],         # or None
-            "exclude_files": [...],        # or None
-            "recursive": True/False,
-            "overwrite": True/False,
-            "reference": hash string/path
-        }
-        or {} if nothing found.
-        """
-        def _as_list(x):
-            if not x: return []
-            return x if isinstance(x, list) else [x]
-
-        # Gather YAML files from -p (file/dir/list)
-        yaml_files = []
-        if not param_sources:
-            return {}
-        sources = param_sources if isinstance(param_sources, list) else [param_sources]
-        for src in sources:
-            src = os.path.abspath(str(src))
-            if os.path.isdir(src):
-                for f in os.listdir(src):
-                    if f.lower().endswith((".yaml", ".yml")):
-                        yaml_files.append(os.path.join(src, f))
-            elif os.path.isfile(src) and src.lower().endswith((".yaml", ".yml")):
-                yaml_files.append(src)
-
-        if not yaml_files:
-            return {}
-
-        # Merge all scope: hash entries
-        merged = {
-            "include": [],
-            "allowed_extensions": None,
-            "exclude_dirs": None,
-            "exclude_files": None,
-            "recursive": True,
-            "overwrite": False,
-            "reference": None
-        }
-
-        def _merge_list_field(key, new_val):
-            if new_val is None:
-                return
-            existing = merged.get(key)
-            if existing is None:
-                merged[key] = _as_list(new_val)
-            else:
-                merged[key] = _as_list(existing) + _as_list(new_val)
-
-        def _take_last_scalar(key, new_val):
-            if new_val is not None:
-                merged[key] = new_val
-
-        for yf in yaml_files:
-            try:
-                data = yaml.safe_load(Path(yf).read_text()) or []
-            except Exception:
-                continue
-            # Allow either a single dict or a list of dicts
-            docs = data if isinstance(data, list) else [data]
-            for entry in docs:
-                if not isinstance(entry, dict):
-                    continue
-                if str(entry.get("scope", "")).lower() != "hash":
-                    continue
-                # same schema as --hash YAML
-                _merge_list_field("include", entry.get("include"))
-                _take_last_scalar("allowed_extensions", entry.get("allowed_extensions"))
-                _take_last_scalar("exclude_dirs", entry.get("exclude_dirs"))
-                _take_last_scalar("exclude_files", entry.get("exclude_files"))
-                _take_last_scalar("recursive", entry.get("recursive"))
-                _take_last_scalar("overwrite", entry.get("overwrite"))
-                _take_last_scalar("reference", entry.get("reference"))
-
-        if not merged["include"]:
-            return {}
-
-        # Expand globs
-        expanded, seen = [], set()
-        for pat in _as_list(merged["include"]):
-            hits = glob.glob(pat, recursive=True) or [pat]
-            for h in hits:
-                if h not in seen:
-                    expanded.append(h); seen.add(h)
-
-        return {
-            "paths": expanded,
-            "allowed_extensions": merged["allowed_extensions"],
-            "exclude_dirs": merged["exclude_dirs"],
-            "exclude_files": merged["exclude_files"],
-            "recursive": True if merged["recursive"] is None else bool(merged["recursive"]),
-            "overwrite": False if merged["overwrite"] is None else bool(merged["overwrite"]),
-            "reference": merged.get("reference"),
-        }
-
-
-    def _resolve_reference_hash_cli(ref):
-        """
-        Resolve a reference to a SHA-256 hex string.
-        - If 'ref' is a readable file path, read its first non-empty line.
-        - Else, treat 'ref' as a literal hash string.
-        Returns a normalized lowercase hex string, or None if invalid.
-        """
-        candidate = None
-        try:
-            if isinstance(ref, str) and os.path.isfile(ref):
-                txt = Path(ref).read_text(encoding="utf-8", errors="ignore")
-                for line in txt.splitlines():
-                    line = line.strip()
-                    if line:
-                        candidate = line
-                        break
-            else:
-                candidate = str(ref).strip()
-        except Exception:
-            return None
-
-        if not candidate:
-            return None
-
-        h = candidate.lower().strip()
-        # allow optional "sha256:" prefix
-        if h.startswith("sha256:"):
-            h = h.split(":", 1)[1].strip()
-
-        # minimal validation for sha256
-        if re.fullmatch(r"[0-9a-f]{64}", h):
-            return h
-        return None
-    
-    def _enumerate_hash_inputs_cli(paths, *, allowed_extensions=None, exclude_dirs=None, exclude_files=None, recursive=True):
-        """
-        Return a sorted list of concrete files that would be considered for hashing,
-        using the same policy (ext filter, exclude lists, recursion) as hash_content.
-        """
-        if paths is None:
-            return []
-        if isinstance(paths, (str, Path)):
-            paths = [paths]
-
-        allowed_exts = None
-        if allowed_extensions:
-            allowed_exts = set(("." + e.lower().lstrip(".")) for e in allowed_extensions)
-
-        exclude_dirs = exclude_dirs or []
-        exclude_files = exclude_files or []
-
-        collected = []
-
-        def _file_ok(fname):
-            base = os.path.basename(fname)
-            if any(fnmatch.fnmatch(base, pat) for pat in exclude_files):
-                return False
-            if allowed_exts is not None:
-                ext = os.path.splitext(fname)[1].lower()
-                if ext not in allowed_exts:
-                    return False
-            return True
-
-        for p in paths:
-            p = os.path.abspath(str(p))
-            if os.path.isfile(p):
-                if _file_ok(p):
-                    collected.append(p)
-            elif os.path.isdir(p):
-                if recursive:
-                    for root, dirs, files in os.walk(p):
-                        # apply dir excludes (by name pattern)
-                        dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pat) for pat in (exclude_dirs or []))]
-                        for f in files:
-                            fp = os.path.join(root, f)
-                            if _file_ok(fp):
-                                collected.append(fp)
-                else:
-                    for f in os.listdir(p):
-                        fp = os.path.join(p, f)
-                        if os.path.isfile(fp) and _file_ok(fp):
-                            collected.append(fp)
-            else:
-                # ignore non-existent, same as the hasher
-                continue
-
-        return sorted(set(collected))
-
-
-    def _default_hash_output_path_cli(logs_dir, module_path):
-        """
-        Default hash file under <logs_dir>/jawm_hashes/<module_stem>.hash
-        (single canonical location to compare runs).
-        """
-        wf_stem = os.path.splitext(os.path.basename(module_path))[0]
-        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
-        os.makedirs(out_dir, exist_ok=True)
-        return os.path.join(out_dir, f"{wf_stem}.hash")
-    
-
-    def _input_history_path_cli(logs_dir, module_path):
-        """
-        Always-written auto history:
-        <logs_dir>/jawm_hashes/<module>_input.history
-        """
-        wf_stem = os.path.splitext(os.path.basename(module_path))[0]
-        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
-        os.makedirs(out_dir, exist_ok=True)
-        return os.path.join(out_dir, f"{wf_stem}_input.history")
-
-
-    def _user_defined_history_path_cli(logs_dir, module_path):
-        """
-        Written only when -p contains `scope: hash`:
-        <logs_dir>/jawm_hashes/<module>_user_defined.history
-        """
-        wf_stem = os.path.splitext(os.path.basename(module_path))[0]
-        out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
-        os.makedirs(out_dir, exist_ok=True)
-        return os.path.join(out_dir, f"{wf_stem}_user_defined.history")
-    
-
-    def _append_history_line_cli(history_path, ts, hash_value, log_file, files_csv="-", user_provided=False):
-        """
-        Append: "<timestamp>\t<hash>\t<cli_log_file>\t<comma_separated_files>"
-        to the given history file path.
-        """
-        Path(history_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(history_path, "a", encoding="utf-8") as f:
-            f.write(f"{ts}\t{hash_value}\t{log_file}\t{files_csv}\n")
-        if user_provided:
-            logger.info(f"[hash] Appended history based on user definitions → {history_path}")
-
-
-    def _write_and_compare_hash_cli(hash_value, out_path, overwrite=False):
-        """
-        Compare with existing file (if any), print a clear log, and write the new hash.
-        Returns True if written or matched, False if mismatch (but still writes).
-        """
-        outp = Path(out_path)
-        outp.parent.mkdir(parents=True, exist_ok=True)
-        matched = True
-        new = True
-        if outp.exists():
-            stored = outp.read_text().strip()
-            new = False
-            if stored != hash_value:
-                matched = False
-                # Required: log mismatch to CLI output
-                logger.warning(f"[hash] Mismatch for {outp.name}: \nStored={stored} \nComputed={hash_value}")
-            else:
-                logger.info(f"[hash] Matches existing file {outp.name}")
-        if not outp.exists() or overwrite:
-            outp.write_text(hash_value + "\n")
-            logger.info(f"[hash] Wrote current hash to: {outp}")
-        return matched, new
-
-
-    def _compute_run_hash_from_process_prefixes_cli():
-        """
-        Default/auto mode: use the first 6 chars of *executed* Processes' hashes.
-
-        We read them via the public API to avoid reaching into internals.
-        Deterministic: sort prefixes; hash the concatenated string.
-        """
-        try:
-            from jawm import Process
-        except Exception:
-            return None  # jawm not available; likely shouldn't happen
-
-        items = Process.list_all()  # [{name, hash, log_path, finished, ...}, ...]
-        prefixes = []
-        for p in items:
-            h = p.get("hash")
-            # consider "executed" as those that have an execution_start timestamp
-            if not h:
-                continue
-            # keep those that actually ran (have an exit code OR are marked finished)
-            # This still includes successful/failed/skipped, which is fine for a run signature.
-            prefixes.append(str(h)[:6])
-
-        if not prefixes:
-            return None
-
-        prefixes = sorted(set(prefixes))
-        payload = "\n".join(prefixes).encode("utf-8")
-        return hashlib.sha256(payload).hexdigest()
-
 
     # --- Run the module script ---
     exit_code_from_script = None
@@ -1389,6 +1392,7 @@ def main():
 
         # append to <wf>_input.history
         _append_history_line_cli(
+            logger,
             history_path=auto_history_path,
             ts=timestamp_iso,
             hash_value=auto_hash,
@@ -1479,7 +1483,7 @@ def main():
             # write <wf>.hash (same as before)
             hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_module_path)
             logger.info(f"[hash] Generated hash from user definitions → {userdef_hash}")
-            matched, new = _write_and_compare_hash_cli(userdef_hash, hash_out_path, overwrite=overwrite)
+            matched, new = _write_and_compare_hash_cli(logger, userdef_hash, hash_out_path, overwrite=overwrite)
 
             # status logging only for user-defined hash
             if matched:
@@ -1492,6 +1496,7 @@ def main():
 
             userdef_history_path = _user_defined_history_path_cli(logs_dir, resolved_module_path)
             _append_history_line_cli(
+                logger,
                 history_path=userdef_history_path,
                 ts=timestamp_iso,
                 hash_value=userdef_hash,
