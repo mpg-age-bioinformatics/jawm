@@ -18,6 +18,7 @@ import tempfile
 import tarfile
 import shutil
 import traceback
+import platform
 from pathlib import Path
 
 
@@ -1222,11 +1223,49 @@ def main():
         prefixes = sorted(set(prefixes))
         payload = "\n".join(prefixes).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
+    
+
+    def _log_system_info(logger):
+        """
+        Log system and runtime metadata; never raises.
+        """
+        try:
+            # Core system info
+            logger.info(f"[sys] jawm: {str(_VERSION)}")
+            logger.info(f"[sys] Python: {platform.python_version()}")
+            logger.info(f"[sys] OS: {platform.platform()}")
+            logger.info(f"[sys] Machine/Arch: {platform.machine()}")
+
+            # Helper for optional external tools
+            def _try_version(cmd, name):
+                try:
+                    r = subprocess.run(
+                        cmd, shell=True,
+                        text=True, capture_output=True, timeout=2
+                    )
+                    out = (r.stdout or r.stderr or "").splitlines()
+                    if r.returncode == 0 and out:
+                        logger.info(f"[sys] {name}: {out[0].strip()}")
+                except Exception:
+                    pass
+
+            # External tools
+            _try_version("sbatch --version", "Slurm")
+            _try_version("docker --version", "Docker")
+            _try_version("singularity --version", "Singularity")
+            _try_version("apptainer --version", "Apptainer")
+            _try_version("kubectl version --short", "Kubernetes (kubectl)")
+
+        except Exception as e:
+            logger.warning(f"[sys] Could not collect system info: {e}")
+
+        # --- End of other internal helper methods ---    
 
 
     # --- Run the module script ---
     exit_code_from_script = None
     exit_code_def = 0
+    _log_system_info(logger)
 
     try:
         logger.info(f"Running jawm module: {module_path}")
