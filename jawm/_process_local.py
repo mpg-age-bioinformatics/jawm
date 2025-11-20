@@ -145,11 +145,11 @@ def _execute_local(self):
                     remaining = total_attempts - attempt_i
                     self.logger.info(f"Retrying process {self.name}, {remaining} retries left.")
                 else:
+                    self._log_error_summary(f"Process in Local failed.{self._tail_error()}", type_text="LocalAttempt")
+                    self.logger.error(f"Process {self.name} in Local failed after {total_attempts} attempts{self._elog_path()}{self._tail_error()}")
                     self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     self.stop_future_event.set()
-                    self._log_error_summary(f"Process in Local failed.{self._tail_error()}", type_text="LocalAttempt")
-                    self.logger.error(f"Process {self.name} in Local failed after {total_attempts} attempts{self._elog_path()}{self._tail_error()}")
                     return
 
         # Start the background thread so _execute_local() returns immediately
@@ -166,4 +166,4 @@ def _execute_local(self):
         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.finished_event.set()
         self.stop_future_event.set()
-        raise
+        return
