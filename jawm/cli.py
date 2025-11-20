@@ -906,7 +906,6 @@ def _log_system_info(logger):
         # External tools
         _try_version("sbatch --version", "Slurm")
         _try_version("docker --version", "Docker")
-        _try_version("singularity --version", "Singularity")
         _try_version("apptainer --version", "Apptainer")
         _try_version("kubectl version --short", "Kubernetes (kubectl)")
 
