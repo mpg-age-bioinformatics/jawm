@@ -1,26 +1,47 @@
-diff --git a/jawm/_process_local.py b/jawm/_process_local.py
-index 1633b23..e9f93a2 100644
---- a/jawm/_process_local.py
-+++ b/jawm/_process_local.py
-@@ -145,11 +145,11 @@ def _execute_local(self):
-                     remaining = total_attempts - attempt_i
-                     self.logger.info(f"Retrying process {self.name}, {remaining} retries left.")
-                 else:
-+                    self._log_error_summary(f"Process in Local failed.{self._tail_error()}", type_text="LocalAttempt")
-+                    self.logger.error(f"Process {self.name} in Local failed after {total_attempts} attempts{self._elog_path()}{self._tail_error()}")
-                     self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                     self.finished_event.set()
-                     self.stop_future_event.set()
--                    self._log_error_summary(f"Process in Local failed.{self._tail_error()}", type_text="LocalAttempt")
--                    self.logger.error(f"Process {self.name} in Local failed after {total_attempts} attempts{self._elog_path()}{self._tail_error()}")
-                     return
+diff --git a/diff.txt b/diff.txt
+index a35da77..e69de29 100644
+--- a/diff.txt
++++ b/diff.txt
+@@ -1,26 +0,0 @@
+-diff --git a/jawm/_process_local.py b/jawm/_process_local.py
+-index 1633b23..e9f93a2 100644
+---- a/jawm/_process_local.py
+-+++ b/jawm/_process_local.py
+-@@ -145,11 +145,11 @@ def _execute_local(self):
+-                     remaining = total_attempts - attempt_i
+-                     self.logger.info(f"Retrying process {self.name}, {remaining} retries left.")
+-                 else:
+-+                    self._log_error_summary(f"Process in Local failed.{self._tail_error()}", type_text="LocalAttempt")
+-+                    self.logger.error(f"Process {self.name} in Local failed after {total_attempts} attempts{self._elog_path()}{self._tail_error()}")
+-                     self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+-                     self.finished_event.set()
+-                     self.stop_future_event.set()
+--                    self._log_error_summary(f"Process in Local failed.{self._tail_error()}", type_text="LocalAttempt")
+--                    self.logger.error(f"Process {self.name} in Local failed after {total_attempts} attempts{self._elog_path()}{self._tail_error()}")
+-                     return
+- 
+-         # Start the background thread so _execute_local() returns immediately
+-@@ -166,4 +166,4 @@ def _execute_local(self):
+-         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+-         self.finished_event.set()
+-         self.stop_future_event.set()
+--        raise
+-\ No newline at end of file
+-+        return
+-\ No newline at end of file
+diff --git a/jawm/_process_api.py b/jawm/_process_api.py
+index f10cb30..0802e18 100644
+--- a/jawm/_process_api.py
++++ b/jawm/_process_api.py
+@@ -183,9 +183,10 @@ def execute(self, depends_on=None):
+                 self._run_manager()
+             except Exception as e:
+                 self.logger.error(f"Process {self.name} failed to launch or execute: {e}{self._elog_path()}")
++                self._log_error_summary(f"Process {self.name} failed to launch or execute: {e}", type_text="ExecuteError")
+                 self.__class__.stop_future_event.set()
+                 self.finished_event.set()
+-                raise
++                return
  
-         # Start the background thread so _execute_local() returns immediately
-@@ -166,4 +166,4 @@ def _execute_local(self):
-         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-         self.finished_event.set()
-         self.stop_future_event.set()
--        raise
-\ No newline at end of file
-+        return
-\ No newline at end of file
+         if self.parallel:
+             # Non-blocking (background)

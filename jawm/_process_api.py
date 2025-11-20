@@ -183,9 +183,10 @@ def execute(self, depends_on=None):
                 self._run_manager()
             except Exception as e:
                 self.logger.error(f"Process {self.name} failed to launch or execute: {e}{self._elog_path()}")
+                self._log_error_summary(f"Process {self.name} failed to launch or execute: {e}", type_text="ExecuteError")
                 self.__class__.stop_future_event.set()
                 self.finished_event.set()
-                raise
+                return
 
         if self.parallel:
             # Non-blocking (background)
