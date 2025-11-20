@@ -317,13 +317,13 @@ def _execute_slurm(self):
                     remaining = total_attempts - attempt_i
                     self.logger.info(f"Retrying process {self.name} in Slurm, {remaining} retries left")
                 else:
+                    # Fallback error summary logging
+                    self._log_error_summary(f"Process in Slurm failed.{self._tail_error(slurm=True)}", type_text="SlurmError")
+                    self.logger.error(f"Process {self.name} in Slurm failed after {total_attempts} attempt(s){self._elog_path()}{self._tail_error(slurm=True)}")
                     # Out of attempts
                     self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     self.stop_future_event.set()
-                    # Fallback error summary logging
-                    self._log_error_summary(f"Process in Slurm failed.{self._tail_error(slurm=True)}", type_text="SlurmError")
-                    self.logger.error(f"Process {self.name} in Slurm failed after {total_attempts} attempt(s){self._elog_path()}{self._tail_error(slurm=True)}")
                     return
 
         # Start a background thread that runs the multi-attempt logic
@@ -337,4 +337,4 @@ def _execute_slurm(self):
         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.finished_event.set()
         self.stop_future_event.set()
-        raise
+        return
