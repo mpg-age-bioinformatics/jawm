@@ -104,8 +104,10 @@ def _run_manager(self):
         self._execute_kubernetes()
     else:
         self._log_error_summary(f"Unsupported manager: {self.manager}", type_text="InvalidValue")
+        self.logger.error(f"Unsupported manager: {self.manager}")
         self.__class__.stop_future_event.set()
-        raise ValueError(f"Unsupported manager: {self.manager}")
+        self.finished_event.set()
+        return
 
 @register
 def _parse_yaml_config(self, param_file):
