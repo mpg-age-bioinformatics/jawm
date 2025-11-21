@@ -13,6 +13,10 @@ failed = 0
 
 Process.reset_stop()
 
+# Create a base temp folder in current location
+base_tmp = os.path.join(os.getcwd(), "logs_temp")
+os.makedirs(base_tmp, exist_ok=True)
+
 print(">>> Test 1: Basic Inline Script Execution")
 # time.sleep(0.5)
 try:
@@ -366,7 +370,7 @@ try:
         return r.returncode, r.stdout, r.stderr, both
 
     # Use a temporary working directory to avoid collisions on CI
-    with tempfile.TemporaryDirectory(prefix="cli_it_") as root:
+    with tempfile.TemporaryDirectory(prefix="cli_it_", dir=base_tmp) as root:
 
         # -------------------------
         # A) -v: variables from YAML FILE
@@ -627,7 +631,7 @@ print("\n>>> Test 17: update_vars() supports list of files and YAML directory")
 try:
 
     # ---------- A) List of files ----------
-    tmpA = tempfile.mkdtemp(prefix="update_vars_list_")
+    tmpA = tempfile.mkdtemp(prefix="update_vars_list_", dir=base_tmp)
     try:
         # Two YAML files: one global, one process-specific
         v1 = os.path.join(tmpA, "v1.yaml")
@@ -675,7 +679,7 @@ try:
         shutil.rmtree(tmpA, ignore_errors=True)
 
     # ---------- B) Directory of YAMLs ----------
-    tmpB = tempfile.mkdtemp(prefix="update_vars_dir_")
+    tmpB = tempfile.mkdtemp(prefix="update_vars_dir_", dir=base_tmp)
     try:
         d1 = os.path.join(tmpB, "one.yaml")
         d2 = os.path.join(tmpB, "two.yml")
@@ -783,7 +787,7 @@ print("\n>>> Test 19: Hash reacts deterministically (same inputs) and to allowed
 # time.sleep(0.5)
 try:
     # --- Setup a temp directory with inputs ---
-    tmpdir = tempfile.mkdtemp(prefix="hash_inputs_")
+    tmpdir = tempfile.mkdtemp(prefix="hash_inputs_", dir=base_tmp)
     p_yaml = os.path.join(tmpdir, "p.yaml")
     v_yaml = os.path.join(tmpdir, "v.yaml")
     script_py = os.path.join(tmpdir, "test.py")
@@ -1099,7 +1103,7 @@ print("\n>>> Test 23: Auto mk./map. vars mount for apptainer, docker, kubernetes
 # time.sleep(0.5)
 try:
     # prepare a simple directory and input file
-    tmp_dir = tempfile.mkdtemp(prefix="auto_mount_test_")
+    tmp_dir = tempfile.mkdtemp(prefix="auto_mount_test_", dir=base_tmp)
     mk_dir = os.path.join(tmp_dir, "out")
     map_file = os.path.join(tmp_dir, "in.txt")
     with open(map_file, "w") as f:
@@ -1171,7 +1175,7 @@ cat {{map.infile}}
         ran = True
 
     if not ran:
-        print("   Skipped container runs (no container backend available)")
+        print("   Skipped container runs (no container backend available or manager is slurm)")
 
     print("✅ Passed: Auto mk./map. vars mount + mk.* mkdir independent of automated_mount")
     passed += 1
@@ -1200,7 +1204,7 @@ def tail(path):
     return lines[-1] if lines else None
 
 try:
-    root = tempfile.mkdtemp(prefix="cli_hash_p_scope_")
+    root = tempfile.mkdtemp(prefix="cli_hash_p_scope_", dir=base_tmp)
     wf = os.path.join(root, "wf"); os.makedirs(wf, exist_ok=True)
 
     # trivial workflow
@@ -1294,7 +1298,7 @@ finally:
 print("\n>>> Test 25: update_params invalidates cached script (var re-substitution)")
 try:
     # workspace
-    tmpdir = tempfile.mkdtemp(prefix="upd_params_")
+    tmpdir = tempfile.mkdtemp(prefix="upd_params_", dir=base_tmp)
     logs = os.path.join(tmpdir, "logs")
     os.makedirs(logs, exist_ok=True)
     yaml_path = os.path.join(tmpdir, "params.yaml")
@@ -1349,11 +1353,12 @@ finally:
 
 
 print("\n>>> Test 26: Deep-merge (constructor) for var/env/manager_slurm/environment_docker")
+Process.reset_stop()
 
 tmp = None
 try:
     os.environ["JAWM_EXPAND_PATH"] = "FALSE"
-    tmp = tempfile.mkdtemp(prefix="merge_ctor_")
+    tmp = tempfile.mkdtemp(prefix="merge_ctor_", dir=base_tmp)
     params_yaml = os.path.join(tmp, "params.yaml")
 
     with open(params_yaml, "w") as f:
@@ -1413,10 +1418,11 @@ finally:
 
 
 print("\n>>> Test 27: Deep-merge on update_params() without clobbering existing dicts")
+Process.reset_stop()
 
 tmp = None
 try:
-    tmp = tempfile.mkdtemp(prefix="merge_update_")
+    tmp = tempfile.mkdtemp(prefix="merge_update_", dir=base_tmp)
 
     # Initial params (simulate first load)
     params1 = os.path.join(tmp, "params1.yaml")
@@ -1482,6 +1488,7 @@ finally:
 
 
 print("\n>>> Test 28: clone — same hash prefix when unchanged; different when a param is modified")
+Process.reset_stop()
 try:
     # Create a minimal process
     p0 = Process(
@@ -1539,7 +1546,7 @@ try:
         return r.returncode, r.stdout, r.stderr, both
 
     # --- Temporary working directory ---
-    tmp_root = tempfile.mkdtemp(prefix="cli_sanitize_")
+    tmp_root = tempfile.mkdtemp(prefix="cli_sanitize_", dir=base_tmp)
     try:
         mod_dir = os.path.join(tmp_root, "mod")
         os.makedirs(mod_dir, exist_ok=True)
@@ -1616,7 +1623,7 @@ except Exception as e:
 print("\n>>> Test 30: mk./map. aliasing — mkdir, placeholder resolution, and update_vars consistency (no YAML import)")
 time.sleep(0.5)
 try:
-    tmp = tempfile.mkdtemp(prefix="aliasing_test_")
+    tmp = tempfile.mkdtemp(prefix="aliasing_test_", dir=base_tmp)
     try:
         # ---------- 1️⃣ Inline mk./map. ----------
         outdir = os.path.join(tmp, "out_inline")
@@ -1735,7 +1742,7 @@ except Exception as e:
 
 print("\n>>> Test 31: execute(depends_on=...) — runtime dependency override")
 try:
-    tmp = tempfile.mkdtemp(prefix="exec_dep_override_")
+    tmp = tempfile.mkdtemp(prefix="exec_dep_override_", dir=base_tmp)
     try:
         # Step A (upstream)
         pA = Process(
@@ -1787,7 +1794,7 @@ except Exception as e:
 
 print("\n>>> Test 32: Non-blocking deps with parallel=True (loop should not serialize)")
 
-tmp_root = tempfile.mkdtemp(prefix="nbdeps_")
+tmp_root = tempfile.mkdtemp(prefix="nbdeps_", dir=base_tmp)
 try:
     N = 3
     mapping_sleep = 2  # seconds
@@ -1855,7 +1862,7 @@ finally:
 
 print("\n>>> Test 33: parallel=False blocks caller until completion (with dependency)")
 try:
-    tmpdir = tempfile.mkdtemp(prefix="pfalse_")
+    tmpdir = tempfile.mkdtemp(prefix="pfalse_", dir=base_tmp)
 
     m = Process(
         name="pfalse_map",
@@ -1903,7 +1910,7 @@ finally:
 
 print("\n>>> Test 34: allow_skipped_deps=False blocks downstream when upstream is skipped")
 try:
-    tmpdir = tempfile.mkdtemp(prefix="skip_strict_")
+    tmpdir = tempfile.mkdtemp(prefix="skip_strict_", dir=base_tmp)
     Process.reset_stop()
 
     up = Process(
@@ -1939,7 +1946,7 @@ finally:
 print("\n>>> Test 35: depends_on normalization (string vs list) still works")
 Process.reset_runtime()
 try:
-    tmpdir = tempfile.mkdtemp(prefix="normdep_")
+    tmpdir = tempfile.mkdtemp(prefix="normdep_", dir=base_tmp)
 
     m2 = Process(
         name="norm_map",
@@ -1977,7 +1984,7 @@ Process.reset_stop()
 tmp = None
 try:
     # --- Setup ---
-    tmp = tempfile.mkdtemp(prefix="wait_cli_env_")
+    tmp = tempfile.mkdtemp(prefix="wait_cli_env_", dir=base_tmp)
     logs = os.path.join(tmp, "logs")
     os.makedirs(logs, exist_ok=True)
 
@@ -2116,7 +2123,7 @@ except Exception as e:
 print("\n>>> Test 38: hash_content() behavior — content-only vs name-sensitive")
 
 try:
-    tmpdir = tempfile.mkdtemp(prefix="hashcontent_")
+    tmpdir = tempfile.mkdtemp(prefix="hashcontent_", dir=base_tmp)
 
     # --- Setup files ---
     f1 = os.path.join(tmpdir, "a.txt")
@@ -2177,7 +2184,7 @@ finally:
 
 print("\n>>> Test 39: YAML Parsing — Multi-name and Merge Behavior")
 try:
-    tmpdir = tempfile.mkdtemp(prefix="test_multi_name_")
+    tmpdir = tempfile.mkdtemp(prefix="test_multi_name_", dir=base_tmp)
     yaml_path = os.path.join(tmpdir, "params.yaml")
 
     # Create YAML file with both single-string and list names
@@ -2263,7 +2270,7 @@ except Exception as e:
 print("\n>>> Test 41: Process Cloning — Independence, Alias Sync, and Param Inheritance")
 
 try:
-    tmpdir = tempfile.mkdtemp(prefix="test_clone_")
+    tmpdir = tempfile.mkdtemp(prefix="test_clone_", dir=base_tmp)
     yaml_path = os.path.join(tmpdir, "params.yaml")
 
     # --- A) Create YAML with a default desc and manager ---
@@ -2336,7 +2343,7 @@ finally:
 
 print("\n>>> Test 42: retry_overrides update base script per retry")
 try:
-    tmp_logs = tempfile.mkdtemp(prefix="retry_override_test_")
+    tmp_logs = tempfile.mkdtemp(prefix="retry_override_test_", dir=base_tmp)
 
     p = Process(
         name="retry_override_proc",
@@ -2387,7 +2394,9 @@ for d in [
     "logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
     "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test",
     "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test",
-    "logs", "logs_ar", "logs_allow_skip", "logs_test_auto_mount", "logs_test_clone_hash"
+    "logs", "logs_ar", "logs_allow_skip", "logs_test_auto_mount", "logs_test_clone_hash",
+    "logs_temp", "logs_cli_sanitize", "logs_nbdeps", "logs_norm", "logs_pfalse",
+    "logs_sync_test", "logs_test_alias", "cli_out_dir"
 ]:
     if d == "logs":
         if os.path.isdir("logs"):
