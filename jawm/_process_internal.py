@@ -294,12 +294,13 @@ def _script_placeholders_and_mkdir(self, script_content):
 
 
 @register
-def _generate_base_script(self):
+def _generate_base_script(self, caching=False):
     """
     Generate the script file for execution, replacing any placeholders with provided parameters.
+    :param caching: Check cached base_script_path
     :return: The path to the script file.
     """
-    if self.base_script_path is not None:
+    if caching and self.base_script_path is not None:
         # If the base script path is already set, return it directly
         return self.base_script_path
 

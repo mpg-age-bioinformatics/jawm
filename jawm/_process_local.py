@@ -21,9 +21,6 @@ def _execute_local(self):
     self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
 
     try:
-        # Generate the base script up front
-        base_script_path = self._generate_base_script()
-
         # Common log paths for each run attempt:
         exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
         id_path = os.path.join(self.log_path, f"{self.name}.id")
@@ -36,6 +33,9 @@ def _execute_local(self):
             """
             if attempt_i != 1:
                 self.logger.info(f"Launching attempt {attempt_i}/{total_attempts} locally...")
+
+            # Generate the base script up front
+            base_script_path = self._generate_base_script()
 
             # Open stdout/stderr for this attempt
             with open(self.stdout_path, "w") as stdout_file, open(self.stderr_path, "w") as stderr_file:
