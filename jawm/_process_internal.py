@@ -310,10 +310,10 @@ def _generate_base_script(self, caching=False):
 
     script_content = ""
 
-    if self.script_type == "script":
+    if self._script_type == "script":
         # If an inline script is provided, use it as the base content
         script_content = self.script
-    elif self.script_type == "file" and self.script_file:
+    elif self._script_type == "file" and self.script_file:
         # If a script file is provided, read its content
         with open(self.script_file, "r") as original_script:
             script_content = original_script.read()
@@ -321,6 +321,7 @@ def _generate_base_script(self, caching=False):
     else:
         self._log_error_summary("Invalid script type or missing script content.", type_text="ErrorScript")
         self.__class__.stop_future_event.set()
+        self.finished_event.set()
         raise ValueError("Invalid script type or missing script content.")
 
     # Replace placeholders with provided parameters
@@ -331,7 +332,7 @@ def _generate_base_script(self, caching=False):
         script_file.write(script_content)
 
     # Append original file path as a comment if applicable
-    if self.script_type == "file" and self.script_file:
+    if self._script_type == "file" and self.script_file:
         with open(self.base_script_path, "a") as script_file:
             script_file.write(f"\n##### Original script file: {os.path.abspath(self.script_file)}\n")
 

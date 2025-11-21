@@ -117,7 +117,7 @@ class Process:
         "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
         "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed", "_mk_dirs_created",
-        "_init_done", "_touched_params"
+        "_init_done", "_touched_params", "_script_type"
     }
     # Supported managers by the jawm
     supported_managers = {"local", "slurm", "kubernetes"}
@@ -384,7 +384,7 @@ class Process:
         # Script and var parameters
         self.script = self.params.get("script", "#!/bin/bash")
         self.script_file = self.params.get("script_file", None)
-        self.script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
+        self._script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
         self.var = self.params.get("var", None)
         if isinstance(self.var, dict):
             # Expand/process values
