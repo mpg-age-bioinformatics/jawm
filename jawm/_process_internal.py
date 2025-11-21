@@ -815,6 +815,23 @@ def _tail_error(self, max_lines=5, full=False, slurm=False):
     return ""
 
 
+@register
+def _tail_text(self, text, max_lines= 5):
+    """
+    Return a concise number of last lines.
+    """
+    try:
+        if not text:
+            return ""
+        lines = text.strip().splitlines()
+        if len(lines) <= max_lines:
+            return text.strip()
+        tail = "\n".join(lines[-max_lines:])
+        return f"...\n{tail}"
+    except:
+        return ""
+
+
 
 # --------------------------------------------
 #   Plain Helper Methods without @register

@@ -209,7 +209,7 @@ def _execute_slurm(self):
                 if job_id:
                     self.logger.info(f"Despite the warning, job went through: Slurm JobID {job_id}")
                 else:
-                    self._log_error_summary(result.stderr, type_text="SlurmError")
+                    self._log_error_summary(self._tail_text(result.stderr), type_text="SlurmError")
                     self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}{self._elog_path()}")
                     try:
                         with open(exitcode_path, "w") as f:
@@ -222,7 +222,7 @@ def _execute_slurm(self):
             if not job_id:
                 job_id = (result.stdout or "").strip().split(";")[0]
                 if not job_id or not job_id.isdigit():
-                    msg = f"Invalid or missing Slurm JobID for {self.name}: {result.stdout.strip()}"
+                    msg = f"Invalid or missing Slurm JobID for {self.name}: {self._tail_text(result.stdout)}"
                     self._log_error_summary(msg, type_text="SlurmError")
                     self.logger.error(f"{msg}{self._elog_path()}")
                     try:
@@ -292,7 +292,7 @@ def _execute_slurm(self):
                             if os.path.exists(self.stderr_path) and os.path.getsize(self.stderr_path) > 0:
                                 with open(self.stderr_path, "r") as error_file:
                                     error_message = error_file.read().strip()
-                                self._log_error_summary(error_message, type_text="SlurmError")
+                                self._log_error_summary(self._tail_text(error_message), type_text="SlurmError")
                         break
 
                 time.sleep(10)  # Check status every 10 seconds
