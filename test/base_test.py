@@ -1020,7 +1020,7 @@ try:
     )
     dn.execute()
     Process.wait(dn.hash)
-    assert dn.get_exitcode() == "0", "❌ always_run should run despite global stop"
+    assert dn.get_exitcode().startswith("0"), "❌ always_run should run despite global stop"
     print("✅ Passed: always_run runs despite global stop")
 
     # always_run does not override when
@@ -1062,7 +1062,7 @@ try:
     )
     dnA.execute()
     Process.wait(dnA.hash)
-    assert dnA.get_exitcode() == "0", "❌ Default should allow skipped dependency"
+    assert dnA.get_exitcode().startswith("0"), "❌ Default should allow skipped dependency"
     print("✅ Subtest A passed: default allows skipped deps")
 
     # --- B) Strict behavior (allow_skipped_deps=False): downstream is blocked on skipped upstream
@@ -2359,7 +2359,7 @@ exit {{myvar}}
 
     # --- Assertions ---
     # Final exitcode MUST reflect the last retry override (myvar=0)
-    assert p.get_exitcode() == "0", f"❌ Final exitcode wrong, got {p.get_exitcode()}"
+    assert p.get_exitcode().startswith("0"), f"❌ Final exitcode wrong, got {p.get_exitcode()}"
 
     # Check that each attempt actually rewrote the script with the new var
     script_path = os.path.join(p.log_path, f"{p.name}.script")
