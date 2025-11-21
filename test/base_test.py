@@ -2334,6 +2334,51 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+print("\n>>> Test 42: retry_overrides update base script per retry")
+try:
+    tmp_logs = tempfile.mkdtemp(prefix="retry_override_test_")
+
+    p = Process(
+        name="retry_override_proc",
+        script="""#!/bin/bash
+echo "Value={{myvar}}"
+exit {{myvar}}
+""",
+        retries=3,
+        logs_directory=tmp_logs,
+        var={"myvar": 1},     # Initial value
+        retry_overrides={
+            1: {"var": {"myvar": 2}},  # retry 1 -> exit 2
+            2: {"var": {"myvar": 3}},  # retry 2 -> exit 3
+            3: {"var": {"myvar": 0}},  # retry 3 -> exit 0 (success)
+        }
+    )
+
+    p.execute()
+    Process.wait(p.hash)
+
+    # --- Assertions ---
+    # Final exitcode MUST reflect the last retry override (myvar=0)
+    assert p.get_exitcode() == "0", f"❌ Final exitcode wrong, got {p.get_exitcode()}"
+
+    # Check that each attempt actually rewrote the script with the new var
+    script_path = os.path.join(p.log_path, f"{p.name}.script")
+    with open(script_path, "r") as sf:
+        final_script = sf.read()
+
+    assert "exit 0" in final_script, "❌ Script was not regenerated with updated var during retries"
+
+    print("✅ Passed: retry_overrides update vars + regenerate script per retry")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmp_logs, ignore_errors=True)
+
+
 
 # -----------------------------
 # Cleanup created directories
