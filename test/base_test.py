@@ -5,6 +5,7 @@ import subprocess
 import shutil
 import tempfile
 import re
+import copy
 from glob import glob
 from jawm import Process, utils
 
@@ -16,6 +17,21 @@ Process.reset_stop()
 # Create a base temp folder in current location
 base_tmp = os.path.join(os.getcwd(), "logs_temp")
 os.makedirs(base_tmp, exist_ok=True)
+
+# Create a snapshot of the Process default/override values
+bak_default = copy.deepcopy(Process.default_parameters)
+bak_override = copy.deepcopy(Process.override_parameters)
+
+def _restore_params(bak_default, bak_override):
+    Process.default_parameters.clear()
+    Process.default_parameters.update(bak_default)
+    Process.override_parameters.clear()
+    Process.override_parameters.update(bak_override)
+
+
+# ------------------------------------------------------------
+#  Start of test cases
+# ------------------------------------------------------------
 
 print(">>> Test 1: Basic Inline Script Execution")
 # time.sleep(0.5)
@@ -622,8 +638,7 @@ except Exception as e:
     failed += 1
 finally:
     # Cleanup overrides for other tests
-    Process.override_parameters.clear()
-    Process.default_parameters.clear()
+    _restore_params(bak_default, bak_override)
 
 
 print("\n>>> Test 17: update_vars() supports list of files and YAML directory")
