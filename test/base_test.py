@@ -22,11 +22,15 @@ os.makedirs(base_tmp, exist_ok=True)
 bak_default = copy.deepcopy(Process.default_parameters)
 bak_override = copy.deepcopy(Process.override_parameters)
 
-def _restore_params(bak_default, bak_override):
+def _clear_params():
     Process.default_parameters.clear()
-    Process.default_parameters.update(bak_default)
     Process.override_parameters.clear()
-    Process.override_parameters.update(bak_override)
+
+def _restore_params(snap_default, snap_override):
+    Process.default_parameters.clear()
+    Process.default_parameters.update(snap_default)
+    Process.override_parameters.clear()
+    Process.override_parameters.update(snap_override)
 
 
 # ------------------------------------------------------------
@@ -609,8 +613,7 @@ print("\n>>> Test 16: Class-Level Overrides with `set_override()`")
 # time.sleep(0.5)
 try:
     # Clear any defaults/overrides first
-    Process.default_parameters.clear()
-    Process.override_parameters.clear()
+    _clear_params()
 
     # Set a default first
     Process.set_default(retries=1, logs_directory="logs_default_override")
@@ -1369,6 +1372,7 @@ finally:
 
 print("\n>>> Test 26: Deep-merge (constructor) for var/env/manager_slurm/environment_docker")
 Process.reset_stop()
+_clear_params()
 
 tmp = None
 try:
@@ -1429,11 +1433,14 @@ finally:
     os.environ.pop("JAWM_EXPAND_PATH", None)
     if tmp and os.path.isdir(tmp):
         shutil.rmtree(tmp, ignore_errors=True)
+    
+    _restore_params(bak_default, bak_override)
 
 
 
 print("\n>>> Test 27: Deep-merge on update_params() without clobbering existing dicts")
 Process.reset_stop()
+_clear_params()
 
 tmp = None
 try:
@@ -1500,10 +1507,12 @@ except Exception as e:
 finally:
     if tmp and os.path.isdir(tmp):
         shutil.rmtree(tmp, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
 
 
 print("\n>>> Test 28: clone — same hash prefix when unchanged; different when a param is modified")
 Process.reset_stop()
+_clear_params()
 try:
     # Create a minimal process
     p0 = Process(
@@ -1545,6 +1554,8 @@ try:
 except Exception as e:
     print(f"❌ Failed: {e}")
     failed += 1
+finally:
+    _restore_params(bak_default, bak_override)
 
 
 print("\n>>> Test 29: CLI var injection sanitizes mk./map. and Process still resolves originals")
