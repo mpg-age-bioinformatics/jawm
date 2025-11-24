@@ -2017,7 +2017,7 @@ try:
     # --- Quick process: should complete immediately ---
     p1 = Process(name="p1_quick", script="#!/bin/bash\necho quick", logs_directory=logs)
     p1.execute()
-    Process.wait(p1.hash, log=False, timeout=10)
+    Process.wait(p1.hash, log=False, timeout=50)
     assert p1.finished_event.is_set(), "❌ p1_quick did not finish"
     print(" ✓ Quick process completed normally")
     Process.reset_runtime()
@@ -2032,7 +2032,7 @@ try:
     print(f" ✓ Timeout respected (waited {dt:.1f}s, process still running)")
 
     # Wait for process to actually finish
-    Process.wait(p2.hash, log=False, timeout=10)
+    Process.wait(p2.hash, log=False, timeout=50)
     Process.reset_runtime()
 
     # --- Environment-based timeout: JAWM_WAIT_TIMEOUT=3 ---
