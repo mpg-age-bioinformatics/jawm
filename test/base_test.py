@@ -2296,7 +2296,7 @@ except Exception as e:
 
 
 print("\n>>> Test 41: Process Cloning — Independence, Alias Sync, and Param Inheritance")
-
+_clear_params()
 try:
     tmpdir = tempfile.mkdtemp(prefix="test_clone_", dir=base_tmp)
     yaml_path = os.path.join(tmpdir, "params.yaml")
@@ -2367,6 +2367,7 @@ except Exception as e:
     failed += 1
 finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
 
 
 print("\n>>> Test 42: retry_overrides update base script per retry")
