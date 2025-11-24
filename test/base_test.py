@@ -2210,6 +2210,7 @@ finally:
 
 print("\n>>> Test 39: YAML Parsing — Multi-name and Merge Behavior")
 try:
+    _clear_params()
     tmpdir = tempfile.mkdtemp(prefix="test_multi_name_", dir=base_tmp)
     yaml_path = os.path.join(tmpdir, "params.yaml")
 
@@ -2252,6 +2253,7 @@ except Exception as e:
     failed += 1
 finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
 
 
 print("\n>>> Test 40: mk./map. variable alias synchronization before execution")
