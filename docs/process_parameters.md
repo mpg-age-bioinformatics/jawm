@@ -1,7 +1,9 @@
 # Process Parameters Reference
 
 
-> This reference reflects the current jawm `Process` parameters and defaults. Values are merged in this order (lowest → highest): class `default_parameters` < YAML `global` < YAML process block < `**kwargs` < explicit args < class `override_parameters`.
+> This reference reflects the current jawm `Process` parameters and defaults. Values are merged in this order (lowest → highest):
+
+class `default_parameters` < YAML `global` < YAML `process` < kwargs < python/explicit args < (CLI `-p`) YAML `global` < (CLI `-p`) YAML `process` < class `override_parameters`
 
 
 ### `name`

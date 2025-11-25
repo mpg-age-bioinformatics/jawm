@@ -351,9 +351,16 @@ class Process:
             if isinstance(gv, dict) or isinstance(pv, dict):
                 merged_baselines[key] = self._deep_merge_dicts(gv or {}, pv or {})
 
-        # Merge in priority order: default_parameters < global < process < kwargs < explicit arguments < override_parameters
-        self.params = {**self.__class__.default_parameters, **global_params, **process_params, **kwargs, **explicit_args, **self.__class__.override_parameters}
-
+        # Precedence (low → high): default_parameters < YAML global < YAML process < kwargs < python_args < (CLI -p) YAML global < (CLI -p) YAML process < override_parameters
+        # Detect if param_file came from an override (typically CLI -p)
+        _cli_paramfile = bool(self.__class__.override_parameters.get("param_file"))
+        if not _cli_paramfile:
+            # Normal use: Python beats YAML: default_parameters < YAML(global/process) < kwargs < explicit_args < override_parameters
+            self.params = {**self.__class__.default_parameters, **global_params, **process_params, **kwargs, **explicit_args, **self.__class__.override_parameters}
+        else:
+            # CLI-driven: YAML beats Python: default_parameters < kwargs < explicit_args < YAML(global/process) < override_parameters
+            self.params = {**self.__class__.default_parameters, **kwargs, **explicit_args, **global_params, **process_params, **self.__class__.override_parameters}
+            
         # Inject deep-merged baselines beneath higher-precedence layers ---
         for key, base in merged_baselines.items():
             cur = self.params.get(key, None)
