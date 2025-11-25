@@ -122,35 +122,39 @@ jobs:
     if: always()  # always run, even if one fails
 
     steps:
-      - name: 🧾 Checkout code
-        uses: actions/checkout@v3
-        
-      - name: Succeeded
-        if: success()
-        run: |
-          echo "✅ Smoketest Passed!"
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr '"' "'" | tr -d '\n')
-          generate_post_data()
-          {
-            cat << EOF
-          {
-            "text": "✅ *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest Passed! (${COMMIT_MSG}) ✅"
-          }
-          EOF
-          }
-          curl -H "Content-Type: application/json" -X POST -d "$(generate_post_data)" ${{ secrets.SLACK_JAWM_WEBHOOK }}
+    - name: 🧾 Checkout code
+      uses: actions/checkout@v3
 
-      - name: Slack Failure Notification
-        if: failure()
-        run: |
-          echo "🚫 Smoketest FAILED!"
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr '"' "'" | tr -d '\n')
-          generate_post_data()
-          {
-            cat << EOF
-          {
-            "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest FAILED! (${COMMIT_MSG}) 🚫\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
-          }
-          EOF
-          }
-          curl -H "Content-Type: application/json" -X POST -d "$(generate_post_data)" ${{ secrets.SLACK_JAWM_WEBHOOK }}
+    - name: Succeeded
+      if: |
+        needs.core-tests.result == 'success' &&
+        needs.git-tests.result == 'success'
+      run: |
+        echo "✅ Smoketest Passed!"
+        COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr '"' "'" | tr -d '\n')
+        generate_post_data()
+        {
+          cat << EOF
+        {
+          "text": "✅ *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest Passed! (${COMMIT_MSG}) ✅"
+        }
+        EOF
+        }
+        curl -H "Content-Type: application/json" -X POST -d "$(generate_post_data)" ${{ secrets.SLACK_JAWM_WEBHOOK }}
+
+    - name: Slack Failure Notification
+      if: |
+        needs.core-tests.result != 'success' ||
+        needs.git-tests.result != 'success'
+      run: |
+        echo "🚫 Smoketest FAILED!"
+        COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1 | tr '"' "'" | tr -d '\n')
+        generate_post_data()
+        {
+          cat << EOF
+        {
+          "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest FAILED! (${COMMIT_MSG}) 🚫\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
+        }
+        EOF
+        }
+        curl -H "Content-Type: application/json" -X POST -d "$(generate_post_data)" ${{ secrets.SLACK_JAWM_WEBHOOK }}
