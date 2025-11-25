@@ -343,32 +343,32 @@ class Process:
         process_params = yaml_params["process"].get(name, {})
         global_params = yaml_params["global"]
 
-        # Compute merged baselines for these keys (global + process)
-        merged_baselines = {}
-        for key in self._merge_keys():
-            gv = global_params.get(key, {})
-            pv = process_params.get(key, {})
-            if isinstance(gv, dict) or isinstance(pv, dict):
-                merged_baselines[key] = self._deep_merge_dicts(gv or {}, pv or {})
-
         # Precedence (low → high): default_parameters < YAML global < YAML process < kwargs < python_args < (CLI -p) YAML global < (CLI -p) YAML process < override_parameters
         # Detect if param_file came from an override (typically CLI -p)
         _cli_paramfile = bool(self.__class__.override_parameters.get("param_file"))
         if not _cli_paramfile:
             # Normal use: Python beats YAML: default_parameters < YAML(global/process) < kwargs < explicit_args < override_parameters
-            self.params = {**self.__class__.default_parameters, **global_params, **process_params, **kwargs, **explicit_args, **self.__class__.override_parameters}
+            _precedence_layers = [self.__class__.default_parameters, global_params, process_params, kwargs, explicit_args, self.__class__.override_parameters]
         else:
             # CLI-driven: YAML beats Python: default_parameters < kwargs < explicit_args < YAML(global/process) < override_parameters
-            self.params = {**self.__class__.default_parameters, **kwargs, **explicit_args, **global_params, **process_params, **self.__class__.override_parameters}
-            
-        # Inject deep-merged baselines beneath higher-precedence layers ---
-        for key, base in merged_baselines.items():
-            cur = self.params.get(key, None)
-            if cur is None:
-                self.params[key] = base
-            elif isinstance(cur, dict):
-                # keep later/higher layers (cur) on top of the baseline
-                self.params[key] = self._deep_merge_dicts(base, cur)
+            _precedence_layers = [self.__class__.default_parameters, kwargs, explicit_args, global_params, process_params, self.__class__.override_parameters]
+
+        # Shallow merge first (flat, non-dict params)
+        self.params = {}
+        for layer in _precedence_layers:
+            if layer:
+                self.params.update(layer)
+
+        # Deep-merge ALL dict-like parameters (var, env, managers, etc.)
+        # across ALL precedence layers in correct order
+        for key in self._merge_keys():
+            merged = {}
+            for layer in _precedence_layers:
+                val = layer.get(key)
+                if isinstance(val, dict):
+                    merged = self._deep_merge_dicts(merged, val)
+            if merged:
+                self.params[key] = merged
 
         # Set up the hash (with 6 characters params based and 4 characters suffix) and logger
         # If there is a callable in the instance, hash_params would produce diffeent hash every time
