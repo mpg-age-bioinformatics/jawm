@@ -930,6 +930,13 @@ def _nested_insert(target, key_path, value):
     for k in key_path[:-1]:
         cur = cur.setdefault(k, {})
     cur[key_path[-1]] = value
+
+
+# Custom action class for args --help
+class _IgnoreAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Never called — these are dummy help-only flags
+        pass
 # ------------------------------------------------------------
 #   End of other internal helper methods
 # ------------------------------------------------------------
@@ -957,14 +964,18 @@ def main():
     parser.add_argument("module", help="Path to a jawm Python script or directory containing the jawm module script with jawm.py or main.py or single .py ('.' for current directory)")
     parser.add_argument("-p", "--parameters", nargs="+", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
     parser.add_argument("-v", "--variables", nargs="+", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the module script.")
-    parser.add_argument("-l", "--logs_directory", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_runs (default: ./logs/jawm_runs).")
+    parser.add_argument("-l", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_runs (default: ./logs/jawm_runs).")
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
-    parser.add_argument("-n", "--no_override", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
+    parser.add_argument("-n", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
     parser.add_argument("--git-cache", help="Path for jawm's git cache (default: ~/.jawm/git)")
     parser.add_argument("--server", default="github.com", help="Git server host or URL (use 'local' to skip remote). Default: github.com")
     parser.add_argument("--user", default="mpg-age-bioinformatics", help="Git username/organization for remote. Default: mpg-age-bioinformatics")
     parser.add_argument("--no-web", dest="no_web", action="store_true", default=False,help="Disable online workflow lookup when workflow not found locally. Default: online scanning is enabled.")
     parser.add_argument("-V", "--version", action="version", version=f"jawm {_VERSION}")
+
+    override_group = parser.add_argument_group("override syntax")
+    override_group.add_argument("--global.<key>[.<subkey>]=<value>", help="Override global parameters (e.g. --global.var.x=10).", action=_IgnoreAction, nargs=0)
+    override_group.add_argument("--process.<name>.<key>[.<subkey>]=<value>", help="Override process-specific parameters (e.g. --process.p1.retries=3).", action=_IgnoreAction, nargs=0)
 
     args, unknown_args = parser.parse_known_args()
 
