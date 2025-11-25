@@ -2415,6 +2415,110 @@ finally:
     shutil.rmtree(tmp_logs, ignore_errors=True)
 
 
+print("\n>>> Test 43: Params order check: YAML vs Python vs CLI overrides (-l, -r)")
+
+try:
+    _clear_params()
+
+    # --- Setup temp workspace ---
+    tmpdir = tempfile.mkdtemp(prefix="test_yaml_cli_priority_", dir=base_tmp)
+    module_path = os.path.join(tmpdir, "test_mod.py")
+    yaml_path = os.path.join(tmpdir, "params.yaml")
+
+    # Write YAML that tries to override logs_directory and sets retries
+    with open(yaml_path, "w") as f:
+        f.write("""
+- scope: global
+  logs_directory: "from_yaml"
+  retries: 7
+""")
+
+    # Python module sets logs_directory explicitly
+    with open(module_path, "w") as f:
+        f.write("""
+from jawm import Process
+
+p = Process(
+    name="yaml_test",
+    script="#!/bin/bash\\necho hi",
+    logs_directory="from_python",
+)
+
+print("LOGDIR=", p.logs_directory)
+print("RETRIES=", p.retries)
+""")
+
+    # Helper to construct CLI command
+    def cli_cmd(args):
+        if shutil.which("jawm"):
+            return ["jawm", *args]
+        return [sys.executable, "-m", "jawm.cli", *args]
+
+
+    # ------------------------------------------------------------
+    # A) NORMAL RUN: Python > YAML
+    # ------------------------------------------------------------
+    rc1 = subprocess.run(cli_cmd([module_path]), capture_output=True, text=True, timeout=60)
+    both1 = (rc1.stdout or "") + (rc1.stderr or "")
+    print(both1)
+
+    assert rc1.returncode == 0, "❌ Normal run failed"
+    assert "LOGDIR= from_python" in both1, "❌ Normal run: YAML should NOT override Python"
+    assert "RETRIES= 7" not in both1, "❌ Normal run: YAML should not apply without -p"
+
+
+    # ------------------------------------------------------------
+    # B) CLI -p RUN: YAML > Python
+    # ------------------------------------------------------------
+    rc2 = subprocess.run(cli_cmd([module_path, "-p", yaml_path]), capture_output=True, text=True, timeout=60)
+    both2 = (rc2.stdout or "") + (rc2.stderr or "")
+
+    assert rc2.returncode == 0, "❌ CLI -p run failed"
+    assert "LOGDIR= from_yaml" in both2, "❌ CLI -p: YAML did NOT override Python"
+    assert "RETRIES= 7" in both2, "❌ CLI -p: YAML retries not applied"
+
+
+    # ------------------------------------------------------------
+    # C) CLI -l OVERRIDE: CLI > YAML > Python
+    # ------------------------------------------------------------
+    rc3 = subprocess.run(
+        cli_cmd([module_path, "-p", yaml_path, "-l", os.path.join(tmpdir, "forced_logs")]),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    both3 = (rc3.stdout or "") + (rc3.stderr or "")
+
+    assert rc3.returncode == 0, "❌ CLI -l run failed"
+    assert "LOGDIR= " + os.path.join(tmpdir, "forced_logs") in both3, "❌ CLI -l did NOT override YAML & Python"
+
+
+    # ------------------------------------------------------------
+    # D) CLI -r OVERRIDE: resume flag wins over YAML/Python
+    # ------------------------------------------------------------
+    rc4 = subprocess.run(
+        cli_cmd([module_path, "-p", yaml_path, "-r"]),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    both4 = (rc4.stdout or "") + (rc4.stderr or "")
+
+    # resume=True should appear in parameters
+    assert "resume" in both4.lower(), "❌ CLI -r: resume flag missing (override not applied)"
+
+    print("✅ Passed: YAML vs Python vs CLI (-l, -r) precedence verified")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
+
+
 
 # -----------------------------
 # Cleanup created directories
