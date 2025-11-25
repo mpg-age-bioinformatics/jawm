@@ -911,6 +911,25 @@ def _log_system_info(logger):
 
     except Exception as e:
         logger.warning(f"[sys] Could not collect system info: {e}")
+
+
+#   Helper/values for nested CLI overrides (--global.*, --process.*)
+_GLOBAL_RE = re.compile(r"^--global\.(.+?)=(.+)$")
+_PROCESS_RE = re.compile(r"^--process\.([^.]+)\.(.+?)=(.+)$")
+
+def _nested_insert(target, key_path, value):
+    """
+    Insert a nested key path (list of strings) into the dict target.
+    Example:
+        key_path = ['var','sub','x']
+        value = '10'
+    Result:
+        target['var']['sub']['x'] = '10'
+    """
+    cur = target
+    for k in key_path[:-1]:
+        cur = cur.setdefault(k, {})
+    cur[key_path[-1]] = value
 # ------------------------------------------------------------
 #   End of other internal helper methods
 # ------------------------------------------------------------
@@ -1209,6 +1228,43 @@ def main():
             Process.set_override(**{key: value})
             logger.info(f"Override {key} set to: {value}")
 
+    #   Parse nested CLI overrides (--global.* / --process.*.*)
+    global_overrides = {}
+    process_overrides = {}
+
+    for raw in sys.argv[1:]:
+        m = _GLOBAL_RE.match(raw)
+        if m:
+            keypath = m.group(1).split(".")
+            value = m.group(2)
+            _nested_insert(global_overrides, keypath, value)
+            continue
+
+        m = _PROCESS_RE.match(raw)
+        if m:
+            pname = m.group(1)
+            keypath = m.group(2).split(".")
+            value = m.group(3)
+            entry = process_overrides.setdefault(pname, {})
+            _nested_insert(entry, keypath, value)
+            continue
+
+    # Apply global overrides
+    if global_overrides:
+        if "ALL" in no_override_params or "global" in no_override_params:
+            Process.set_default(**global_overrides)
+        else:
+            Process.set_override(**global_overrides)
+
+    # Apply per-process overrides
+    for pname, payload in process_overrides.items():
+        block = {"name": pname, **payload}
+        if "ALL" in no_override_params or pname in no_override_params:
+            Process.set_default(**block)
+        else:
+            Process.set_override(**block)
+
+    # Apply flags values
     if args.parameters:
         _apply_param("param_file", args.parameters)
     if args.logs_directory:
