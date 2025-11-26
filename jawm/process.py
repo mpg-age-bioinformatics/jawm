@@ -399,7 +399,7 @@ class Process:
             _add_prefix_aliases(self.var)       # add aliases for prefixed var
         self.var_file = self.params.get("var_file", None)
         # If a var_file is provided, preload it into self.var so proc.var has everything
-        if self.var_file:
+        if self.var_file and self.var_file != self.param_file:
             try:
                 vf_loaded = read_variables(self.var_file, process_name=self.name, output_type="dict") or {}
                 if isinstance(self.var, dict):
