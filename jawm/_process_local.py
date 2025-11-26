@@ -49,12 +49,21 @@ def _execute_local(self):
                     with open(command_path, "w") as cmd_file:
                         cmd_file.write(wrapped_command)
 
-                    result = subprocess.Popen(
-                        ["bash", "-c", wrapped_command] if wrapper else command,
-                        stdout=stdout_file,
-                        stderr=stderr_file,
-                        text=True
-                    )
+                    try:
+                        result = subprocess.Popen(
+                            ["bash", "-c", wrapped_command] if wrapper else command,
+                            stdout=stdout_file,
+                            stderr=stderr_file,
+                            text=True
+                        )
+                    except Exception as e:
+                        stderr_file.write(str(e)+ "\n")
+                        stderr_file.flush()
+                        self.logger.error(f"Failed to start process {self.name}: {e}{self._elog_path()}")
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        self.stop_future_event.set()
+                        return 127
 
                 elif self.environment == "docker":
                     self.logger.info(f"Executing process {self.name} with docker container {self.container}")
@@ -64,12 +73,21 @@ def _execute_local(self):
                     with open(command_path, "w") as cmd_file:
                         cmd_file.write(wrapped_command)
 
-                    result = subprocess.Popen(
-                        ["bash", "-c", wrapped_command] if wrapper else command,
-                        stdout=stdout_file,
-                        stderr=stderr_file,
-                        text=True
-                    )
+                    try:
+                        result = subprocess.Popen(
+                            ["bash", "-c", wrapped_command] if wrapper else command,
+                            stdout=stdout_file,
+                            stderr=stderr_file,
+                            text=True
+                        )
+                    except Exception as e:
+                        stderr_file.write(str(e)+ "\n")
+                        stderr_file.flush()
+                        self.logger.error(f"Failed to start process {self.name}: {e}{self._elog_path()}")
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        self.stop_future_event.set()
+                        return 127
 
                 else:
                     # Plain local execution
@@ -78,13 +96,22 @@ def _execute_local(self):
                     with open(command_path, "w") as cmd_file:
                         cmd_file.write(wrapped_command)
 
-                    result = subprocess.Popen(
-                        ["bash", "-c", wrapped_command] if wrapper else command,
-                        env=self.combined_env,
-                        stdout=stdout_file,
-                        stderr=stderr_file,
-                        text=True
-                    )
+                    try:
+                        result = subprocess.Popen(
+                            ["bash", "-c", wrapped_command] if wrapper else command,
+                            env=self.combined_env,
+                            stdout=stdout_file,
+                            stderr=stderr_file,
+                            text=True
+                        )
+                    except Exception as e:
+                        stderr_file.write(str(e)+ "\n")
+                        stderr_file.flush()
+                        self.logger.error(f"Failed to start process {self.name}: {e}{self._elog_path()}")
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        self.stop_future_event.set()
+                        return 127
 
             # Record the PID
             process_id = result.pid
@@ -150,6 +177,11 @@ def _execute_local(self):
                     self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     self.stop_future_event.set()
+                    try:
+                        with open(exitcode_path, "w") as exc_file:
+                            exc_file.write(str(exit_code))
+                    except:
+                        pass
                     return
 
         # Start the background thread so _execute_local() returns immediately
