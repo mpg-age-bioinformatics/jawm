@@ -55,212 +55,257 @@ def execute(self, depends_on=None):
     Returns:
         None
     """
+    try:
+        # Startup throttling delay for parallel execution
+        if self.parallel:
+            _manager = str(getattr(self, "manager", "") or "").lower()
+            _default_waits = {"local": 0.1, "kubernetes": 0.1, "slurm": 0.3}
+            _base_wait = os.getenv("JAWM_EXECUTE_WAIT")
+            _specific_wait = os.getenv(f"JAWM_EXECUTE_WAIT_{_manager.upper()}")
+            try:
+                _ex_delay = float(_specific_wait or _base_wait or _default_waits.get(_manager, 0.1))
+                if _ex_delay > 0:
+                    time.sleep(_ex_delay)
+            except:
+                pass
 
-    # Startup throttling delay for parallel execution
-    if self.parallel:
-        _manager = str(getattr(self, "manager", "") or "").lower()
-        _default_waits = {"local": 0.1, "kubernetes": 0.1, "slurm": 0.3}
-        _base_wait = os.getenv("JAWM_EXECUTE_WAIT")
-        _specific_wait = os.getenv(f"JAWM_EXECUTE_WAIT_{_manager.upper()}")
+        # Make the process active by clearing finished_event in case of instance re-use
+        self.finished_event.clear()
+
+        # Sync mk./map. prefixed variables with their short aliases
+        if isinstance(self.var, dict):
+            for k, v in list(self.var.items()):
+                if isinstance(k, str):
+                    if k.startswith("mk.") or k.startswith("map."):
+                        short_key = k.split(".", 1)[-1]
+                        self.var[short_key] = v
+
+        # Override dependencies if provided
+        if depends_on is not None:
+            self.depends_on = depends_on
+            if isinstance(self.depends_on, str):
+                self.depends_on = [self.depends_on]
+        self.depends_on = list(self.depends_on or [])
+
+        # Skip execution if resume is enabled and a matching successful process already exists
+        if self.resume:
+            matched_path = self._check_resume_success()
+            if matched_path:
+                self.log_path = matched_path  
+                self.logger.info(f"Process {self.name} skipped with resume enabled — already completed successfully.")
+                self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                self.finished_event.set()
+                return
+
+        # Process when with the callables
         try:
-            _ex_delay = float(_specific_wait or _base_wait or _default_waits.get(_manager, 0.1))
-            if _ex_delay > 0:
-                time.sleep(_ex_delay)
-        except:
-            pass
-
-    # Make the process active by clearing finished_event in case of instance re-use
-    self.finished_event.clear()
-
-    # Sync mk./map. prefixed variables with their short aliases
-    if isinstance(self.var, dict):
-        for k, v in list(self.var.items()):
-            if isinstance(k, str):
-                if k.startswith("mk.") or k.startswith("map."):
-                    short_key = k.split(".", 1)[-1]
-                    self.var[short_key] = v
-
-    # Override dependencies if provided
-    if depends_on is not None:
-        self.depends_on = depends_on
-        if isinstance(self.depends_on, str):
-            self.depends_on = [self.depends_on]
-    self.depends_on = list(self.depends_on or [])
-
-    # Skip execution if resume is enabled and a matching successful process already exists
-    if self.resume:
-        matched_path = self._check_resume_success()
-        if matched_path:
-            self.log_path = matched_path  
-            self.logger.info(f"Process {self.name} skipped with resume enabled — already completed successfully.")
+            if callable(self.when):
+                sig = inspect.signature(self.when)
+                if len(sig.parameters) == 1:
+                    run_condition = bool(self.when(self))
+                elif len(sig.parameters) == 0:
+                    run_condition = bool(self.when())
+                else:
+                    raise TypeError("Process.when must accept 0 or 1 parameters")
+            else:
+                run_condition = bool(self.when)
+        except Exception as e:
+            self.logger.error(f"'when' evaluation failed for {self.name}: {e}{self._elog_path()}")
+            run_condition = False
+        
+        if not run_condition:
+            self.logger.info(f"Process {self.name} skipped because 'when' condition was not fulfilled!")
             self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
             self.finished_event.set()
             return
 
-    # Process when with the callables
-    try:
-        if callable(self.when):
-            sig = inspect.signature(self.when)
-            if len(sig.parameters) == 1:
-                run_condition = bool(self.when(self))
-            elif len(sig.parameters) == 0:
-                run_condition = bool(self.when())
-            else:
-                raise TypeError("Process.when must accept 0 or 1 parameters")
-        else:
-            run_condition = bool(self.when)
-    except Exception as e:
-        self.logger.error(f"'when' evaluation failed for {self.name}: {e}{self._elog_path()}")
-        run_condition = False
-    
-    if not run_condition:
-        self.logger.info(f"Process {self.name} skipped because 'when' condition was not fulfilled!")
-        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.finished_event.set()
-        return
+        # Create necessary directories
+        self._prepare_base_dirs()
 
-    # Create necessary directories
-    self._prepare_base_dirs()
+        # Check if another process has already failed (skip this gate if always_run)
+        if (not self.always_run) and self.__class__.stop_future_event.is_set():
+            self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
+            self.finished_event.set()
+            return
 
-    # Check if another process has already failed (skip this gate if always_run)
-    if (not self.always_run) and self.__class__.stop_future_event.is_set():
-        self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
-        self.finished_event.set()
-        return
-
-    if not self.run_in_detached:
-        # run_in_detached will be depreciated and be False by default
-        def _run_sequence():
-            """
-            Wait for dependencies (by name/hash), enforce allow_skipped_deps,
-            re-check global stop, then launch via selected manager.
-            """
-            # Wait for dependencies
-            for dep in self.depends_on:
-                if dep in (self.name, self.hash):
-                    self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
-                    continue
-                dep_proc = self.__class__.registry.get(dep)
-                if dep_proc is None:
-                    self.logger.warning(f"Dependency {dep} not found in registry, skipping wait")
-                else:
-                    self.logger.info(
-                        f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) "
-                        f"to finish before executing {self.name} ({self.hash})"
-                    )
-                    dep_proc.finished_event.wait()
-
-            # Strict dep success check
-            if not self.allow_skipped_deps and self.depends_on:
-                bad = []
+        if not self.run_in_detached:
+            # run_in_detached will be depreciated and be False by default
+            def _run_sequence():
+                """
+                Wait for dependencies (by name/hash), enforce allow_skipped_deps,
+                re-check global stop, then launch via selected manager.
+                """
+                # Wait for dependencies
                 for dep in self.depends_on:
                     if dep in (self.name, self.hash):
                         self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
                         continue
-                    dp = self.__class__.registry.get(dep)
-                    if dp and not dp.is_successful():
-                        bad.append((dp.name, dp.get_exitcode()))
-                if bad:
+                    dep_proc = self.__class__.registry.get(dep)
+                    if dep_proc is None:
+                        self.logger.warning(f"Dependency {dep} not found in registry, skipping wait")
+                    else:
+                        self.logger.info(
+                            f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) "
+                            f"to finish before executing {self.name} ({self.hash})"
+                        )
+                        dep_proc.finished_event.wait()
+
+                # Strict dep success check
+                if not self.allow_skipped_deps and self.depends_on:
+                    bad = []
+                    for dep in self.depends_on:
+                        if dep in (self.name, self.hash):
+                            self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
+                            continue
+                        dp = self.__class__.registry.get(dep)
+                        if dp and not dp.is_successful():
+                            bad.append((dp.name, dp.get_exitcode()))
+                    if bad:
+                        self.logger.warning(
+                            f"Skipping {self.name}: dependencies not successful: " +
+                            ", ".join(f"{n} (exit={c})" for n, c in bad)
+                        )
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        return
+
+                # Check for global stop
+                if (not self.always_run) and self.__class__.stop_future_event.is_set():
                     self.logger.warning(
-                        f"Skipping {self.name}: dependencies not successful: " +
-                        ", ".join(f"{n} (exit={c})" for n, c in bad)
+                        f"Skipping execution of {self.name}, as some other process already failed"
                     )
-                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.finished_event.set()
                     return
 
-            # Check for global stop
-            if (not self.always_run) and self.__class__.stop_future_event.is_set():
-                self.logger.warning(
-                    f"Skipping execution of {self.name}, as some other process already failed"
-                )
-                self.finished_event.set()
-                return
+                # Perform the run (backends handle retries and mark finished)
+                try:
+                    self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    self._run_manager()
+                except Exception as e:
+                    self.logger.error(f"Process {self.name} failed to launch or execute: {e}{self._elog_path()}")
+                    self._log_error_summary(f"Process {self.name} failed to launch or execute: {e}", type_text="ExecuteError")
+                    self.__class__.stop_future_event.set()
+                    self.finished_event.set()
+                    return
 
-            # Perform the run (backends handle retries and mark finished)
-            try:
-                self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                self._run_manager()
-            except Exception as e:
-                self.logger.error(f"Process {self.name} failed to launch or execute: {e}{self._elog_path()}")
-                self._log_error_summary(f"Process {self.name} failed to launch or execute: {e}", type_text="ExecuteError")
-                self.__class__.stop_future_event.set()
-                self.finished_event.set()
-                return
+            if self.parallel:
+                # Non-blocking (background)
+                t = threading.Thread(target=_run_sequence, daemon=False)
+                t.start()
+            else:
+                # Blocking, sequential execution
+                # run the sequence inline
+                _run_sequence()
+                # explicitly wait for any monitor thread started inside _run_manager()
+                m = getattr(self, "_monitor_thread", None)
+                if m and m.is_alive():
+                    m.join()
+                # finally, also ensure finished_event is set
+                self.finished_event.wait()
 
-        if self.parallel:
-            # Non-blocking (background)
-            t = threading.Thread(target=_run_sequence, daemon=False)
-            t.start()
+            return None
+
         else:
-            # Blocking, sequential execution
-            # run the sequence inline
-            _run_sequence()
-            # explicitly wait for any monitor thread started inside _run_manager()
-            m = getattr(self, "_monitor_thread", None)
-            if m and m.is_alive():
-                m.join()
-            # finally, also ensure finished_event is set
-            self.finished_event.wait()
-
-        return None
-
-    else:
-        # Depreciated block for production, but can be used in development
-        def run_in_background():
-            """
-            This background thread for run_in_detached run
-            """
-            # Wait for dependencies to complete (either by name or hash).
-            for dep in self.depends_on:
-                if dep in (self.name, self.hash):
-                    self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
-                    continue
-                dep_proc = self.__class__.registry.get(dep)
-                if dep_proc is None:
-                    self.logger.warning(f"Dependency {dep} not found in registry, skipping wait")
-                else:
-                    self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
-                    dep_proc.finished_event.wait()
-
-            # If strict: require all deps to have succeeded (skipped/failed -> block)
-            if not self.allow_skipped_deps and self.depends_on:
-                bad = []
+            # Depreciated block for production, but can be used in development
+            def run_in_background():
+                """
+                This background thread for run_in_detached run
+                """
+                # Wait for dependencies to complete (either by name or hash).
                 for dep in self.depends_on:
                     if dep in (self.name, self.hash):
                         self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
                         continue
-                    dp = self.__class__.registry.get(dep)
-                    if dp and not dp.is_successful():
-                        bad.append((dp.name, dp.get_exitcode()))
-                if bad:
-                    self.logger.warning(f"Skipping {self.name}: dependencies not successful: " + ", ".join(f"{n} (exit={c})" for n, c in bad))
-                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    dep_proc = self.__class__.registry.get(dep)
+                    if dep_proc is None:
+                        self.logger.warning(f"Dependency {dep} not found in registry, skipping wait")
+                    else:
+                        self.logger.info(f"Waiting for dependency process {dep_proc.name} ({dep_proc.hash}) to finish before executing {self.name} ({self.hash})")
+                        dep_proc.finished_event.wait()
+
+                # If strict: require all deps to have succeeded (skipped/failed -> block)
+                if not self.allow_skipped_deps and self.depends_on:
+                    bad = []
+                    for dep in self.depends_on:
+                        if dep in (self.name, self.hash):
+                            self.logger.warning(f"Ignoring self-dependency '{dep}' for {self.name} ({self.hash})")
+                            continue
+                        dp = self.__class__.registry.get(dep)
+                        if dp and not dp.is_successful():
+                            bad.append((dp.name, dp.get_exitcode()))
+                    if bad:
+                        self.logger.warning(f"Skipping {self.name}: dependencies not successful: " + ", ".join(f"{n} (exit={c})" for n, c in bad))
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        return
+
+                # Check if another process has already failed (skip if always_run)
+                if (not self.always_run) and self.__class__.stop_future_event.is_set():
+                    self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
                     self.finished_event.set()
                     return
 
-            # Check if another process has already failed (skip if always_run)
-            if (not self.always_run) and self.__class__.stop_future_event.is_set():
-                self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
-                self.finished_event.set()
-                return
+                # Perform run_in_detached runs
+                try:
+                    self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    self._run_manager()
+                except Exception as e:
+                    self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}{self._elog_path()}")
+                    self.__class__.stop_future_event.set()
+                finally:
+                    self.finished_event.set()
+            
+            # Spawn a background thread
+            a_thread = threading.Thread(target=run_in_background, daemon=False)
+            a_thread.start()
+            if not self.parallel:
+                self.finished_event.wait()
+            return None
+    
+    except Exception as e:
+        msg = f"Unhandled exception in execute() for {self.name}: {e}"
+        try:
+            self.logger.error(f"{msg}{self._elog_path()}")
+        except Exception:
+            pass
 
-            # Perform run_in_detached runs
-            try:
-                self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                self._run_manager()
-            except Exception as e:
-                self.logger.error(f"Process {self.name} failed to launch or execute: {str(e)}{self._elog_path()}")
-                self.__class__.stop_future_event.set()
-            finally:
-                self.finished_event.set()
+        try:
+            self._log_error_summary(msg, type_text="ExecuteError")
+        except Exception:
+            pass
+
+        try:
+            self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+        except Exception:
+            pass
         
-        # Spawn a background thread
-        a_thread = threading.Thread(target=run_in_background, daemon=False)
-        a_thread.start()
-        if not self.parallel:
-            self.finished_event.wait()
-        return None
+        try:
+            if hasattr(self, "log_path") and self.log_path:
+                exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
+                with open(exitcode_path, "w") as f:
+                    f.write("127")
+        except Exception:
+            pass
+
+        try:
+            if hasattr(self, "log_path") and self.log_path:
+                error_path = os.path.join(self.log_path, f"{self.name}.error")
+                with open(error_path, "w") as f:
+                    f.write(msg + "\n")
+        except Exception:
+            pass
+
+        try:
+            self.finished_event.set()
+        except Exception:
+            pass
+
+        try:
+            self.__class__.stop_future_event.set()
+        except Exception:
+            pass
+
+        return 127
 
 
 @register
