@@ -620,24 +620,138 @@ class Process:
         cls.override_parameters.update(filtered_kwargs)
 
 
-    
     @classmethod
-    def set_log_level(cls, level_name="INFO"):
+    def update(cls, override=True, **kwargs):
         """
-        Set logging level for all Process loggers, default is INFO.
+        System-wide update of Process parameters.
 
-        Parameters:
-            level_name (str): One of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', or 'NOTSE
+        override=True (default):
+            - High-priority update (like set_override, but deep-merged for dicts).
+            - Updates cls.override_parameters and overwrites existing values in all
+            not-yet-executed processes.
+
+        override=False:
+            - Low-priority (default-like) update.
+            - Updates cls.default_parameters and only fills missing keys in existing
+            not-yet-executed processes.
+            - Any stale override_parameters[key] is removed.
         """
-        level_name = level_name.upper()
-        if level_name not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"]:
-            return
-        level = getattr(logging, level_name)
-        logging.getLogger().setLevel(level)
-        for proc in cls.registry.values():
-            if hasattr(proc, "logger"):
-                proc.logger.setLevel(level)
+        # -------------------------------
+        # Deep merge helpers
+        # -------------------------------
+        def _deep_merge(a, b):
+            """Recursively merge dict b into dict a. Values in b overwrite a."""
+            r = a.copy()
+            for k, v in b.items():
+                if (
+                    k in r and isinstance(r[k], dict)
+                    and isinstance(v, dict)
+                ):
+                    r[k] = _deep_merge(r[k], v)
+                else:
+                    r[k] = v
+            return r
 
+        def _deep_fill_missing(base, additions):
+            """
+            Recursively fill missing keys in base from additions.
+            Existing keys in base are NOT overwritten.
+            """
+            r = base.copy()
+            for k, v in additions.items():
+                if k not in r:
+                    r[k] = v
+                elif isinstance(r[k], dict) and isinstance(v, dict):
+                    r[k] = _deep_fill_missing(r[k], v)
+            return r
+
+
+        # ===============================================================
+        # PROCESS EACH UPDATED KEY
+        # ===============================================================
+        for key, newval in kwargs.items():
+
+            # Skip reserved keys
+            if key == "name" or key in getattr(cls, "reserved_keys", set()):
+                continue
+
+            # ===============================================================
+            # 1) Update FUTURE PROCESSES (class-level defaults / overrides)
+            # ===============================================================
+            if override:
+                # High-priority override layer
+                if isinstance(newval, dict):
+                    existing = cls.override_parameters.get(key, {})
+                    if not isinstance(existing, dict):
+                        existing = {}
+                    cls.override_parameters[key] = _deep_merge(existing, newval)
+                else:
+                    cls.override_parameters[key] = newval
+            else:
+                # Low-priority default layer — remove old override first
+                cls.override_parameters.pop(key, None)
+
+                if isinstance(newval, dict):
+                    existing = cls.default_parameters.get(key, {})
+                    if not isinstance(existing, dict):
+                        existing = {}
+                    cls.default_parameters[key] = _deep_merge(existing, newval)
+                else:
+                    cls.default_parameters[key] = newval
+
+            # ===============================================================
+            # 2) Update EXISTING PROCESSES
+            # ===============================================================
+            for _, proc in cls.registry.items():
+
+                # Skip already executed processes
+                if getattr(proc, "execution_start_at", None) is not None:
+                    continue
+
+                current = getattr(proc, key, None)
+
+                # -----------------------------------------------------------
+                # Case A — dict-like parameters (var, env, manager_*, ...)
+                # -----------------------------------------------------------
+                if isinstance(newval, dict):
+
+                    if isinstance(current, dict):
+                        base = current
+                    else:
+                        base = {}  # normalize
+
+                    if override:
+                        merged = _deep_merge(base, newval)
+                    else:
+                        merged = _deep_fill_missing(base, newval)
+
+                    if key == "var":
+                        merged = _expand_relpaths_in_value(merged, os.getcwd())
+                        _add_prefix_aliases(merged)
+
+                    setattr(proc, key, merged)
+                    proc.params[key] = merged
+                    proc.base_script_path = None
+                    continue
+
+                # -----------------------------------------------------------
+                # Case B — scalar parameters (desc, retries, logs_directory, ...)
+                # -----------------------------------------------------------
+                if override:
+                    setattr(proc, key, newval)
+                    proc.params[key] = newval
+                    proc.base_script_path = None
+                else:
+                    cur = current
+                    is_unset = (
+                        cur is None or
+                        (isinstance(cur, str) and cur == "") or
+                        (isinstance(cur, (list, dict, tuple, set)) and len(cur) == 0)
+                    )
+                    if is_unset:
+                        setattr(proc, key, newval)
+                        proc.params[key] = newval
+                        proc.base_script_path = None
     
     @classmethod
     def list_active(cls):
