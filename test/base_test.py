@@ -2642,6 +2642,153 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+print("\n>>> Test 45: Process.update — multi-key, override/default, dict/scalar, aliasing, future & existing processes")
+try:
+    _clear_params()
+
+    # --------------------------
+    # Setup temporary dir
+    # --------------------------
+    tmpdir = tempfile.mkdtemp(prefix="test_update_", dir=base_tmp)
+
+    # --------------------------
+    # Setup initial processes
+    # --------------------------
+    p1 = Process(
+        name="p1",
+        script="#!/bin/bash\necho hi",
+        var={"a": 1, "mk.old": "X"},
+        desc="FIRST",
+        retries=1,
+        logs_directory=os.path.join(tmpdir, "logs_p1")
+    )
+
+    p2 = Process(
+        name="p2",
+        script="#!/bin/bash\necho hi",
+        var={"b": 2},
+        desc="SECOND",
+        retries=2,
+        logs_directory=os.path.join(tmpdir, "logs_p2")
+    )
+
+    # Mark p2 as executed (should NOT be updated)
+    p2.execution_start_at = "20250101_000000"
+
+
+    # ======================================================
+    # A) High-priority override update
+    # ======================================================
+    Process.update(
+        var={"mk.new": "YYY", "c": 300},
+        desc="OVERRIDE_DESC",
+        retries=99
+    )
+
+    # p1 should be updated
+    assert p1.var["mk.new"] == "YYY", "❌ override var did not update mk.new on p1"
+    assert p1.var["new"] == "YYY", "❌ alias not created for mk.new"
+    assert p1.var["c"] == 300, "❌ override dict did not merge key 'c'"
+    assert p1.desc == "OVERRIDE_DESC", "❌ override scalar desc not applied"
+    assert p1.retries == 99, "❌ override scalar retries not applied"
+
+    # p2 must NOT be updated (executed)
+    assert "mk.new" not in p2.var, "❌ executed process var should not update"
+    assert p2.desc == "SECOND", "❌ executed process desc updated unexpectedly"
+
+    # ======================================================
+    # B) New process inherits override
+    # ======================================================
+    p3 = Process(
+        name="p3",
+        script="#!/bin/bash\necho hi",
+        var={"x": 10},
+        logs_directory=os.path.join(tmpdir, "logs_p3")
+    )
+
+    assert p3.var["mk.new"] == "YYY", "❌ future process did not inherit override var"
+    assert p3.desc == "OVERRIDE_DESC", "❌ future process did not inherit override desc"
+    assert p3.retries == 99, "❌ future process did not inherit override retries"
+
+
+    # ======================================================
+    # C) Default-mode update (override=False)
+    # ======================================================
+    Process.update(
+        override=False,
+        var={"d": 400, "c": 999},  # c should NOT overwrite
+        desc="DEFAULT_DESC",
+        retries=777
+    )
+
+    # p1: d should fill, c should NOT replace existing override=300
+    assert p1.var["d"] == 400, "❌ default update missing var['d']"
+    assert p1.var["c"] == 300, "❌ default update incorrectly overwrote var['c']"
+
+    # desc and retries are already set by override — should NOT be overwritten
+    assert p1.desc == "OVERRIDE_DESC", "❌ default update overwrote desc"
+    assert p1.retries == 99, "❌ default update overwrote retries"
+
+    # p3: same logic applies
+    assert p3.var["d"] == 400, "❌ default update missing var['d'] for p3"
+    assert p3.var["c"] == 300, "❌ default update overwrote inherited c on p3"
+
+    # p2 unchanged
+    assert "d" not in p2.var, "❌ executed process received default update unexpectedly"
+
+
+    # ======================================================
+    # D) Alias & relpath behavior
+    # ======================================================
+    Process.update(var={"mk.rel": "./relative/path"})
+
+    assert "mk.rel" in p1.var, "❌ mk.rel missing"
+    assert "rel" in p1.var, "❌ alias 'rel' missing for mk.rel"
+    assert os.path.isabs(p1.var["mk.rel"]), "❌ mk.rel not expanded to absolute path"
+    assert os.path.isabs(p1.var["rel"]), "❌ alias rel not expanded"
+
+
+    # ======================================================
+    # E) params sync maintained
+    # ======================================================
+    assert p1.params["desc"] == p1.desc, "❌ params.desc mismatch"
+    assert p3.params["retries"] == p3.retries, "❌ params.retries mismatch"
+    assert p1.params["var"]["mk.new"] == "YYY", "❌ params.var not synced"
+
+
+    # ======================================================
+    # F) Multi-key update works
+    # ======================================================
+    Process.update(
+        var={"z": 999},
+        logs_directory=os.path.join(tmpdir, "logs_multi"),
+        retries=123
+    )
+
+    assert p1.var["z"] == 999, "❌ multi-key update failed (var)"
+    assert p1.logs_directory.endswith("logs_multi"), "❌ multi-key update failed (logs_directory)"
+    assert p1.retries == 123, "❌ multi-key update failed (retries)"
+
+    # p3 also updated
+    assert p3.var["z"] == 999, "❌ multi-key update failed on p3"
+
+
+    print("✅ Passed: Process.update — fully validated (override/default, var/scalar, alias, future/existing, multi-key)")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    # Cleanup
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
+    # Also clear out Process registry to avoid test interference
+    time.sleep(2)
+    Process.registry.clear()
+
+
 
 
 
