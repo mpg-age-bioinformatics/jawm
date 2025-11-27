@@ -2518,6 +2518,132 @@ finally:
     _restore_params(bak_default, bak_override)
 
 
+print("\n>>> Test 44: var precedence — defaults, YAML global/process, Python, CLI-style -p, override")
+
+try:
+    # We will test three scenarios in-process (no CLI subprocess):
+    #  A) Normal: param_file passed in constructor (Python > YAML)
+    #  B) CLI-style: param_file from override_parameters (YAML > Python)
+    #  C) CLI-style + override(var): override > YAML > Python
+
+    # ---------- Common setup ----------
+    _clear_params()
+
+    tmpdir = tempfile.mkdtemp(prefix="test_precedence_var_", dir=base_tmp)
+    yaml_path = os.path.join(tmpdir, "params.yaml")
+
+    # Class defaults (lowest)
+    Process.set_default(var={"A": "DEFAULT", "B": "DEFAULT", "C": "DEFAULT"})
+
+    # YAML: one global block + one process block
+    with open(yaml_path, "w") as f:
+        f.write("""
+- scope: global
+  var:
+    A: "YAML_GLOBAL"
+    B: "YAML_GLOBAL"
+    C: "YAML_GLOBAL"
+
+- scope: process
+  name: "prec_test"
+  var:
+    B: "YAML_PROCESS"
+    C: "YAML_PROCESS"
+""")
+
+    # ---------- A) Normal mode: constructor param_file (Python > YAML) ----------
+    # default_parameters < YAML(global/process) < kwargs < explicit_args < override_parameters
+    _clear_params()
+    Process.set_default(var={"A": "DEFAULT", "B": "DEFAULT", "C": "DEFAULT"})
+
+    p_normal = Process(
+        name="prec_test",
+        script="#!/bin/bash\necho hi",
+        var={"A": "PYTHON", "C": "PYTHON"},
+        param_file=yaml_path,   # normal: param_file from constructor, not override
+    )
+
+    # A: python > YAML_GLOBAL > DEFAULT
+    assert p_normal.var["A"] == "PYTHON", (
+        f"❌ Normal: var['A'] expected PYTHON, got {p_normal.var['A']}"
+    )
+
+    # B: YAML_PROCESS > YAML_GLOBAL > DEFAULT (no python override)
+    assert p_normal.var["B"] == "YAML_PROCESS", (
+        f"❌ Normal: var['B'] expected YAML_PROCESS, got {p_normal.var['B']}"
+    )
+
+    # C: python > YAML_PROCESS > YAML_GLOBAL > DEFAULT in normal mode
+    assert p_normal.var["C"] == "PYTHON", (
+        f"❌ Normal: var['C'] expected PYTHON, got {p_normal.var['C']}"
+    )
+
+    # ---------- B) CLI-style -p: override_parameters.param_file (YAML > Python) ----------
+    # default_parameters < kwargs < explicit_args < YAML(global/process) < override_parameters
+    _clear_params()
+    Process.set_default(var={"A": "DEFAULT", "B": "DEFAULT", "C": "DEFAULT"})
+    Process.set_override(param_file=yaml_path)  # simulate CLI -p
+
+    p_cli = Process(
+        name="prec_test",
+        script="#!/bin/bash\necho hi",
+        var={"A": "PYTHON", "C": "PYTHON"},
+        # NOTE: no param_file here; picked up from override_parameters
+    )
+
+    # A: YAML_GLOBAL (from CLI-style) > PYTHON > DEFAULT
+    assert p_cli.var["A"] == "YAML_GLOBAL", (
+        f"❌ CLI-style: var['A'] expected YAML_GLOBAL, got {p_cli.var['A']}"
+    )
+
+    # B: YAML_PROCESS still wins over YAML_GLOBAL
+    assert p_cli.var["B"] == "YAML_PROCESS", (
+        f"❌ CLI-style: var['B'] expected YAML_PROCESS, got {p_cli.var['B']}"
+    )
+
+    # C: YAML_PROCESS overrides PYTHON in CLI-style mode
+    assert p_cli.var["C"] == "YAML_PROCESS", (
+        f"❌ CLI-style: var['C'] expected YAML_PROCESS, got {p_cli.var['C']}"
+    )
+
+    # ---------- C) CLI-style -p + override(var): override > YAML > Python ----------
+    _clear_params()
+    Process.set_default(var={"A": "DEFAULT", "B": "DEFAULT", "C": "DEFAULT"})
+    Process.set_override(
+        param_file=yaml_path,
+        var={"A": "OVERRIDE", "B": "OVERRIDE", "C": "OVERRIDE"},
+    )
+
+    p_override = Process(
+        name="prec_test",
+        script="#!/bin/bash\necho hi",
+        var={"A": "PYTHON", "C": "PYTHON"},
+    )
+
+    assert p_override.var["A"] == "OVERRIDE", (
+        f"❌ Override: var['A'] expected OVERRIDE, got {p_override.var['A']}"
+    )
+    assert p_override.var["B"] == "OVERRIDE", (
+        f"❌ Override: var['B'] expected OVERRIDE, got {p_override.var['B']}"
+    )
+    assert p_override.var["C"] == "OVERRIDE", (
+        f"❌ Override: var['C'] expected OVERRIDE, got {p_override.var['C']}"
+    )
+
+    print("✅ Passed: var precedence — defaults, YAML global/process, Python, CLI-style -p, override")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    _restore_params(bak_default, bak_override)
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+
+
 
 # -----------------------------
 # Cleanup created directories
