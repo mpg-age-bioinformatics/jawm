@@ -57,12 +57,7 @@ def _execute_local(self):
                             text=True
                         )
                     except Exception as e:
-                        stderr_file.write(str(e)+ "\n")
-                        stderr_file.flush()
-                        self.logger.error(f"Failed to start process {self.name}: {e}{self._elog_path()}")
-                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        self.finished_event.set()
-                        self.stop_future_event.set()
+                        self._proc_exception_handler(e, location="apptainer command execution", type_text="ApptainerError")
                         return 127
 
                 elif self.environment == "docker":
@@ -81,12 +76,7 @@ def _execute_local(self):
                             text=True
                         )
                     except Exception as e:
-                        stderr_file.write(str(e)+ "\n")
-                        stderr_file.flush()
-                        self.logger.error(f"Failed to start process {self.name}: {e}{self._elog_path()}")
-                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        self.finished_event.set()
-                        self.stop_future_event.set()
+                        self._proc_exception_handler(e, location="docker command execution", type_text="DockerError")
                         return 127
 
                 else:
@@ -105,12 +95,7 @@ def _execute_local(self):
                             text=True
                         )
                     except Exception as e:
-                        stderr_file.write(str(e)+ "\n")
-                        stderr_file.flush()
-                        self.logger.error(f"Failed to start process {self.name}: {e}{self._elog_path()}")
-                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        self.finished_event.set()
-                        self.stop_future_event.set()
+                        self._proc_exception_handler(e, location="local command execution", type_text="LocalError")
                         return 127
 
             # Record the PID
@@ -147,42 +132,46 @@ def _execute_local(self):
 
         # 3) Background monitor thread that performs up to (retries+1) attempts
         def monitor_process():
-            total_attempts = self.retries + 1
-            last_exit_code = None
+            try:
+                total_attempts = self.retries + 1
+                last_exit_code = None
 
-            for attempt_i in range(1, total_attempts + 1):
-                self._apply_retry_parameters(attempt_i - 1)
-                exit_code = run_process_once(attempt_i, total_attempts)
-                last_exit_code = exit_code
+                for attempt_i in range(1, total_attempts + 1):
+                    self._apply_retry_parameters(attempt_i - 1)
+                    exit_code = run_process_once(attempt_i, total_attempts)
+                    last_exit_code = exit_code
 
-                # If success, we're done
-                if exit_code == 0:
-                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    self.finished_event.set()
-                    return
+                    # If success, we're done
+                    if exit_code == 0:
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        return
 
-                # Otherwise log error, possibly retry
-                self.logger.error(f"Attempt {attempt_i} for process {self.name} failed with exit code {exit_code}{self._elog_path()}")
-                with open(self.stderr_path, "r") as stderr_file:
-                    error_message = stderr_file.read().strip()
-                self._log_error_summary(self._tail_text(error_message), type_text="LocalAttempt")
+                    # Otherwise log error, possibly retry
+                    self.logger.error(f"Attempt {attempt_i} for process {self.name} failed with exit code {exit_code}{self._elog_path()}")
+                    with open(self.stderr_path, "r") as stderr_file:
+                        error_message = stderr_file.read().strip()
+                    self._log_error_summary(self._tail_text(error_message), type_text="LocalAttempt")
 
-                # If there's another attempt left, keep going
-                if attempt_i < total_attempts:
-                    remaining = total_attempts - attempt_i
-                    self.logger.info(f"Retrying process {self.name}, {remaining} retries left.")
-                else:
-                    self._log_error_summary(f"Process in Local failed.{self._tail_error()}", type_text="LocalAttempt")
-                    self.logger.error(f"Process {self.name} in Local failed after {total_attempts} attempts{self._elog_path()}{self._tail_error()}")
-                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    self.finished_event.set()
-                    self.stop_future_event.set()
-                    try:
-                        with open(exitcode_path, "w") as exc_file:
-                            exc_file.write(str(exit_code))
-                    except:
-                        pass
-                    return
+                    # If there's another attempt left, keep going
+                    if attempt_i < total_attempts:
+                        remaining = total_attempts - attempt_i
+                        self.logger.info(f"Retrying process {self.name}, {remaining} retries left.")
+                    else:
+                        self._log_error_summary(f"Process in Local failed.{self._tail_error()}", type_text="LocalAttempt")
+                        self.logger.error(f"Process {self.name} in Local failed after {total_attempts} attempts{self._elog_path()}{self._tail_error()}")
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        self.stop_future_event.set()
+                        try:
+                            with open(exitcode_path, "w") as exc_file:
+                                exc_file.write(str(exit_code))
+                        except:
+                            pass
+                        return
+            except Exception as e:
+                self._proc_exception_handler(e, location="monitoring", type_text="LocalError")
+                return
 
         # Start the background thread so _execute_local() returns immediately
         self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
