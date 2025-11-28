@@ -242,244 +242,253 @@ def _execute_kubernetes(self):
     Submit as a K8s Job via kubectl, then monitor until completion.
     Writes .id (job name), .exitcode, and .command, and updates monitoring files.
     """
+    try:
+        self.logger.info(f"Launching process {self.name} using Kubernetes executor")
+        self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
 
-    self.logger.info(f"Launching process {self.name} using Kubernetes executor")
-    self.logger.info(f"Log folder for process {self.name}: {self.log_path}")
+        exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
+        id_path = os.path.join(self.log_path, f"{self.name}.id")
+        command_path = os.path.join(self.log_path, f"{self.name}.command")
 
-    exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
-    id_path = os.path.join(self.log_path, f"{self.name}.id")
-    command_path = os.path.join(self.log_path, f"{self.name}.command")
+        def run_once(attempt_i, total_attempts):
+            manifest_path = self._generate_k8s_manifest()
 
-    def run_once(attempt_i, total_attempts):
-        manifest_path = self._generate_k8s_manifest()
+            # Ensure a fresh Job for this attempt (applicable for retry)
+            if attempt_i != 1:
+                self.logger.info(f"Launching K8s attempt {attempt_i}/{total_attempts}: clearing previous job {getattr(self, '_k8s_job_name', '')}")
+                del_cmd = ["kubectl", "delete", "job", (getattr(self, "_k8s_job_name", "") or ""), "--ignore-not-found=true", "--wait=true"]
+                if getattr(self, "_k8s_namespace", None):
+                    del_cmd.extend(["-n", self._k8s_namespace])
+                subprocess.run(del_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-        # Ensure a fresh Job for this attempt (applicable for retry)
-        if attempt_i != 1:
-            self.logger.info(f"Launching K8s attempt {attempt_i}/{total_attempts}: clearing previous job {getattr(self, '_k8s_job_name', '')}")
-            del_cmd = ["kubectl", "delete", "job", (getattr(self, "_k8s_job_name", "") or ""), "--ignore-not-found=true", "--wait=true"]
+            # kubectl apply
+            cmd = ["kubectl", "apply", "-f", manifest_path]
             if getattr(self, "_k8s_namespace", None):
-                del_cmd.extend(["-n", self._k8s_namespace])
-            subprocess.run(del_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                cmd.extend(["-n", self._k8s_namespace])
+            with open(command_path, "w") as cf:
+                cf.write(" ".join(shlex.quote(c) for c in cmd))
+            self.logger.info(f"Submitting process {self.name} with K8s command: {' '.join(cmd)}")
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            # log apply output
+            apply_log = os.path.join(self.log_path, f"{self.name}.kubectl_apply.log")
+            with open(apply_log, "w") as f:
+                f.write((res.stdout or "") + (("\n" + res.stderr) if res.stderr else ""))
+            if res.returncode != 0:
+                self._log_error_summary(self._tail_text(res.stderr), type_text="K8sKubectl")
+                self.logger.error(f"kubectl apply failed: {res.stderr.strip()}{self._elog_path()}")
+                return 127
 
-        # kubectl apply
-        cmd = ["kubectl", "apply", "-f", manifest_path]
-        if getattr(self, "_k8s_namespace", None):
-            cmd.extend(["-n", self._k8s_namespace])
-        with open(command_path, "w") as cf:
-            cf.write(" ".join(shlex.quote(c) for c in cmd))
-        self.logger.info(f"Submitting process {self.name} with K8s command: {' '.join(cmd)}")
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        # log apply output
-        apply_log = os.path.join(self.log_path, f"{self.name}.kubectl_apply.log")
-        with open(apply_log, "w") as f:
-            f.write((res.stdout or "") + (("\n" + res.stderr) if res.stderr else ""))
-        if res.returncode != 0:
-            self._log_error_summary(self._tail_text(res.stderr), type_text="K8sKubectl")
-            self.logger.error(f"kubectl apply failed: {res.stderr.strip()}{self._elog_path()}")
-            return 127
+            # Record job "id" as job name
+            job_id = getattr(self, "_k8s_job_name", None)
+            self.runtime_id = job_id
+            with open(id_path, "w") as f:
+                f.write(job_id or "")
+            self._monitoring_running_file(job_id, manifest_path)
 
-        # Record job "id" as job name
-        job_id = getattr(self, "_k8s_job_name", None)
-        self.runtime_id = job_id
-        with open(id_path, "w") as f:
-            f.write(job_id or "")
-        self._monitoring_running_file(job_id, manifest_path)
+            # Poll job status; once finished, fetch pod exit code + logs
+            def _kubectl(args, expect_success=True):
+                base = ["kubectl"]
+                if getattr(self, "_k8s_namespace", None):
+                    base += ["-n", self._k8s_namespace]
+                full_cmd = base + args
 
-        # Poll job status; once finished, fetch pod exit code + logs
-        def _kubectl(args, expect_success=True):
-            base = ["kubectl"]
-            if getattr(self, "_k8s_namespace", None):
-                base += ["-n", self._k8s_namespace]
-            full_cmd = base + args
+                res = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-            res = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if res.returncode != 0 or (expect_success and res.stderr.strip()):
+                    msg = (
+                        f"kubectl command failed (rc={res.returncode}): "
+                        f"{' '.join(full_cmd)}\n"
+                        f"STDERR: {self._tail_text(res.stderr)}"
+                    )
+                    self.logger.error(f"{msg}{self._elog_path()}")
+                    # Also log into central error summary file
+                    self._log_error_summary(msg, type_text="K8sKubectl")
 
-            if res.returncode != 0 or (expect_success and res.stderr.strip()):
-                msg = (
-                    f"kubectl command failed (rc={res.returncode}): "
-                    f"{' '.join(full_cmd)}\n"
-                    f"STDERR: {self._tail_text(res.stderr)}"
-                )
-                self.logger.error(f"{msg}{self._elog_path()}")
-                # Also log into central error summary file
-                self._log_error_summary(msg, type_text="K8sKubectl")
+                return res
 
-            return res
+            exit_code_int = 1
+            elapsed_time = 0
+            last_pod_name = None
+            selected_container = getattr(self, "_k8s_container_name", None)
 
-        exit_code_int = 1
-        elapsed_time = 0
-        last_pod_name = None
-        selected_container = getattr(self, "_k8s_container_name", None)
-
-        while True:
-            pods = _kubectl(["get", "pods", "-l", f"job-name={job_id}", "-o", "json"])
-            if pods.returncode == 0:
-                try:
-                    data = json.loads(pods.stdout)
-                    items = data.get("items", [])
-                    # bail out fast if user killed the job
-                    if getattr(self, "_k8s_killed", False):
-                        exit_code_int = 130  # synthetic "killed"
-                        break
-                    if items:
-                        # pick the newest pod if multiple (e.g., retries)
-                        items.sort(key=lambda i: i.get("metadata", {}).get("creationTimestamp", ""), reverse=True)
-                        pod = items[0]
-                        last_pod_name = pod["metadata"]["name"]
-                        phase = pod.get("status", {}).get("phase")
-
-                        if phase in {"Succeeded", "Failed"}:
-                            # Decide logs command (single container => no -c needed)
-                            logs_args = ["logs", last_pod_name]
-                            try:
-                                containers = pod.get("spec", {}).get("containers", []) or []
-                                if selected_container:
-                                    # ensure the selected container actually exists; else fall back
-                                    if any(c.get("name") == selected_container for c in containers):
-                                        logs_args += ["-c", selected_container]
-                                    elif len(containers) == 1:
-                                        pass  # omit -c for single container
-                                    else:
-                                        # try the first container if multiple
-                                        logs_args += ["-c", containers[0].get("name")]
-                                else:
-                                    if len(containers) == 1:
-                                        pass
-                                    elif len(containers) > 1:
-                                        logs_args += ["-c", containers[0].get("name")]
-                            except Exception:
-                                # best-effort: omit -c
-                                pass
-
-                            out = _kubectl(logs_args)
-
-                            # Write container logs (stdout). kubectl client errors (if any) go to stderr.
-                            try:
-                                with open(self.stdout_path, "w") as f:
-                                    f.write(out.stdout or "")
-                            except Exception:
-                                pass
-                            if out.returncode != 0 or (out.stderr and out.stderr.strip()):
-                                try:
-                                    with open(self.stderr_path, "w") as f:
-                                        f.write(out.stderr or "")
-                                except Exception:
-                                    pass
-
-                            # Exit code from container status
-                            sts = pod.get("status", {}).get("containerStatuses", []) or []
-                            chosen = None
-                            if selected_container:
-                                for cs in sts:
-                                    if cs.get("name") == selected_container:
-                                        chosen = cs
-                                        break
-                            if chosen is None and sts:
-                                chosen = sts[0]
-                            if chosen and "state" in chosen and "terminated" in chosen["state"]:
-                                try:
-                                    exit_code_int = int(chosen["state"]["terminated"].get("exitCode", 1))
-                                except Exception:
-                                    exit_code_int = 1
-
-                            state_txt = "succeeded" if exit_code_int == 0 else "failed"
-                            self.logger.info(f"[K8s] Job {job_id} {state_txt} (pod={last_pod_name}, exit={exit_code_int})")
-
-                            # Pod describe in failure
-                            if exit_code_int != 0 and last_pod_name:
-                                try:
-                                    desc = _kubectl(["describe", "pod", last_pod_name])
-                                    with open(self.stderr_path, "a") as f:
-                                        f.write("\n\n=== kubectl describe pod ===\n")
-                                        f.write(desc.stdout or desc.stderr or "")
-                                except Exception:
-                                    pass
-
-                            # Record the failure summary
-                            if exit_code_int != 0:
-                                try:
-                                    term = ((chosen or {}).get("state", {}) or {}).get("terminated", {}) or {}
-                                    pod_status = (pod.get("status", {}) or {})
-                                    reason = (
-                                        term.get("reason")
-                                        or pod_status.get("reason")
-                                        or ((chosen or {}).get("state", {}).get("waiting", {}) or {}).get("reason")
-                                        or "NA"
-                                    )
-
-                                    # prefer pod/container message, else fall back to logs tail
-                                    msg_raw = (term.get("message") or pod_status.get("message") or "").strip()
-                                    if not msg_raw:
-                                        try:
-                                            last_lines = "\n".join((out.stdout or "").splitlines()[-5:])
-                                            msg_raw = f"Last log lines: {last_lines}" if last_lines.strip() else "NA"
-                                        except Exception:
-                                            msg_raw = "NA"
-
-                                    summary = (
-                                        f"K8s job failed: "
-                                        f"pod={last_pod_name} "
-                                        f"phase={pod_status.get('phase')} "
-                                        f"reason={term.get('reason') or pod_status.get('reason') or 'NA '} "
-                                        f"exit={term.get('exitCode') if term.get('exitCode') is not None else 'NA '} "
-                                        f"msg={msg_raw} "
-                                        f"description={self.stderr_path or 'NA '} "
-                                    )
-                                    self._log_error_summary(summary, type_text="K8sAttempt")
-                                except Exception:
-                                    self._log_error_summary(f"K8s job failed (could not build failure summary! records on: {self.stderr_path})", type_text="K8sAttempt")
-
-
+            while True:
+                pods = _kubectl(["get", "pods", "-l", f"job-name={job_id}", "-o", "json"])
+                if pods.returncode == 0:
+                    try:
+                        data = json.loads(pods.stdout)
+                        items = data.get("items", [])
+                        # bail out fast if user killed the job
+                        if getattr(self, "_k8s_killed", False):
+                            exit_code_int = 130  # synthetic "killed"
                             break
-                except Exception:
-                    pass
+                        if items:
+                            # pick the newest pod if multiple (e.g., retries)
+                            items.sort(key=lambda i: i.get("metadata", {}).get("creationTimestamp", ""), reverse=True)
+                            pod = items[0]
+                            last_pod_name = pod["metadata"]["name"]
+                            phase = pod.get("status", {}).get("phase")
 
-            time.sleep(10)
-            elapsed_time += 10
-            if elapsed_time % 600 == 0:
-                self.logger.info(f"Process {self.name} (K8s job: {job_id}) is still running...")
+                            if phase in {"Succeeded", "Failed"}:
+                                # Decide logs command (single container => no -c needed)
+                                logs_args = ["logs", last_pod_name]
+                                try:
+                                    containers = pod.get("spec", {}).get("containers", []) or []
+                                    if selected_container:
+                                        # ensure the selected container actually exists; else fall back
+                                        if any(c.get("name") == selected_container for c in containers):
+                                            logs_args += ["-c", selected_container]
+                                        elif len(containers) == 1:
+                                            pass  # omit -c for single container
+                                        else:
+                                            # try the first container if multiple
+                                            logs_args += ["-c", containers[0].get("name")]
+                                    else:
+                                        if len(containers) == 1:
+                                            pass
+                                        elif len(containers) > 1:
+                                            logs_args += ["-c", containers[0].get("name")]
+                                except Exception:
+                                    # best-effort: omit -c
+                                    pass
 
-        # Write exit code files and monitoring move
-        try:
-            with open(exitcode_path, "w") as f:
-                f.write(str(exit_code_int))
-        except Exception:
-            pass
-        
-        # Ensure stdout/stderr files exist even if container produced nothing
-        try:
-            if not os.path.exists(self.stdout_path):
-                open(self.stdout_path, "w").close()
-            if not os.path.exists(self.stderr_path):
-                open(self.stderr_path, "w").close()
-        except Exception:
-            pass
+                                out = _kubectl(logs_args)
 
-        self._monitoring_completed_file(job_id, manifest_path, exit_code_int)
-        self.logger.info(f"K8s job {job_id} completed with exit code {exit_code_int}")
-        return 0 if exit_code_int == 0 else 1
+                                # Write container logs (stdout). kubectl client errors (if any) go to stderr.
+                                try:
+                                    with open(self.stdout_path, "w") as f:
+                                        f.write(out.stdout or "")
+                                except Exception:
+                                    pass
+                                if out.returncode != 0 or (out.stderr and out.stderr.strip()):
+                                    try:
+                                        with open(self.stderr_path, "w") as f:
+                                            f.write(out.stderr or "")
+                                    except Exception:
+                                        pass
 
-    def monitor_process():
-        total_attempts = self.retries + 1
-        for attempt_i in range(1, total_attempts + 1):
-            self._apply_retry_parameters(attempt_i - 1)
-            rc = run_once(attempt_i, total_attempts)
-            if rc == 0:
-                self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                self.finished_event.set()
-                return
-            self.logger.error(f"K8s attempt {attempt_i}/{total_attempts} failed! Summary can be found in: {self.error_summary_file}{self._elog_path()}")
-            if attempt_i < total_attempts:
-                self.logger.info(f"Retrying K8s job; {total_attempts - attempt_i} retries left")
-            else:
-                self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                self.finished_event.set()
-                self.stop_future_event.set()
-                self._log_error_summary(f"Process in K8s failed.{self._tail_error()}", type_text="K8sAttempt")
-                self.logger.error(f"Process {self.name} in K8s failed after {total_attempts} attempt(s){self._elog_path()}{self._tail_error()}")
-                return
+                                # Exit code from container status
+                                sts = pod.get("status", {}).get("containerStatuses", []) or []
+                                chosen = None
+                                if selected_container:
+                                    for cs in sts:
+                                        if cs.get("name") == selected_container:
+                                            chosen = cs
+                                            break
+                                if chosen is None and sts:
+                                    chosen = sts[0]
+                                if chosen and "state" in chosen and "terminated" in chosen["state"]:
+                                    try:
+                                        exit_code_int = int(chosen["state"]["terminated"].get("exitCode", 1))
+                                    except Exception:
+                                        exit_code_int = 1
 
-    self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
-    self._monitor_thread.start()
-    return None
+                                state_txt = "succeeded" if exit_code_int == 0 else "failed"
+                                self.logger.info(f"[K8s] Job {job_id} {state_txt} (pod={last_pod_name}, exit={exit_code_int})")
+
+                                # Pod describe in failure
+                                if exit_code_int != 0 and last_pod_name:
+                                    try:
+                                        desc = _kubectl(["describe", "pod", last_pod_name])
+                                        with open(self.stderr_path, "a") as f:
+                                            f.write("\n\n=== kubectl describe pod ===\n")
+                                            f.write(desc.stdout or desc.stderr or "")
+                                    except Exception:
+                                        pass
+
+                                # Record the failure summary
+                                if exit_code_int != 0:
+                                    try:
+                                        term = ((chosen or {}).get("state", {}) or {}).get("terminated", {}) or {}
+                                        pod_status = (pod.get("status", {}) or {})
+                                        reason = (
+                                            term.get("reason")
+                                            or pod_status.get("reason")
+                                            or ((chosen or {}).get("state", {}).get("waiting", {}) or {}).get("reason")
+                                            or "NA"
+                                        )
+
+                                        # prefer pod/container message, else fall back to logs tail
+                                        msg_raw = (term.get("message") or pod_status.get("message") or "").strip()
+                                        if not msg_raw:
+                                            try:
+                                                last_lines = "\n".join((out.stdout or "").splitlines()[-5:])
+                                                msg_raw = f"Last log lines: {last_lines}" if last_lines.strip() else "NA"
+                                            except Exception:
+                                                msg_raw = "NA"
+
+                                        summary = (
+                                            f"K8s job failed: "
+                                            f"pod={last_pod_name} "
+                                            f"phase={pod_status.get('phase')} "
+                                            f"reason={term.get('reason') or pod_status.get('reason') or 'NA '} "
+                                            f"exit={term.get('exitCode') if term.get('exitCode') is not None else 'NA '} "
+                                            f"msg={msg_raw} "
+                                            f"description={self.stderr_path or 'NA '} "
+                                        )
+                                        self._log_error_summary(summary, type_text="K8sAttempt")
+                                    except Exception:
+                                        self._log_error_summary(f"K8s job failed (could not build failure summary! records on: {self.stderr_path})", type_text="K8sAttempt")
+
+
+                                break
+                    except Exception:
+                        pass
+
+                time.sleep(10)
+                elapsed_time += 10
+                if elapsed_time % 600 == 0:
+                    self.logger.info(f"Process {self.name} (K8s job: {job_id}) is still running...")
+
+            # Write exit code files and monitoring move
+            try:
+                with open(exitcode_path, "w") as f:
+                    f.write(str(exit_code_int))
+            except Exception:
+                pass
+            
+            # Ensure stdout/stderr files exist even if container produced nothing
+            try:
+                if not os.path.exists(self.stdout_path):
+                    open(self.stdout_path, "w").close()
+                if not os.path.exists(self.stderr_path):
+                    open(self.stderr_path, "w").close()
+            except Exception:
+                pass
+
+            self._monitoring_completed_file(job_id, manifest_path, exit_code_int)
+            self.logger.info(f"K8s job {job_id} completed with exit code {exit_code_int}")
+            return 0 if exit_code_int == 0 else 1
+
+        def monitor_process():
+            try:
+                total_attempts = self.retries + 1
+                for attempt_i in range(1, total_attempts + 1):
+                    self._apply_retry_parameters(attempt_i - 1)
+                    rc = run_once(attempt_i, total_attempts)
+                    if rc == 0:
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        return
+                    self.logger.error(f"K8s attempt {attempt_i}/{total_attempts} failed! Summary can be found in: {self.error_summary_file}{self._elog_path()}")
+                    if attempt_i < total_attempts:
+                        self.logger.info(f"Retrying K8s job; {total_attempts - attempt_i} retries left")
+                    else:
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        self.stop_future_event.set()
+                        self._log_error_summary(f"Process in K8s failed.{self._tail_error()}", type_text="K8sAttempt")
+                        self.logger.error(f"Process {self.name} in K8s failed after {total_attempts} attempt(s){self._elog_path()}{self._tail_error()}")
+                        return
+            except Exception as e:
+                self._proc_exception_handler(e, location="monitoring", type_text="K8sError")
+
+        self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
+        self._monitor_thread.start()
+        return None
+    except Exception as e:
+        self.logger.error(f"Failed launching process {self.name} in K8s: {str(e)}{self._elog_path()}")
+        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.finished_event.set()
+        self.stop_future_event.set()
+        return
 
