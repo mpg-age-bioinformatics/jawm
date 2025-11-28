@@ -302,29 +302,33 @@ def _execute_slurm(self):
 
         # Define a single function for retries
         def monitor_process():
-            total_attempts = self.retries + 1
-            for attempt_i in range(1, total_attempts + 1):
-                self._apply_retry_parameters(attempt_i - 1)
-                exit_code = run_process_once_slurm(attempt_i, total_attempts)
-                if exit_code == 0:
-                    # success on this attempt
-                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    self.finished_event.set()
-                    return
-                # Else it failed
-                self.logger.error(f"Attempt {attempt_i} for process {self.name} failed in Slurm{self._elog_path()}")
-                if attempt_i < total_attempts:
-                    remaining = total_attempts - attempt_i
-                    self.logger.info(f"Retrying process {self.name} in Slurm, {remaining} retries left")
-                else:
-                    # Fallback error summary logging
-                    self._log_error_summary(f"Process in Slurm failed.{self._tail_error(slurm=True)}", type_text="SlurmError")
-                    self.logger.error(f"Process {self.name} in Slurm failed after {total_attempts} attempt(s){self._elog_path()}{self._tail_error(slurm=True)}")
-                    # Out of attempts
-                    self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    self.finished_event.set()
-                    self.stop_future_event.set()
-                    return
+            try:
+                total_attempts = self.retries + 1
+                for attempt_i in range(1, total_attempts + 1):
+                    self._apply_retry_parameters(attempt_i - 1)
+                    exit_code = run_process_once_slurm(attempt_i, total_attempts)
+                    if exit_code == 0:
+                        # success on this attempt
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        return
+                    # Else it failed
+                    self.logger.error(f"Attempt {attempt_i} for process {self.name} failed in Slurm{self._elog_path()}")
+                    if attempt_i < total_attempts:
+                        remaining = total_attempts - attempt_i
+                        self.logger.info(f"Retrying process {self.name} in Slurm, {remaining} retries left")
+                    else:
+                        # Fallback error summary logging
+                        self._log_error_summary(f"Process in Slurm failed.{self._tail_error(slurm=True)}", type_text="SlurmError")
+                        self.logger.error(f"Process {self.name} in Slurm failed after {total_attempts} attempt(s){self._elog_path()}{self._tail_error(slurm=True)}")
+                        # Out of attempts
+                        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        self.finished_event.set()
+                        self.stop_future_event.set()
+                        return
+            except Exception as e:
+                self._proc_exception_handler(e, location="monitoring", type_text="SlurmError")
+                return
 
         # Start a background thread that runs the multi-attempt logic
         self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
