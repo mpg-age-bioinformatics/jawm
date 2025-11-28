@@ -263,49 +263,7 @@ def execute(self, depends_on=None):
             return None
     
     except Exception as e:
-        msg = f"Unhandled exception in execute() for {self.name}: {e}"
-        try:
-            self.logger.error(f"{msg}{self._elog_path()}")
-        except Exception:
-            pass
-
-        try:
-            self._log_error_summary(msg, type_text="ExecuteError")
-        except Exception:
-            pass
-
-        try:
-            self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
-        except Exception:
-            pass
-        
-        try:
-            if hasattr(self, "log_path") and self.log_path:
-                exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
-                with open(exitcode_path, "w") as f:
-                    f.write("127")
-        except Exception:
-            pass
-
-        try:
-            if hasattr(self, "log_path") and self.log_path:
-                error_path = os.path.join(self.log_path, f"{self.name}.error")
-                with open(error_path, "w") as f:
-                    f.write(msg + "\n")
-        except Exception:
-            pass
-
-        try:
-            self.finished_event.set()
-        except Exception:
-            pass
-
-        try:
-            self.__class__.stop_future_event.set()
-        except Exception:
-            pass
-
-        return 127
+        self._proc_exception_handler(e, location="execute()", type_text="ExecuteError")
 
 
 @register

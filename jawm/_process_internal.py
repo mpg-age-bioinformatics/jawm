@@ -832,6 +832,63 @@ def _tail_text(self, text, max_lines= 5):
         return ""
 
 
+@register
+def _proc_exception_handler(self, e, location= "execution", type_text="Error"):
+    """
+    Centralized, safe exception handler for all jawm process failures.
+    Ensures that no failure can leave a process hanging or block wait().
+    """
+    try:
+        for_name = f" for {self.name}"
+    except Exception:
+        for_name = ""
+
+    msg = f"Unhandled exception in {location}{for_name}: {e}"
+
+    try:
+        self.logger.error(f"{msg}{self._elog_path()}")
+    except Exception:
+        pass
+
+    try:
+        self._log_error_summary(msg, type_text=type_text)
+    except Exception:
+        pass
+
+    try:
+        self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+    except Exception:
+        pass
+    
+    try:
+        if hasattr(self, "log_path") and self.log_path:
+            exitcode_path = os.path.join(self.log_path, f"{self.name}.exitcode")
+            with open(exitcode_path, "w") as f:
+                f.write("127")
+    except Exception:
+        pass
+
+    try:
+        if hasattr(self, "log_path") and self.log_path:
+            error_path = os.path.join(self.log_path, f"{self.name}.error")
+            with open(error_path, "w") as f:
+                f.write(msg + "\n")
+    except Exception:
+        pass
+
+    try:
+        self.finished_event.set()
+    except Exception:
+        pass
+
+    try:
+        self.__class__.stop_future_event.set()
+    except Exception:
+        pass
+
+    return
+
+
 
 # --------------------------------------------
 #   Plain Helper Methods without @register
