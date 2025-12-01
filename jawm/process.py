@@ -846,6 +846,10 @@ class Process:
             cls.logger_kill.info(f"{proc.name}|{proc.hash} :: Process has no recorded PID or job ID.")
             return False
 
+        if proc.execution_start_at is None:
+            cls.logger_kill.info(f"{proc.name}|{proc.hash} :: Process never executed — nothing to kill.")
+            return False
+
         killed = False
         error_message = None
 
@@ -945,6 +949,7 @@ class Process:
 
         killed = []
         failed = []
+        not_executed = []
         seen = set()
         slurm_cleanup_issue = False
         
@@ -954,6 +959,10 @@ class Process:
             if id(proc) in seen:
                 continue
             seen.add(id(proc))
+
+            if proc.execution_start_at is None:
+                not_executed.append(proc.name + "|" + proc.hash)
+                continue
 
             if not proc.finished_event.is_set():
                 result = cls.kill(proc.hash)
@@ -979,14 +988,18 @@ class Process:
         else:
             cls.logger_kill.info("Killed processes: 0")
 
+        if not_executed:
+            cls.logger_kill.info(f"Processes that did not execute: {len(not_executed)}\n  - " + "\n  - ".join(not_executed))
+
         if failed:
-            cls.logger_kill.warning(f"Failed to kill (may not have executed yet): {len(failed)}\n  - " + "\n  - ".join(failed))
+            cls.logger_kill.warning(f"Failed to kill: {len(failed)}\n  - " + "\n  - ".join(failed))
 
         if slurm_cleanup_issue:
             cls.logger_kill.warning("Some Slurm jobs may still be running. Manual cleanup may be required.")
         
         return {
             "killed": killed,
+            "not_executed": not_executed,
             "failed": failed
         }
 
