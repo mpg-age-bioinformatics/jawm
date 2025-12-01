@@ -551,7 +551,7 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
     parser.add_argument("--git-cache", help="Path for jawm's git cache (default: ~/.jawm/git)")
 
     for arg in list(extra_args.keys()) :
-            parser.add_argument(arg, help=extra_args[arg] )
+            parser.add_argument(arg, help=extra_args[arg], default=None )
 
     args, unknown_args=parser.parse_known_args()
             
