@@ -184,19 +184,25 @@ def _log_error_summary(self, error_message, type_text="Error"):
     """
     Log errors to a central error summary file for easy tracking.
     """
-    if not getattr(self, "error_summary_file", None):
-        return
-    if not error_message:
-        error_message = "Empty error message, possibly the Process was killed!"
+    try:
+        if not getattr(self, "error_summary_file", None):
+            return
+        if not error_message:
+            error_message = "Empty error message, possibly the Process was killed!"
 
-    log_path_info = ""
-    if getattr(self, "log_path", None):
-        log_path_info = f"\nLog folder: {self.log_path}"
+        log_path_info = ""
+        if getattr(self, "log_path", None):
+            log_path_info = f"\nLog folder: {self.log_path}"
 
-    with open(self.error_summary_file, "a") as error_log:
-        error_log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Process: {self.name} (Hash: {self.hash}){log_path_info}\n")
-        error_log.write(f"{type_text}: {error_message}\n")
-        error_log.write("-" * 80 + "\n")  # Separator for readability
+        with open(self.error_summary_file, "a") as error_log:
+            error_log.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Process: {self.name} (Hash: {self.hash}){log_path_info}\n")
+            error_log.write(f"{type_text}: {error_message}\n")
+            error_log.write("-" * 80 + "\n")  # Separator for readability
+    except Exception as e:
+        try:
+            self.logger.warning(f"Failed to write error summary: {e}")
+        except Exception:
+            pass
 
 
 @register
