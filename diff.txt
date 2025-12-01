@@ -1,0 +1,285 @@
+diff --git a/jawm/cli.py b/jawm/cli.py
+index 7a2891a..43ead52 100644
+--- a/jawm/cli.py
++++ b/jawm/cli.py
+@@ -1055,154 +1055,159 @@ def main():
+     # Only synthesize git URL if:
+     #  (1) module path does NOT exist locally, AND
+     #  (2) module is NOT already a git URL / git-like target.
+-    if not Path(args.module).exists() and not _is_git_target(args.module) and (not args.no_web):
+-        args.module = _synth_git_target(args.module, args.server, args.user)
++    try:
++        if not Path(args.module).exists() and not _is_git_target(args.module) and (not args.no_web):
++            args.module = _synth_git_target(args.module, args.server, args.user)
+ 
+-    # If module is a git repo target, clone/cache and rewrite args.module to local 
+-    _git_info_line = None
+-    _original_module = args.module
++        # If module is a git repo target, clone/cache and rewrite args.module to local 
++        _git_info_line = None
++        _original_module = args.module
+ 
+-    if _is_git_target(args.module) and (not args.no_web):
+-        cache_root = _git_cache_root(getattr(args, "git_cache", None))
+-        cache_root.mkdir(parents=True, exist_ok=True)
++        if _is_git_target(args.module) and (not args.no_web):
++            cache_root = _git_cache_root(getattr(args, "git_cache", None))
++            cache_root.mkdir(parents=True, exist_ok=True)
+ 
+-        # Handle case where local folder already exists for <repo>@<tag>
+-        repo_part = args.module.split("/")[-1]
+-        repo_name, sep, ref = repo_part.partition("@")
+-        repo_name = repo_name.replace(".git", "")
+-        ref = ref or None
++            # Handle case where local folder already exists for <repo>@<tag>
++            repo_part = args.module.split("/")[-1]
++            repo_name, sep, ref = repo_part.partition("@")
++            repo_name = repo_name.replace(".git", "")
++            ref = ref or None
+ 
+-        dst = Path.cwd() / repo_name
+-        if dst.exists():
+-            logger.info(f"Found existing local folder: {dst}")
++            dst = Path.cwd() / repo_name
++            if dst.exists():
++                logger.info(f"Found existing local folder: {dst}")
+ 
+-            commit_file = dst / ".commit"
+-            if not commit_file.exists():
+-                logger.error(f"[git] Local folder '{dst}' exists but is missing .commit — cannot verify tag/ref.")
+-                logger.error("Please delete or rename the folder and re-run.")
+-                _errlog_exit(1)
++                commit_file = dst / ".commit"
++                if not commit_file.exists():
++                    logger.error(f"[git] Local folder '{dst}' exists but is missing .commit — cannot verify tag/ref.")
++                    logger.error("Please delete or rename the folder and re-run.")
++                    _errlog_exit(1)
+ 
+-            local_commit = commit_file.read_text(encoding="utf-8", errors="ignore").strip()
++                local_commit = commit_file.read_text(encoding="utf-8", errors="ignore").strip()
+ 
+-            # Try to resolve commit hash for requested ref/tag
+-            try:
+-                ref_commit = None
+-                if ref:
+-                    remote_url = f"git@{args.server}:{args.user}/{repo_name}.git"
+-                    result = subprocess.run(
+-                        ["git", "ls-remote", remote_url, ref],
+-                        capture_output=True, text=True, check=True
+-                    )
+-                    for line in result.stdout.splitlines():
+-                        if line.endswith(f"refs/tags/{ref}") or line.endswith(f"refs/heads/{ref}"):
+-                            ref_commit = line.split()[0]
+-                            break
+-                else:
+-                    ref_commit = local_commit  # no tag given → accept current hash
++                # Try to resolve commit hash for requested ref/tag
++                try:
++                    ref_commit = None
++                    if ref:
++                        remote_url = f"git@{args.server}:{args.user}/{repo_name}.git"
++                        result = subprocess.run(
++                            ["git", "ls-remote", remote_url, ref],
++                            capture_output=True, text=True, check=True
++                        )
++                        for line in result.stdout.splitlines():
++                            if line.endswith(f"refs/tags/{ref}") or line.endswith(f"refs/heads/{ref}"):
++                                ref_commit = line.split()[0]
++                                break
++                    else:
++                        ref_commit = local_commit  # no tag given → accept current hash
+ 
+-                if not ref_commit:
+-                    logger.error(f"[git] Could not resolve remote ref '{ref}' for {repo_name}")
++                    if not ref_commit:
++                        logger.error(f"[git] Could not resolve remote ref '{ref}' for {repo_name}")
++                        _errlog_exit(1)
++
++                    if local_commit != ref_commit:
++                        logger.error(
++                            f"[git] Existing folder '{dst}' has commit {local_commit[:8]}, "
++                            f"but requested tag/ref '{ref}' points to {ref_commit[:8]}."
++                        )
++                        logger.error("Please delete or rename the folder and re-run.")
++                        _errlog_exit(1)
++
++                    # Matching hash — reuse folder, but continue execution
++                    logger.info(f"[git] Local folder '{dst}' already matches requested ref '{ref}' — reusing.")
++                    args.module = str(dst)
++                    _git_info_line = f"[git] Reused local folder '{dst}' (commit {local_commit[:8]}) for '{module_raw}'"
++
++                    # Do NOT return or exit — just skip cloning and continue
++                    skip_clone = True
++
++                except subprocess.CalledProcessError as e:
++                    logger.error(f"[git] Failed to verify remote ref '{ref}' for {repo_name}: {e}")
+                     _errlog_exit(1)
++            else:
++                skip_clone = False
+ 
+-                if local_commit != ref_commit:
++            # --- Only perform clone if skip_clone is False ---
++            if not skip_clone:
++                logger.info(f"Module '{module_raw}' not found locally — attempting online lookup...")
++                try:
++                    resolved = _resolve_git_to_local(args.module, cache_root)
++                except Exception as e:
+                     logger.error(
+-                        f"[git] Existing folder '{dst}' has commit {local_commit[:8]}, "
+-                        f"but requested tag/ref '{ref}' points to {ref_commit[:8]}."
++                        f"[git] Failed to fetch workflow '{args.module}' from remote.\n"
++                        f"Reason: {e}"
+                     )
+-                    logger.error("Please delete or rename the folder and re-run.")
++                    logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
+                     _errlog_exit(1)
++            else:
++                # logger.info(f"Reusing existing local folder '{dst}' (commit {local_commit[:8]}) — skipping online lookup.")
++                resolved = str(dst)
+ 
+-                # Matching hash — reuse folder, but continue execution
+-                logger.info(f"[git] Local folder '{dst}' already matches requested ref '{ref}' — reusing.")
+-                args.module = str(dst)
+-                _git_info_line = f"[git] Reused local folder '{dst}' (commit {local_commit[:8]}) for '{module_raw}'"
+-
+-                # Do NOT return or exit — just skip cloning and continue
+-                skip_clone = True
+-
+-            except subprocess.CalledProcessError as e:
+-                logger.error(f"Failed to verify remote ref '{ref}' for {repo_name}: {e}")
+-                _errlog_exit(1)
+-        else:
+-            skip_clone = False
+-
+-        # --- Only perform clone if skip_clone is False ---
+-        if not skip_clone:
+-            logger.info(f"Module '{module_raw}' not found locally — attempting online lookup...")
++            # Determine repo_name from: cache_root/<safe_repo>/<sha>/repo_name/<...>
+             try:
+-                resolved = _resolve_git_to_local(args.module, cache_root)
+-            except Exception as e:
+-                logger.error(
+-                    f"[git] Failed to fetch workflow '{args.module}' from remote.\n"
+-                    f"Reason: {e}"
+-                )
+-                logger.error("Could not locate the workflow locally or online. Exiting gracefully.")
+-                _errlog_exit(1)
+-        else:
+-            # logger.info(f"Reusing existing local folder '{dst}' (commit {local_commit[:8]}) — skipping online lookup.")
+-            resolved = str(dst)
++                rel = Path(resolved).resolve().relative_to(cache_root.resolve())
++                parts = rel.parts
++                # parts[0] = safe_repo, parts[1] = sha, parts[2] = repo_name (if subpath used)
++                repo_name = parts[2] if len(parts) >= 3 else parts[-1]
++            except Exception:
++                # fallback if resolved is not under cache_root (should not happen, but safe)
++                repo_name = Path(resolved).name
+ 
+-        # Determine repo_name from: cache_root/<safe_repo>/<sha>/repo_name/<...>
+-        try:
+-            rel = Path(resolved).resolve().relative_to(cache_root.resolve())
+-            parts = rel.parts
+-            # parts[0] = safe_repo, parts[1] = sha, parts[2] = repo_name (if subpath used)
+-            repo_name = parts[2] if len(parts) >= 3 else parts[-1]
+-        except Exception:
+-            # fallback if resolved is not under cache_root (should not happen, but safe)
+-            repo_name = Path(resolved).name
++            # Strip a trailing .git
++            repo_name = re.sub(r"\.git$", "", repo_name, flags=re.IGNORECASE) or "repo"
+ 
+-        # Strip a trailing .git
+-        repo_name = re.sub(r"\.git$", "", repo_name, flags=re.IGNORECASE) or "repo"
++            # Destination in current working directory
++            dst = Path.cwd() / repo_name
+ 
+-        # Destination in current working directory
+-        dst = Path.cwd() / repo_name
++            if not skip_clone:
++                # Ensure resolved is a directory
++                resolved_path = Path(resolved)
++                if not resolved_path.is_dir():
++                    raise RuntimeError(f"Resolved git path is not a directory: {resolved}")
+ 
+-        if not skip_clone:
+-            # Ensure resolved is a directory
+-            resolved_path = Path(resolved)
+-            if not resolved_path.is_dir():
+-                raise RuntimeError(f"Resolved git path is not a directory: {resolved}")
++                # Copy (clean replace)
++                if dst.exists():
++                    shutil.rmtree(dst)
+ 
+-            # Copy (clean replace)
+-            if dst.exists():
+-                shutil.rmtree(dst)
++                shutil.copytree(resolved_path, dst)
++            else:
++                # Skipped cloning — reusing local folder
++                resolved_path = Path(resolved)
++                logger.info(f"[git] Reusing existing folder: {resolved_path}")
+ 
+-            shutil.copytree(resolved_path, dst)
+-        else:
+-            # Skipped cloning — reusing local folder
+-            resolved_path = Path(resolved)
+-            logger.info(f"[git] Reusing existing folder: {resolved_path}")
++            # Point args.module at the **local working copy**
++            args.module = str(dst)
+ 
+-        # Point args.module at the **local working copy**
+-        args.module = str(dst)
++            if not skip_clone:
++                _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
+ 
+-        if not skip_clone:
+-            _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
++            # Append subpath inside the repo if provided
++            if subpath:
++                target_path = Path(dst) / subpath
++                if not target_path.exists():
++                    logger.error(f"[git] Specified subpath '{subpath}' not found in repo '{repo_name}'. Please check the path.")
++                    _errlog_exit(1)
++                args.module = str(target_path)
++                logger.info(f"Targeting subpath inside repo: {target_path}")
++            else:
++                args.module = str(dst)
+ 
+-        # Append subpath inside the repo if provided
+-        if subpath:
+-            target_path = Path(dst) / subpath
+-            if not target_path.exists():
+-                logger.error(f"Specified subpath '{subpath}' not found in repo '{repo_name}'. Please check the path.")
+-                _errlog_exit(1)
+-            args.module = str(target_path)
+-            logger.info(f"Targeting subpath inside repo: {target_path}")
+-        else:
+-            args.module = str(dst)
++            # args.module = str(resolved)
++            # _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}'"
+ 
+-        # args.module = str(resolved)
+-        # _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}'"
++        # normalize -p and -v: single item → string; many → list
++        if args.parameters is not None and isinstance(args.parameters, list) and len(args.parameters) == 1:
++            args.parameters = args.parameters[0]
++        if args.variables is not None and isinstance(args.variables, list) and len(args.variables) == 1:
++            args.variables = args.variables[0]
+ 
+-    # normalize -p and -v: single item → string; many → list
+-    if args.parameters is not None and isinstance(args.parameters, list) and len(args.parameters) == 1:
+-        args.parameters = args.parameters[0]
+-    if args.variables is not None and isinstance(args.variables, list) and len(args.variables) == 1:
+-        args.variables = args.variables[0]
++        if _git_info_line:
++            logger.info(_git_info_line)
++        logger.info(f"Logging terminal output to: {cli_log_file}")
+ 
+-    if _git_info_line:
+-        logger.info(_git_info_line)
+-    logger.info(f"Logging terminal output to: {cli_log_file}")
++    except Exception as e:
++        logger.error(f"[git] Unexpected failure during workflow resolution: {e}")
++        _errlog_exit(1)
+ 
+ 
+     # ------------------------------------------------------------
