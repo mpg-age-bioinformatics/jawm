@@ -153,6 +153,8 @@ def _parse_yaml_config(self, param_file):
         if isinstance(yaml_data, dict):
             yaml_data = [yaml_data]
 
+        STRUCT_KEYS = {"scope", "name"}
+        
         for entry in yaml_data:
             if not isinstance(entry, dict):
                 continue
@@ -160,9 +162,11 @@ def _parse_yaml_config(self, param_file):
             scope = entry.get("scope")
             name = entry.get("name", None)
 
+            clean_entry = {k: v for k, v in entry.items() if k not in STRUCT_KEYS}
+
             # Merge into global scope
             if scope == "global":
-                yaml_params["global"].update(entry)
+                yaml_params["global"].update(clean_entry)
 
             # Merge Process-specific config (supports single name or list of names)
             elif scope == "process" and name and self.name:
@@ -171,9 +175,9 @@ def _parse_yaml_config(self, param_file):
                 for n in names:
                     if fnmatch.fnmatch(self.name, n):
                         if self.name not in yaml_params["process"]:
-                            yaml_params["process"][self.name] = entry.copy()
+                            yaml_params["process"][self.name] = clean_entry.copy()
                         else:
-                            yaml_params["process"][self.name].update(entry)
+                            yaml_params["process"][self.name].update(clean_entry)
                         break  # stop after first match
 
     return yaml_params
