@@ -134,6 +134,16 @@ def _parse_yaml_config(self, param_file):
         # Only expand individual files; directories not allowed in list
         param_file = [p for p in param_file if os.path.isfile(p)]
 
+    # Merge helper and var
+    STRUCT_KEYS = {"scope", "name"}
+    def _merge(target, new):
+        """Shallow-merge dict values, overwrite scalars."""
+        for k, v in new.items():
+            if k in target and isinstance(target[k], dict) and isinstance(v, dict):
+                target[k] = {**target[k], **v}     # merge dict -> dict
+            else:
+                target[k] = v 
+
     for yaml_file in param_file:
         try:
             with open(yaml_file, "r") as file:
@@ -152,9 +162,8 @@ def _parse_yaml_config(self, param_file):
 
         if isinstance(yaml_data, dict):
             yaml_data = [yaml_data]
-
-        STRUCT_KEYS = {"scope", "name"}
-        
+    
+        # Operate on the entries
         for entry in yaml_data:
             if not isinstance(entry, dict):
                 continue
@@ -166,7 +175,7 @@ def _parse_yaml_config(self, param_file):
 
             # Merge into global scope
             if scope == "global":
-                yaml_params["global"].update(clean_entry)
+                _merge(yaml_params["global"], clean_entry)
 
             # Merge Process-specific config (supports single name or list of names)
             elif scope == "process" and name and self.name:
@@ -174,11 +183,9 @@ def _parse_yaml_config(self, param_file):
                 names = name if isinstance(name, (list, tuple)) else [name]
                 for n in names:
                     if fnmatch.fnmatch(self.name, n):
-                        if self.name not in yaml_params["process"]:
-                            yaml_params["process"][self.name] = clean_entry.copy()
-                        else:
-                            yaml_params["process"][self.name].update(clean_entry)
-                        break  # stop after first match
+                        block = yaml_params["process"].setdefault(self.name, {})
+                        _merge(block, clean_entry)
+                        break
 
     return yaml_params
 
