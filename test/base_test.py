@@ -2789,6 +2789,129 @@ finally:
     Process.registry.clear()
 
 
+print("\n>>> Test 46: CLI nested overrides — global + process pattern matching")
+
+try:
+    _clear_params()
+
+    # --- Setup workspace ---
+    tmpdir = tempfile.mkdtemp(prefix="test_cli_nested_overrides_", dir=base_tmp)
+    module_path = os.path.join(tmpdir, "test_mod.py")
+
+    # Python module creates three Processes:
+    #   p1 (should match p* pattern)
+    #   p2 (should match p* pattern)
+    #   x1 (should NOT match p* pattern)
+    with open(module_path, "w") as f:
+        f.write(r'''
+from jawm import Process
+
+p1 = Process(
+    name="p1",
+    script="#!/bin/bash\necho hi",
+    var={"a": "PY", "b": "PY"},
+    manager_slurm={"resources": {"mem": "PY"}},
+)
+
+p2 = Process(
+    name="p2",
+    script="#!/bin/bash\necho hi",
+    var={"a": "PY", "b": "PY"},
+    manager_slurm={"resources": {"mem": "PY"}},
+)
+
+x1 = Process(
+    name="x1",
+    script="#!/bin/bash\necho hi",
+    var={"a": "PY", "b": "PY"},
+    manager_slurm={"resources": {"mem": "PY"}},
+)
+
+print("P1_VAR=", p1.var)
+print("P2_VAR=", p2.var)
+print("X1_VAR=", x1.var)
+
+print("P1_SLURM=", p1.manager_slurm)
+print("P2_SLURM=", p2.manager_slurm)
+print("X1_SLURM=", x1.manager_slurm)
+''')
+
+    # Helper: run CLI
+    def cli_cmd(args):
+        if shutil.which("jawm"):
+            return ["jawm", *args]
+        return [sys.executable, "-m", "jawm.cli", *args]
+
+
+    # ============================================================
+    # Apply mixed overrides:
+    #
+    #   --global.var.g=999
+    #   --process.p*.var.a=11
+    #   --process.p1.var.x=55
+    #   --process.p*.manager_slurm.resources.mem=2048
+    # ============================================================
+    rc = subprocess.run(
+        cli_cmd([
+            module_path,
+            "--global.var.g=999",
+            "--process.p*.var.a=11",
+            "--process.p1.var.x=55",
+            "--process.p*.manager_slurm.resources.mem=2048",
+        ]),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    out = (rc.stdout or "") + (rc.stderr or "")
+    print(out)
+
+    assert rc.returncode == 0, "❌ CLI mixed override execution failed"
+
+    # ------------------------------------------------------------------
+    # Validate var merging
+    # ------------------------------------------------------------------
+
+    # p1:
+    #   PY base + global g=999 + process p* a=11 + process p1 x=55
+    assert "P1_VAR= {'a': '11', 'b': 'PY', 'g': '999', 'x': '55'}" in out.replace('"', "'"), \
+        "❌ p1.var did not receive combined overrides correctly"
+
+    # p2:
+    #   PY base + global g=999 + process p* a=11
+    #   (NOT p1.x=55)
+    assert "P2_VAR= {'a': '11', 'b': 'PY', 'g': '999'}" in out.replace('"', "'"), \
+        "❌ p2.var did not receive correct pattern-matched overrides"
+
+    # x1:
+    #   PY base + global g=999 only
+    #   (should NOT receive p* overrides)
+    assert "X1_VAR= {'a': 'PY', 'b': 'PY', 'g': '999'}" in out.replace('"', "'"), \
+        "❌ x1.var incorrectly received process-specific overrides"
+
+    # ------------------------------------------------------------------
+    # Validate nested manager_slurm merging
+    # ------------------------------------------------------------------
+
+    # p1 & p2 should both receive mem=2048
+    assert "'mem': '2048'" in out, "❌ p1/p2 did not receive mem override"
+
+    # x1 should NOT receive mem override
+    assert "X1_SLURM=" in out
+    assert "{'resources': {'mem': 'PY'}}" in out, \
+        "❌ x1 incorrectly received process-specific slurm override"
+
+    print("✅ Passed: CLI nested overrides — global & process patterns")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
+
 
 
 
