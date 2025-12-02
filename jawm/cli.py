@@ -1244,7 +1244,7 @@ def main():
             Process.set_override(**{key: value})
             logger.info(f"Override {key} set to: {value}")
 
-    #   Parse nested CLI overrides (--global.* / --process.*.*)
+    # Parse nested CLI overrides (--global.* / --process.*.*)
     global_overrides = {}
     process_overrides = {}
 
@@ -1265,20 +1265,8 @@ def main():
             _nested_insert(entry, keypath, value)
             continue
 
-    # Apply global overrides
-    if global_overrides:
-        if "ALL" in no_override_params or "global" in no_override_params:
-            Process.set_default(**global_overrides)
-        else:
-            Process.set_override(**global_overrides)
-
-    # Apply per-process overrides
-    for pname, payload in process_overrides.items():
-        block = {"name": pname, **payload}
-        if "ALL" in no_override_params or pname in no_override_params:
-            Process.set_default(**block)
-        else:
-            Process.set_override(**block)
+    Process._cli_global_overrides = global_overrides or {}
+    Process._cli_process_overrides = process_overrides or {}
 
     # Apply flags values
     if args.parameters:

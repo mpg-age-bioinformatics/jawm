@@ -8,6 +8,7 @@ import subprocess
 import time
 import json
 import sys
+import fnmatch
 from datetime import datetime
 
 # Extend the Process class with methods from modular backend implementations
@@ -70,6 +71,9 @@ class Process:
     default_parameters = {}
     # Class-level parameters with the highest priority that overrides other values
     override_parameters = {}
+    # CLI-specific override holders (populated only by jawm CLI)
+    _cli_global_overrides = {}
+    _cli_process_overrides = {}
     # Dictionary of expected parameter types
     parameter_types = {
         "name": str,
@@ -343,15 +347,26 @@ class Process:
         process_params = yaml_params["process"].get(name, {})
         global_params = yaml_params["global"]
 
-        # Precedence (low → high): default_parameters < YAML global < YAML process < kwargs < python_args < (CLI -p) YAML global < (CLI -p) YAML process < override_parameters
+        # CLI-specific overrides injected by jawm command
+        cli_global = getattr(self.__class__, "_cli_global_overrides", {}) or {}
+        cli_proc_block = {}
+        for pattern, payload in getattr(self.__class__, "_cli_process_overrides", {}).items():
+            if fnmatch.fnmatch(self.name, pattern):
+                for k, v in payload.items():
+                    if isinstance(cli_proc_block.get(k), dict) and isinstance(v, dict):
+                        cli_proc_block[k] = {**cli_proc_block[k], **v}
+                    else:
+                        cli_proc_block[k] = v
+
+        # Precedence (low → high): default_parameters < YAML global < YAML process < kwargs < python_args < (CLI -p) YAML global < (CLI -p) YAML process < cli injected override (--global) < cli injected override (--process) < override_parameters
         # Detect if param_file came from an override (typically CLI -p)
         _cli_paramfile = bool(self.__class__.override_parameters.get("param_file"))
         if not _cli_paramfile:
             # Normal use: Python beats YAML: default_parameters < YAML(global/process) < kwargs < explicit_args < override_parameters
-            _precedence_layers = [self.__class__.default_parameters, global_params, process_params, kwargs, explicit_args, self.__class__.override_parameters]
+            _precedence_layers = [self.__class__.default_parameters, global_params, process_params, kwargs, explicit_args, cli_global, cli_proc_block, self.__class__.override_parameters]
         else:
             # CLI-driven: YAML beats Python: default_parameters < kwargs < explicit_args < YAML(global/process) < override_parameters
-            _precedence_layers = [self.__class__.default_parameters, kwargs, explicit_args, global_params, process_params, self.__class__.override_parameters]
+            _precedence_layers = [self.__class__.default_parameters, kwargs, explicit_args, global_params, process_params, cli_global, cli_proc_block, self.__class__.override_parameters]
 
         # Shallow merge first (flat, non-dict params)
         self.params = {}
