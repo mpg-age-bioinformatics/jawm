@@ -1233,14 +1233,15 @@ def get_image(image, mode="auto", v=True):
         for _, proc in image.registry.items():
 
             # Skip already executed processes
-            if getattr(proc, "container", None) is not None:
+            if getattr(proc, "execution_start_at", None) is not None:
                 continue
 
-            container = getattr(proc, key, None)
+            container = getattr(proc, "container", None)
 
             images_.append( container )
         
         images=list(dict.fromkeys(images_))
+        images.sort()
 
     # Resolve mode
     mode = (mode or "auto").lower().strip()
