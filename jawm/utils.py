@@ -1174,7 +1174,7 @@ def id_files(root=".", ext=".bam", varying_parts=None):
 
     return id_to_paths
 
-def get_image(image, mode="auto", v=True):
+def get_image(image=None, mode="auto", v=True):
     """
     Pre-pull container images so that Docker/Apptainer won't pull them
     implicitly at runtime.
@@ -1222,6 +1222,9 @@ def get_image(image, mode="auto", v=True):
         return f"docker://{ref}"
 
     # Normalize inputs
+    if not image :
+        from .process import Process as image
+
 
     if isinstance(image, str):
         images = [image]
