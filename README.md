@@ -15,6 +15,10 @@ just another workflow manager
 ```
 pip install git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git
 ```
+Or install with optional dependencies (e.g. `pandas`, `openpyxl`):
+```
+pip install jawm[full]@git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git
+```
 
 ## Running jawm
 
