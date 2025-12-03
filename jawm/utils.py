@@ -1174,8 +1174,6 @@ def id_files(root=".", ext=".bam", varying_parts=None):
 
     return id_to_paths
 
-
-
 def get_image(image, mode="auto", v=True):
     """
     Pre-pull container images so that Docker/Apptainer won't pull them
@@ -1224,10 +1222,25 @@ def get_image(image, mode="auto", v=True):
         return f"docker://{ref}"
 
     # Normalize inputs
+
     if isinstance(image, str):
         images = [image]
-    else:
-        images = list(image)
+
+    elif not isinstance(image, list): 
+
+        images_=[]
+
+        for _, proc in image.registry.items():
+
+            # Skip already executed processes
+            if getattr(proc, "container", None) is not None:
+                continue
+
+            container = getattr(proc, key, None)
+
+            images_.append( container )
+        
+        images=list(dict.fromkeys(images_))
 
     # Resolve mode
     mode = (mode or "auto").lower().strip()
