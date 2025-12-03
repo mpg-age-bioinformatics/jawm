@@ -1223,17 +1223,12 @@ def get_image(image=None, mode="auto", v=True):
 
     # Normalize inputs
     if not image :
-        from .process import Process as image
+        
+        from .process import Process
+        
+        images=[]
 
-
-    if isinstance(image, str):
-        images = [image]
-
-    elif not isinstance(image, list): 
-
-        images_=[]
-
-        for _, proc in image.registry.items():
+        for _, proc in Process.registry.items():
 
             # Skip already executed processes
             if getattr(proc, "execution_start_at", None) is not None:
@@ -1241,10 +1236,18 @@ def get_image(image=None, mode="auto", v=True):
 
             container = getattr(proc, "container", None)
 
-            images_.append( container )
+            images.append( container )
         
-        images=list(dict.fromkeys(images_))
+        images=list(dict.fromkeys(images))
         images.sort()
+
+    elif isinstance(image, str):
+
+        images = [image]
+    
+    elif isinstance(image, list): 
+
+        images = image.copy()
 
     # Resolve mode
     mode = (mode or "auto").lower().strip()
