@@ -1223,7 +1223,7 @@ def get_image(image=None, mode="auto", v=True):
 
     # Normalize inputs
     if not image :
-        
+
         from .process import Process
         
         images=[]
@@ -1236,7 +1236,9 @@ def get_image(image=None, mode="auto", v=True):
 
             container = getattr(proc, "container", None)
 
-            images.append( container )
+            if container :
+
+                images.append( container )
         
         images=list(dict.fromkeys(images))
         images.sort()
