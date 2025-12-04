@@ -264,7 +264,7 @@ def _script_placeholders_and_mkdir(self, script_content):
                         self.logger.info(f"mk.* created directory {path}")
                         created.add(path)
                     else:
-                        self.logger.info(f"mk.* skipped, already exists: {path}")
+                        self.logger.debug(f"mk.* skipped, already exists: {path}")
                 except Exception as e:
                     self.logger.warning(f"mk.* could not create {path}: {e}")
         self._mk_dirs_created = created
