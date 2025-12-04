@@ -906,6 +906,53 @@ def _proc_exception_handler(self, e, location= "execution", type_text="Error"):
     return
 
 
+@register
+def _throttle_delay(self):
+    """
+    Apply startup/finishing throttling delay for execution.
+    """
+    def _as_bool(v, default):
+        if v is None:
+            return default
+        s = str(v).strip().lower()
+        if s in {"1", "true", "yes", "on"}:
+            return True
+        if s in {"0", "false", "no", "off"}:
+            return False
+        return default
+
+    try:
+        # Enable flags
+        enable_serial   = _as_bool(os.getenv("JAWM_EXECUTE_SERIAL_WAIT"),   False)
+        enable_parallel = _as_bool(os.getenv("JAWM_EXECUTE_PARALLEL_WAIT"), True)
+
+        # Decide applicability
+        if self.parallel:
+            if not enable_parallel:
+                return
+        else:
+            if not enable_serial:
+                return
+
+        manager = str(getattr(self, "manager", "") or "").lower()
+
+        # Special defaults (fallback=0.1)
+        defaults = {
+            "slurm": 0.3,
+        }
+
+        # Allow env override
+        base_wait = os.getenv("JAWM_EXECUTE_WAIT")
+        specific  = os.getenv(f"JAWM_EXECUTE_WAIT_{manager.upper()}")
+
+        delay = float(specific or base_wait or defaults.get(manager, 0.1))
+
+        if delay > 0:
+            time.sleep(delay)
+
+    except Exception:
+        pass
+
 
 # --------------------------------------------
 #   Plain Helper Methods without @register
