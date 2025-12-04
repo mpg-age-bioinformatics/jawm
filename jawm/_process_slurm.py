@@ -34,27 +34,24 @@ def _generate_slurm_script(self):
         slurm_script_command = base_script_path
 
     # Create the Slurm job script
-    with open(slurm_script_path, "w") as slurm_script_file:
-        slurm_script_file.write("#!/bin/bash\n")  # Slurm script shebang
+    slurm_lines = ["#!/bin/bash\n"]
+    slurm_lines.append(f"#SBATCH --job-name={self._sanitize_slurm_name()}\n")
 
-        slurm_script_file.write(f"#SBATCH --job-name={self._sanitize_slurm_name()}\n") # Slurm job name
-        
-        # Add SLURM options dynamically
-        for key, value in self.manager_slurm.items():
-            if key.startswith("--"):
-                slurm_script_file.write(f"#SBATCH {key}={value}\n")
+    for key, value in self.manager_slurm.items():
+        if key.startswith("--"):
+            slurm_lines.append(f"#SBATCH {key}={value}\n")
 
-        # Apply before_script if defined
-        if self.before_script:
-            slurm_script_file.write(f"\n{self.before_script.strip()}\n")
-        
-        # Call the executable script
-        slurm_script_file.write(f"\n{slurm_script_command}\n")
+    if self.before_script:
+        slurm_lines.append(f"\n{self.before_script.strip()}\n")
 
-        # Apply after_script if defined
-        if self.after_script:
-            slurm_script_file.write(f"\n{self.after_script.strip()}\n")
+    slurm_lines.append(f"\n{slurm_script_command}\n")
 
+    if self.after_script:
+        slurm_lines.append(f"\n{self.after_script.strip()}\n")
+
+    content = "".join(slurm_lines)
+
+    self._safe_write_file(slurm_script_path, content)
     return slurm_script_path
 
 
@@ -128,8 +125,7 @@ def _execute_slurm(self):
             sbatch_command.append(script_path)
 
             self.logger.info(f"Submitting process {self.name} with slurm command: {' '.join(sbatch_command)}")
-            with open(command_path, "w") as command_path_file:
-                command_path_file.write(" ".join(sbatch_command))
+            self._safe_write_file(command_path, " ".join(sbatch_command))
 
             job_id = None
             
@@ -212,8 +208,7 @@ def _execute_slurm(self):
                     self._log_error_summary(self._tail_text(result.stderr), type_text="SlurmError")
                     self.logger.error(f"Failed to submit process {self.name} to Slurm: {result.stderr}{self._elog_path()}")
                     try:
-                        with open(exitcode_path, "w") as f:
-                            f.write("127")
+                        self._safe_write_file(exitcode_path, "127")
                     except Exception:
                         pass
                     return 127  # job failed to submit
@@ -226,8 +221,7 @@ def _execute_slurm(self):
                     self._log_error_summary(msg, type_text="SlurmError")
                     self.logger.error(f"{msg}{self._elog_path()}")
                     try:
-                        with open(exitcode_path, "w") as f:
-                            f.write("127")
+                        self._safe_write_file(exitcode_path, "127")
                     except Exception:
                         pass
                     return 127
@@ -282,8 +276,7 @@ def _execute_slurm(self):
                         # final_exit_code = 0 if (exit_code == "0:0") else 1
                         final_exit_code = 1 if state.startswith("CANCELLED") or exit_code != "0:0" else 0
                         # Write out the exit_code
-                        with open(exitcode_path, "w") as exitcode_file:
-                            exitcode_file.write(str(exit_code))
+                        self._safe_write_file(exitcode_path, str(exit_code))
                         # Move from Running->Completed
                         self._monitoring_completed_file(job_id, script_path, exit_code)
                         # If we want to capture stderr output or something, do it here
