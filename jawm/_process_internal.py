@@ -4,6 +4,7 @@ import re
 import fnmatch
 import shlex
 import hashlib
+import time
 from functools import reduce
 from datetime import datetime
 from urllib.parse import urlparse
@@ -345,13 +346,11 @@ def _generate_base_script(self, caching=False):
     script_content = self._script_placeholders_and_mkdir(script_content)
 
     # Write the updated script to the base script file
-    with open(self.base_script_path, "w") as script_file:
-        script_file.write(script_content)
+    self._safe_write_file(self.base_script_path, script_content)
 
     # Append original file path as a comment if applicable
     if self._script_type == "file" and self.script_file:
-        with open(self.base_script_path, "a") as script_file:
-            script_file.write(f"\n##### Original script file: {os.path.abspath(self.script_file)}\n")
+        self._safe_write_file(self.base_script_path, f"\n##### Original script file: {os.path.abspath(self.script_file)}\n", "a")
 
     # Make the script executable
     os.chmod(self.base_script_path, 0o755)
@@ -952,6 +951,56 @@ def _throttle_delay(self):
 
     except Exception:
         pass
+
+
+def _safe_write_file(self, path, content, mode="w", retries=5):
+    """
+    Safely writes a file in a way that is resilient to NFS / parallel FS metadata delay.
+
+    Ensures:
+      - parent directory exists
+      - file is written fully (flush + fsync)
+      - file is visible after write (metadata sync)
+
+    Parameters
+    ----------
+    path : str
+        Full path of the file to write.
+    content : str
+        File content to write.
+    mode : str
+        File write mode ('w', 'a', etc.).
+    retries : int
+        Number of metadata visibility retries.
+
+    Returns
+    -------
+    str
+        The file path that was written.
+    """
+
+    parent = os.path.dirname(path)
+    os.makedirs(parent, exist_ok=True)
+
+    # Write content safely
+    with open(path, mode) as f:
+        f.write(content)
+        f.flush()
+        os.fsync(f.fileno())
+
+    # Retry stat to avoid NFS propagation problems
+    delay = 0.001  # start with 1ms
+    for _ in range(retries):
+        try:
+            os.stat(path)
+            return path  # Success
+        except FileNotFoundError:
+            time.sleep(delay)
+            delay *= 2  # exponential backoff: 1ms, 2ms, 4ms, 8ms...
+
+    # If still failing, last raise is fine
+    os.stat(path)
+    return path
 
 
 # --------------------------------------------
