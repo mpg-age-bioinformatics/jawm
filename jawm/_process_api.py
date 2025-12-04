@@ -254,11 +254,6 @@ def execute(self, depends_on=None):
     
     except Exception as e:
         self._proc_exception_handler(e, location="execute()", type_text="ExecuteError")
-    finally:
-        try:
-            self._throttle_delay()
-        except Exception:
-            pass
 
 
 @register
