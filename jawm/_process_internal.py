@@ -953,6 +953,7 @@ def _throttle_delay(self):
         pass
 
 
+@register
 def _safe_write_file(self, path, content, mode="w", retries=5):
     """
     Safely writes a file in a way that is resilient to NFS / parallel FS metadata delay.
