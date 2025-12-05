@@ -262,10 +262,6 @@ def _execute_slurm(self):
                     retry_fail += 1
                     continue  # Retry querying
 
-                # sbatch_finish_wait = int(os.getenv("JAWM_SLURM_FINISH_WAIT", "20"))
-                # # print("Waiting..", sbatch_finish_wait)
-                # time.sleep(sbatch_finish_wait)
-
                 # Parse the job state and exit code
                 output = job_info.stdout.strip()
                 if output:
