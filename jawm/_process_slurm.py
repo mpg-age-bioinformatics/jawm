@@ -274,6 +274,8 @@ def _execute_slurm(self):
                     if elapsed_time % 600 == 0:
                         self.logger.info(f"Slurm job {job_id} state={state}, exit_code={exit_code}")
                     if any(state.startswith(s) for s in final_states):
+                        sbatch_finish_wait = int( os.getenv("JAWM_SLURM_FINISH_WAIT", "2") )
+                        time.sleep(sbatch_finish_wait)
                         if state.startswith("CANCELLED"):
                             self.logger.warning(f"Slurm job {job_id} was cancelled manually or externally.")
                         self.logger.info(f"Slurm job {job_id} completed with exit code: {exit_code}, state: {state}")
