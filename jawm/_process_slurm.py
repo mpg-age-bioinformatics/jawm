@@ -303,6 +303,8 @@ def _execute_slurm(self):
                     if exit_code == 0:
                         # success on this attempt
                         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        sbatch_finish_wait = int(os.getenv("JAWM_SLURM_FINISH_WAIT", "2"))
+                        time.sleep(sbatch_finish_wait)
                         self.finished_event.set()
                         return
                     # Else it failed
