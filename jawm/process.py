@@ -162,7 +162,7 @@ class Process:
         param_file=None,
         script=None,
         script_file=None,
-        var=None,
+        var={},
         var_file=None,
         project_directory=None,
         logs_directory=None,
