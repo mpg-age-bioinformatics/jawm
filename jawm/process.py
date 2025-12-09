@@ -162,7 +162,7 @@ class Process:
         param_file=None,
         script=None,
         script_file=None,
-        var={},
+        var=None,
         var_file=None,
         project_directory=None,
         logs_directory=None,
@@ -407,7 +407,7 @@ class Process:
         self.script = self.params.get("script", "#!/bin/bash")
         self.script_file = self.params.get("script_file", None)
         self._script_type = "script" if self.script != "#!/bin/bash" else "file" if self.script_file is not None else "script"
-        self.var = self.params.get("var", None)
+        self.var = self.params.get("var", {})
         if isinstance(self.var, dict):
             # Expand/process values
             self.var = _expand_relpaths_in_value(self.var, os.getcwd())
