@@ -299,7 +299,7 @@ def clone(self, name=None, param_file=None, **overrides):
     base.update(clean_overrides)
 
     # Sync with runtime var and alias
-    if isinstance(self.var, dict):
+    if isinstance(self.var, dict) and self.var:
         base["var"] = deepcopy(self.var)
         for k, v in list(base["var"].items()):
             if isinstance(k, str) and (k.startswith("mk.") or k.startswith("map.")):
