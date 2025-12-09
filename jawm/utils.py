@@ -568,6 +568,17 @@ def parse_arguments(available_workflows=["main"],description="A jawm module.",ex
     else:
         var={}
 
+    # Merge CLI-style global var overrides if running under `jawm` with --global.var.*
+    try:
+        from .process import Process
+        cli_globals = getattr(Process, "_cli_global_overrides", {}) or {}
+        cli_var = cli_globals.get("var", {})
+        if isinstance(cli_var, dict) and cli_var:
+            cli_var = _sanitize_vars(cli_var)
+            var.update(cli_var)
+    except Exception:
+        pass
+
     # script_name = os.path.basename(sys.argv[0])
     # workflows=[ s for s in workflows if s != sys.argv[0] ]
     workflows=workflows[1:]
