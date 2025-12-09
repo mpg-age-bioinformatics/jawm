@@ -94,6 +94,38 @@ def _sanitize_slurm_name(self):
 
 
 @register
+def _wait_for_slurm_teardown(self, timeout=10):
+    """
+    Wait until Slurm+Apptainer teardown is fully completed.
+    Uses:
+      - file existence
+      - file readability
+      - stable mtime for one cycle
+    """
+    path = self.stdout_path
+    end = time.time() + timeout
+
+    last_mtime = None
+
+    while time.time() < end:
+        if os.path.exists(path):
+            try:
+                # Try to open → ensures container/FS teardown finished
+                with open(path, "rb"):
+                    pass
+                # Check mtime for stabilization
+                stat = os.stat(path)
+                mtime = stat.st_mtime
+                if last_mtime is not None and mtime == last_mtime:
+                    return True  # mtime stable for one cycle
+                last_mtime = mtime
+            except Exception:
+                pass
+        time.sleep(0.2)
+    return False
+
+
+@register
 def _execute_slurm(self):
     """
     Execute the process as a Slurm job.
