@@ -1375,7 +1375,7 @@ class Process:
     @classmethod
     def get_cls_var(cls, key=None, default=None):
         """
-        Get a class-level var value or the full merged cls var dictionary.
+        Get a class-level global var value or the full merged global var dictionary.
 
         Parameters
         ----------
@@ -1391,30 +1391,51 @@ class Process:
         any or dict
             Value for `key`, or merged dict when key is None.
         """
+        # Collect YAML files only from CLI overrides
+        yaml_list = set()
 
-        # Gather layers
-        dp = cls.default_parameters.get("var", {}) or {}
+        pf = cls.override_parameters.get("param_file")
+        if pf:
+            if isinstance(pf, list):
+                yaml_list.update(pf)
+            else:
+                yaml_list.add(pf)
+
+        vf = cls.override_parameters.get("var_file")
+        if vf:
+            if isinstance(vf, list):
+                yaml_list.update(vf)
+            else:
+                yaml_list.add(vf)
+
+        # Load YAML global vars on-the-fly (no caching)
+        yaml_vars = {}
+        if yaml_list:
+            try:
+                from ._utils import read_variables
+                yaml_vars = read_variables(list(yaml_list), process_name=None, output_type="dict")
+            except Exception:
+                yaml_vars = {}
+
+        # ------------------------------------------------------------
+        # Merge layers in precedence order
+        # ------------------------------------------------------------
+        dp  = cls.default_parameters.get("var", {}) or {}
         cli = cls._cli_global_overrides.get("var", {}) or {}
         op  = cls.override_parameters.get("var", {}) or {}
 
-        # If key is None → return full merged dict
         if key is None:
             merged = {}
             merged.update(dp)
+            merged.update(yaml_vars)
             merged.update(cli)
             merged.update(op)
             return merged
 
-        # Else: return a single key-value
         value = default
-
-        if key in dp:
-            value = dp[key]
-
-        if key in cli:
-            value = cli[key]
-
-        if key in op:
-            value = op[key]
+        if key in dp:       value = dp[key]
+        if key in yaml_vars:value = yaml_vars[key]
+        if key in cli:      value = cli[key]
+        if key in op:       value = op[key]
 
         return value
