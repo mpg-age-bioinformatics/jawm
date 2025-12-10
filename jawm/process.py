@@ -1356,17 +1356,65 @@ class Process:
 
 
     @classmethod
-    def get_global_values(cls):
+    def get_cls_values(cls):
         """
         Return a dictionary describing the current class-level state of Process.
         """
         return {
             "default_parameters": dict(cls.default_parameters),
             "override_parameters": dict(cls.override_parameters),
-            "cli_global_overrides": dict(cls._cli_global_overrides),
-            "cli_process_overrides": dict(cls._cli_process_overrides),
+            "_cli_global_overrides": dict(cls._cli_global_overrides),
+            "_cli_process_overrides": dict(cls._cli_process_overrides),
             "parameter_types": dict(cls.parameter_types),
             "reserved_keys": set(cls.reserved_keys),
             "supported_managers": set(cls.supported_managers),
             "stop_future_event": cls.stop_future_event.is_set(),
         }
+
+
+    @classmethod
+    def get_cls_var(cls, key=None, default=None):
+        """
+        Get a class-level var value or the full merged cls var dictionary.
+
+        Parameters
+        ----------
+        key : str or None
+            If a string, return the resolved value for that key.
+            If None, return the full merged var dictionary.
+
+        default : any
+            Returned when a key is not found.
+
+        Returns
+        -------
+        any or dict
+            Value for `key`, or merged dict when key is None.
+        """
+
+        # Gather layers
+        dp = cls.default_parameters.get("var", {}) or {}
+        cli = cls._cli_global_overrides.get("var", {}) or {}
+        op  = cls.override_parameters.get("var", {}) or {}
+
+        # If key is None → return full merged dict
+        if key is None:
+            merged = {}
+            merged.update(dp)
+            merged.update(cli)
+            merged.update(op)
+            return merged
+
+        # Else: return a single key-value
+        value = default
+
+        if key in dp:
+            value = dp[key]
+
+        if key in cli:
+            value = cli[key]
+
+        if key in op:
+            value = op[key]
+
+        return value
