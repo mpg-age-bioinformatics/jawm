@@ -1354,3 +1354,19 @@ class Process:
         if log: cls.logger_wait.info(f"Wait completed for {len(procs)} process(es).")
         return success
 
+
+    @classmethod
+    def get_global_values(cls):
+        """
+        Return a dictionary describing the current class-level state of Process.
+        """
+        return {
+            "default_parameters": dict(cls.default_parameters),
+            "override_parameters": dict(cls.override_parameters),
+            "cli_global_overrides": dict(cls._cli_global_overrides),
+            "cli_process_overrides": dict(cls._cli_process_overrides),
+            "parameter_types": dict(cls.parameter_types),
+            "reserved_keys": set(cls.reserved_keys),
+            "supported_managers": set(cls.supported_managers),
+            "stop_future_event": cls.stop_future_event.is_set(),
+        }
