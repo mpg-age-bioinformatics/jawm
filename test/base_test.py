@@ -2913,6 +2913,112 @@ finally:
     _restore_params(bak_default, bak_override)
 
 
+print("\n>>> Test 47: get_cls_var — default, YAML(-p), CLI global override, class override (NO -v influence)")
+
+try:
+    _clear_params()
+
+    # -----------------------------------------------
+    # Setup temporary YAML file for -p
+    # -----------------------------------------------
+    tmpdir = tempfile.mkdtemp(prefix="test_cls_var_", dir=base_tmp)
+    yaml_path = os.path.join(tmpdir, "params.yaml")
+
+    with open(yaml_path, "w") as f:
+        f.write("""
+- scope: global
+  var:
+    A: "YAML_GLOBAL"
+    B: "YAML_GLOBAL"
+    X: "YAML_GLOBAL"
+""")
+
+    # -----------------------------------------------
+    # A) class defaults only
+    # -----------------------------------------------
+    Process.set_default(var={"A": "DEFAULT", "B": "DEFAULT", "C": "DEFAULT"})
+
+    v = Process.get_cls_var()
+    assert v["A"] == "DEFAULT", "❌ default var not used"
+    assert v["B"] == "DEFAULT", "❌ default var not used"
+    assert v["C"] == "DEFAULT", "❌ default var not used"
+
+    # -----------------------------------------------
+    # B) simulate CLI -p (YAML > default)
+    # -----------------------------------------------
+    Process.set_override(param_file=yaml_path)
+
+    v = Process.get_cls_var()
+    assert v["A"] == "YAML_GLOBAL", "❌ YAML_GLOBAL did not override default"
+    assert v["B"] == "YAML_GLOBAL", "❌ YAML_GLOBAL did not override default"
+    assert v["X"] == "YAML_GLOBAL", "❌ YAML var missing"
+
+    # -----------------------------------------------
+    # C) simulate CLI global override (--global.var.A=CLI)
+    # -----------------------------------------------
+    Process._cli_global_overrides["var"] = {"A": "CLI"}
+
+    v = Process.get_cls_var()
+    assert v["A"] == "CLI", "❌ CLI global override did not override YAML"
+    assert v["B"] == "YAML_GLOBAL", "❌ CLI global override incorrectly affected B"
+
+    # -----------------------------------------------
+    # D) class override_parameters should override everything
+    # -----------------------------------------------
+    Process.set_override(var={"B": "OVERRIDE", "C": "OVERRIDE"})
+
+    v = Process.get_cls_var()
+    assert v["B"] == "OVERRIDE", "❌ override did not override YAML/default"
+    assert v["C"] == "OVERRIDE", "❌ override did not override defaults"
+
+    # -----------------------------------------------
+    # E) -v should NOT affect class-level var
+    # -----------------------------------------------
+    Process.set_override(var_file=yaml_path)  # simulate -v test.yaml
+
+    v = Process.get_cls_var()
+    assert "X" in v, "❌ YAML_GLOBAL missing unexpectedly"
+    assert v["X"] == "YAML_GLOBAL", "❌ var_file incorrectly affected YAML var"
+    assert v["A"] == "CLI", "❌ -v should NOT override CLI or -p"
+
+    # -----------------------------------------------
+    # F) instance-level Process.var should stay independent
+    # -----------------------------------------------
+    p = Process(name="dummy", script="#!/bin/bash\necho hi")
+
+    assert p.var["A"] == "CLI" or p.var["A"] == "YAML_GLOBAL" or p.var["A"] == "DEFAULT", \
+        "❌ p.var['A'] invalid — but this is just a sanity check for isolation"
+
+    # A) must not be the same object
+    assert Process.get_cls_var() is not p.var, \
+        "❌ get_cls_var and p.var reference the same dict object (identity leak)"
+
+    # B) modifying instance var must not affect class-level var
+    p.var["__TEST_INSTANCE_MUTATION__"] = 123
+    assert "__TEST_INSTANCE_MUTATION__" not in Process.get_cls_var(), \
+        "❌ modifying instance var unexpectedly changed class-level var"
+
+    # C) modifying class-level merged var must not affect p.var
+    cls_before = Process.get_cls_var().copy()
+    Process.set_default(var={"__TEST_CLASS_MUTATION__": 456})
+    cls_after = Process.get_cls_var()
+    assert "__TEST_CLASS_MUTATION__" in cls_after, "❌ class-level mutation missing"
+    assert "__TEST_CLASS_MUTATION__" not in p.var, \
+        "❌ modifying class-level var unexpectedly changed instance var"
+
+    print("✅ Passed: get_cls_var — correct precedence and correct -v behavior")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
+    Process._cli_global_overrides["var"] = {}   # cleanup
+
+
 
 
 # -----------------------------
