@@ -1137,7 +1137,7 @@ class Process:
 
 
     @classmethod
-    def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False):
+    def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False, abort=False, exitcode=1):
         """
         Wait until the given processes are finished, optionally checking their exit codes.
 
@@ -1153,6 +1153,8 @@ class Process:
         log (bool): Whether to log the wait info or not
         timeout (int | None): Maximum time (in seconds) to wait for each process. If None (default), wait indefinitely or comply with os env JAWM_WAIT_TIMEOUT
         dynamic (bool): Consider dynamic stabilization mode on process registry, so it doesn't only count snapshot (default False)
+        abort (bool): Trigger a system exit on any failure in wait (default False)
+        exitcode (int): exitcode on wait failure when abort is true (default 1)
 
         Returns:
             bool: True if all waited processes completed with allowed exit codes, False otherwise.
@@ -1352,6 +1354,11 @@ class Process:
                         t.join(timeout=1.0)
 
         if log: cls.logger_wait.info(f"Wait completed for {len(procs)} process(es).")
+
+        if abort and not success:
+            cls.logger_wait.error(f"Process.wait → Exiting with code {exitcode} due to failure.")
+            sys.exit(exitcode)
+
         return success
 
 
