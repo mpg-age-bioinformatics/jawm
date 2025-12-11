@@ -1232,6 +1232,12 @@ class Process:
                         if log: cls.logger_wait.warning(f"No registered process for: {item}")
                         success = False
                     else:
+                        if p.execution_start_at is None:
+                            time.sleep(0.3)
+                            if p.execution_start_at is None:
+                                if log: cls.logger_wait.warning(f"Process.wait → Process '{item}' has not started; skipping.")
+                                success = False
+                                continue
                         procs.append(p)
                 else:
                     if log: cls.logger_wait.warning(f"Unsupported process reference: {item}")
@@ -1356,7 +1362,7 @@ class Process:
         if log: cls.logger_wait.info(f"Wait completed for {len(procs)} process(es).")
 
         if abort and not success:
-            cls.logger_wait.error(f"Process.wait → Exiting with code {exitcode} due to failure.")
+            cls.logger_wait.error(f"Process.wait → Exiting with code {exitcode} due to failure in wait.")
             sys.exit(exitcode)
 
         return success
