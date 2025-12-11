@@ -1401,13 +1401,6 @@ class Process:
             else:
                 yaml_list.add(pf)
 
-        vf = cls.override_parameters.get("var_file")
-        if vf:
-            if isinstance(vf, list):
-                yaml_list.update(vf)
-            else:
-                yaml_list.add(vf)
-
         # Load YAML global vars on-the-fly (no caching)
         yaml_vars = {}
         if yaml_list:
@@ -1417,9 +1410,7 @@ class Process:
             except Exception:
                 yaml_vars = {}
 
-        # ------------------------------------------------------------
         # Merge layers in precedence order
-        # ------------------------------------------------------------
         dp  = cls.default_parameters.get("var", {}) or {}
         cli = cls._cli_global_overrides.get("var", {}) or {}
         op  = cls.override_parameters.get("var", {}) or {}
