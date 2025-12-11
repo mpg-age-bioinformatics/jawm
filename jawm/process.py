@@ -1232,7 +1232,7 @@ class Process:
                         if log: cls.logger_wait.warning(f"No registered process for: {item}")
                         success = False
                     else:
-                        if p.execution_start_at is None:
+                        if p.execution_start_at is None and not p.depends_on:
                             time.sleep(0.3)
                             if p.execution_start_at is None:
                                 if log: cls.logger_wait.warning(f"Process.wait → Process '{item}' has not started; skipping.")
