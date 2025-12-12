@@ -1230,18 +1230,17 @@ class Process:
                     p = cls.registry.get(item)
                     if p is None:
                         if log: cls.logger_wait.warning(f"No registered process for: {item}")
-                        success = False
+                        continue
                     else:
                         if p.execution_start_at is None and not p.depends_on:
                             time.sleep(0.3)
                             if p.execution_start_at is None:
                                 if log: cls.logger_wait.warning(f"Process.wait → Process '{item}' has not started; skipping.")
-                                success = False
                                 continue
                         procs.append(p)
                 else:
                     if log: cls.logger_wait.warning(f"Unsupported process reference: {item}")
-                    success = False
+                    continue
 
         # ---------------------------
         # Live tailing: helpers/setup
