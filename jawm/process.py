@@ -1052,59 +1052,6 @@ class Process:
 
 
     @classmethod
-    def _init_cleanup_hooks(cls):
-        """
-        Register cleanup behavior for interrupt signals (e.g., Ctrl+C).
-
-        This method sets up a SIGINT (interrupt signal) handler that ensures
-        all currently running jawm processes are terminated cleanly if the user
-        manually interrupts execution (e.g., via Ctrl+C).
-        """
-        if getattr(cls, "_cleanup_hooks_registered", False):
-            return
-        cls._cleanup_hooks_registered = True
-        cls._sigint_fired = False
-
-        def _on_sigint(sig, frame):
-            # If another handler already triggered a hard exit, ignore
-            if getattr(cls, "_force_exiting", False):
-                return
-
-            if cls._sigint_fired:
-                cls._force_exiting = True
-                cls.logger_kill.error("Second Ctrl+C detected — forcing immediate exit now!")
-                try:
-                    os.killpg(0, signal.SIGKILL)
-                except Exception:
-                    pass
-                os._exit(130)
-
-            cls._sigint_fired = True
-            cls.logger_kill.info("Ctrl+C detected — terminating running JAWM jobs...")
-
-            try:
-                cls.kill_all()
-            except Exception as e:
-                cls.logger_kill.warning(f"Graceful kill_all() failed: {e}")
-
-            time.sleep(0.2)
-            cls.logger_kill.info("Press Ctrl+C again to abort immediately (manual cleanup may be required).")
-
-            try:
-                signal.signal(signal.SIGINT, _on_sigint)
-            except Exception:
-                pass
-
-            for _ in range(20):
-                time.sleep(0.2)
-                if cls._sigint_fired:  # second Ctrl+C during wait
-                    return
-            os._exit(130)
-
-        signal.signal(signal.SIGINT, _on_sigint)
-
-
-    @classmethod
     def reset_stop(cls):
         """
         Allow processes to run again after a previous stop signal from a failure.
@@ -1443,6 +1390,63 @@ class Process:
 
         return value
 
+
+    # ----------------------------------------------------------
+    #  Internal class methods with Process Lifecycle
+    # ----------------------------------------------------------
+
+    @classmethod
+    def _init_cleanup_hooks(cls):
+        """
+        Register cleanup behavior for interrupt signals (e.g., Ctrl+C).
+
+        This method sets up a SIGINT (interrupt signal) handler that ensures
+        all currently running jawm processes are terminated cleanly if the user
+        manually interrupts execution (e.g., via Ctrl+C).
+        """
+        if getattr(cls, "_cleanup_hooks_registered", False):
+            return
+        cls._cleanup_hooks_registered = True
+        cls._sigint_fired = False
+
+        def _on_sigint(sig, frame):
+            # If another handler already triggered a hard exit, ignore
+            if getattr(cls, "_force_exiting", False):
+                return
+
+            if cls._sigint_fired:
+                cls._force_exiting = True
+                cls.logger_kill.error("Second Ctrl+C detected — forcing immediate exit now!")
+                try:
+                    os.killpg(0, signal.SIGKILL)
+                except Exception:
+                    pass
+                os._exit(130)
+
+            cls._sigint_fired = True
+            cls.logger_kill.info("Ctrl+C detected — terminating running JAWM jobs...")
+
+            try:
+                cls.kill_all()
+            except Exception as e:
+                cls.logger_kill.warning(f"Graceful kill_all() failed: {e}")
+
+            time.sleep(0.2)
+            cls.logger_kill.info("Press Ctrl+C again to abort immediately (manual cleanup may be required).")
+
+            try:
+                signal.signal(signal.SIGINT, _on_sigint)
+            except Exception:
+                pass
+
+            for _ in range(20):
+                time.sleep(0.2)
+                if cls._sigint_fired:  # second Ctrl+C during wait
+                    return
+            os._exit(130)
+
+        signal.signal(signal.SIGINT, _on_sigint)
+        
 
     @classmethod
     def _wait_for_active_slot(cls, manager=None, poll=None):
