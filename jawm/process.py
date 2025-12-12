@@ -1442,3 +1442,88 @@ class Process:
         if key in op:       value = op[key]
 
         return value
+
+
+    @classmethod
+    def _wait_for_active_slot(cls, manager=None, poll=None):
+        """
+        Soft concurrency gate based on active processes.
+
+        Rules:
+        - If JAWM_MAX_PROCESS_<MANAGER> is defined → enforce ONLY that
+        - Otherwise → enforce JAWM_MAX_PROCESS
+        - If neither is defined → no limit (return immediately)
+        """
+        try:
+            # Fast exit: no limits configured
+            if "JAWM_MAX_PROCESS" not in os.environ:
+                if manager is None or f"JAWM_MAX_PROCESS_{manager.upper()}" not in os.environ:
+                    return
+
+            # Resolve poll interval from env if not explicitly provided
+            if poll is None:
+                try:
+                    poll = float(os.getenv("JAWM_PROCESS_WAIT_POLL", "0.2"))
+                except Exception:
+                    poll = 0.2
+                if poll <= 0:
+                    poll = 0.2
+
+            reg = set(cls.registry.values())
+
+            # Manager-specific limit
+            max_mgr = None
+            if manager:
+                env_key = f"JAWM_MAX_PROCESS_{manager.upper()}"
+                if env_key in os.environ:
+                    try:
+                        max_mgr = int(os.environ[env_key])
+                    except Exception:
+                        return  # invalid → ignore limit
+                    if max_mgr < 1:
+                        max_mgr = 1
+
+            # Global limit (fallback only)
+            if max_mgr is None:
+                try:
+                    max_global = int(os.environ.get("JAWM_MAX_PROCESS", "0"))
+                except Exception:
+                    return
+                if max_global < 1:
+                    max_global = 1
+            else:
+                max_global = None
+
+            # Poll until slot is free
+            while True:
+                active = 0
+
+                for p in reg:
+                    if not isinstance(p, cls):
+                        continue
+                    if p.execution_start_at is None or p.finished_event.is_set():
+                        continue
+
+                    if max_mgr is not None:
+                        if p.manager == manager:
+                            active += 1
+                    else:
+                        active += 1
+
+                    if max_mgr is not None and active >= max_mgr:
+                        break
+                    if max_global is not None and active >= max_global:
+                        break
+
+                if max_mgr is not None:
+                    if active >= max_mgr:
+                        time.sleep(poll)
+                        continue
+                else:
+                    if active >= max_global:
+                        time.sleep(poll)
+                        continue
+
+                break
+        except Exception:
+            return

@@ -169,6 +169,7 @@ def execute(self, depends_on=None):
 
                 # Perform the run (backends handle retries and mark finished)
                 try:
+                    self.__class__._wait_for_active_slot(manager=self.manager)
                     self.execution_start_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self._run_manager()
                 except Exception as e:
