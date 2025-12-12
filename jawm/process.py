@@ -1460,17 +1460,6 @@ class Process:
                 if manager is None or f"JAWM_MAX_PROCESS_{manager.upper()}" not in os.environ:
                     return
 
-            # Resolve poll interval from env if not explicitly provided
-            if poll is None:
-                try:
-                    poll = float(os.getenv("JAWM_PROCESS_WAIT_POLL", "0.2"))
-                except Exception:
-                    poll = 0.2
-                if poll <= 0:
-                    poll = 0.2
-
-            reg = set(cls.registry.values())
-
             # Manager-specific limit
             max_mgr = None
             if manager:
@@ -1494,7 +1483,17 @@ class Process:
             else:
                 max_global = None
 
+            # Resolve poll interval from env if not explicitly provided
+            if poll is None:
+                try:
+                    poll = float(os.getenv("JAWM_PROCESS_WAIT_POLL", "0.2"))
+                except Exception:
+                    poll = 0.2
+                if poll <= 0:
+                    poll = 0.2
+
             # Poll until slot is free
+            reg = set(cls.registry.values())
             while True:
                 active = 0
 
