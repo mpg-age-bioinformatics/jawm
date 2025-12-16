@@ -44,6 +44,11 @@ Documentation:
 --------------
 Use `jhelp()` or visit https://github.com/mpg-age-bioinformatics/jawm for details.
 """
+try:
+    from ._config import load_user_config
+    load_user_config()
+except Exception:
+    pass
 
 from .process import Process
 from .docs import jhelp
