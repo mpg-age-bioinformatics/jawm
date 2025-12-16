@@ -3097,6 +3097,107 @@ finally:
     _restore_params(bak_default, bak_override)
 
 
+print("\n>>> Test 49: User config loading — default path, custom path, env precedence")
+try:
+    # --------------------------------------------------
+    # Backup environment (FULL isolation)
+    # --------------------------------------------------
+    _env_backup = dict(os.environ)
+
+    # --------------------------------------------------
+    # Setup isolated HOME
+    # --------------------------------------------------
+    tmp_home = tempfile.mkdtemp(prefix="jawm_home_", dir=base_tmp)
+    os.environ["HOME"] = tmp_home
+
+    jawm_dir = os.path.join(tmp_home, ".jawm")
+    os.makedirs(jawm_dir, exist_ok=True)
+
+    default_cfg = os.path.join(jawm_dir, "config")
+
+    # --------------------------------------------------
+    # Write default ~/.jawm/config
+    # --------------------------------------------------
+    with open(default_cfg, "w") as f:
+        f.write("""
+# Default config
+JAWM_MAX_PROCESS=10
+JAWM_PROCESS_WAIT_POLL=0.5
+NOT_JAWM_VAR=SHOULD_IGNORE
+""")
+
+    # Remove any inherited JAWM_* vars
+    for k in list(os.environ):
+        if k.startswith("JAWM_"):
+            del os.environ[k]
+
+    # --------------------------------------------------
+    # Load config (default path)
+    # --------------------------------------------------
+    from jawm._config import _load_user_config
+    _load_user_config()
+
+    assert os.environ.get("JAWM_MAX_PROCESS") == "10", \
+        "❌ Failed to load JAWM_MAX_PROCESS from default config"
+
+    assert os.environ.get("JAWM_PROCESS_WAIT_POLL") == "0.5", \
+        "❌ Failed to load JAWM_PROCESS_WAIT_POLL from default config"
+
+    assert "NOT_JAWM_VAR" not in os.environ, \
+        "❌ Non-JAWM variable was incorrectly loaded"
+
+    # --------------------------------------------------
+    # Custom config via JAWM_CONFIG_FILE
+    # --------------------------------------------------
+    custom_cfg = os.path.join(tmp_home, "custom.conf")
+    with open(custom_cfg, "w") as f:
+        f.write("""
+JAWM_MAX_PROCESS=20
+JAWM_LOG_EMOJI=0
+""")
+
+    os.environ["JAWM_CONFIG_FILE"] = custom_cfg
+
+    # Clear JAWM_* except JAWM_CONFIG_FILE
+    for k in list(os.environ):
+        if k.startswith("JAWM_") and k != "JAWM_CONFIG_FILE":
+            del os.environ[k]
+
+    _load_user_config()
+
+    assert os.environ.get("JAWM_MAX_PROCESS") == "20", \
+        "❌ Failed to load JAWM_MAX_PROCESS from custom config"
+
+    assert os.environ.get("JAWM_LOG_EMOJI") == "0", \
+        "❌ Failed to load JAWM_LOG_EMOJI from custom config"
+
+    # --------------------------------------------------
+    # Env vars must override config
+    # --------------------------------------------------
+    os.environ["JAWM_MAX_PROCESS"] = "99"
+    _load_user_config()
+
+    assert os.environ.get("JAWM_MAX_PROCESS") == "99", \
+        "❌ Config incorrectly overrode explicit env var"
+
+    print("✅ Passed: user config loading — default path, custom path, env precedence")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    # --------------------------------------------------
+    # Cleanup filesystem & restore environment
+    # --------------------------------------------------
+    shutil.rmtree(tmp_home, ignore_errors=True)
+
+    os.environ.clear()
+    os.environ.update(_env_backup)
+
+
+
 
 
 # -----------------------------
