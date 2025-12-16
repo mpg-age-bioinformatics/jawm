@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-def load_user_config():
+def _load_user_config():
     """
     Load JAWM_* environment variables from a config file.
 
