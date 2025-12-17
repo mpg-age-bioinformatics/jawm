@@ -722,8 +722,8 @@ def load_modules(
     """
     logger = logging.getLogger("jawm.utils|load_modules")
 
-    # ⭐ Determine the CALLER's file directory
-    def _caller_dir() -> pathlib.Path:
+    # Determine the CALLER's file directory
+    def _caller_dir():
         try:
             # Walk the stack to find the first frame outside this module.
             this_file = pathlib.Path(__file__).resolve()
@@ -739,7 +739,7 @@ def load_modules(
     caller_base = _caller_dir()
 
     # ⭐ Resolve a path relative to the caller's file (unless absolute)
-    def _resolve_from_caller(p: pathlib.Path | str) -> pathlib.Path:
+    def _resolve_from_caller(p):
         p = pathlib.Path(p).expanduser()
         return (caller_base / p).resolve() if not p.is_absolute() else p.resolve()
 

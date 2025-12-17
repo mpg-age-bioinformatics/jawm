@@ -566,7 +566,7 @@ class Process:
     # ----------------------------------------------------------
     
     @staticmethod
-    def _deep_merge_dicts(a: dict, b: dict) -> dict:
+    def _deep_merge_dicts(a, b):
         """
         Recursively merge two dicts.
 

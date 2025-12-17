@@ -95,7 +95,7 @@ def _generate_k8s_manifest(self):
 
 
     # 2) Resolve image & env
-    def _infer_image_from_shebang(line: str) -> str:
+    def _infer_image_from_shebang(line):
         l = (line or "").strip().lower()
         # Common cases
         if "python" in l:      # covers /usr/bin/python, /usr/bin/env python3, etc.
