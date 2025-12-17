@@ -80,7 +80,7 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
                 return s.lower()
         return s.lower()
 
-    def _ssh_remote(srv: str, owner: str, repo: str) -> str | None:
+    def _ssh_remote(srv, owner, repo):
         if srv == "local":
             return None
         host = _norm_host(srv).strip("/")
@@ -224,7 +224,7 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
     def _gitlab_api_base(hostname: str) -> str:
         return f"https://{hostname}/api/v4"
 
-    def _gitlab_namespace_id(hostname: str, namespace: str, token: str) -> int | None:
+    def _gitlab_namespace_id(hostname, namespace, token):
         base = _gitlab_api_base(hostname)
         req = urllib.request.Request(
             f"{base}/namespaces?search={urlquote(namespace)}",
@@ -240,7 +240,7 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
         except Exception:
             return None
 
-    def _gitlab_repo_exists(hostname: str, owner: str, name: str, token: str | None) -> bool:
+    def _gitlab_repo_exists(hostname, owner, name, token):
         base = _gitlab_api_base(hostname)
         path = urlquote(f"{owner}/{name}", safe="")
         headers = {"Private-Token": token} if token else {}
@@ -277,7 +277,7 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
     def _gitea_api_base(hostname: str) -> str:
         return f"https://{hostname}/api/v1"
 
-    def _gitea_repo_exists(hostname: str, owner: str, name: str, token: str | None) -> bool:
+    def _gitea_repo_exists(hostname, owner, name, token):
         base = _gitea_api_base(hostname)
         headers = {"Authorization": f"token {token}"} if token else {}
         req = urllib.request.Request(f"{base}/repos/{owner}/{name}", headers=headers)
@@ -600,7 +600,7 @@ PROC_BLOCK_RE = re.compile(
 
 DOUBLE_BRACE_VAR_RE = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
 
-def _extract_process_vars(text: str) -> "OrderedDict[str, list[str]]":
+def _extract_process_vars(text):
     """
     Returns OrderedDict mapping process name -> sorted unique vars used as {{var}} in its script.
     """
