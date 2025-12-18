@@ -15,6 +15,8 @@ import fnmatch
 import re
 import subprocess
 import tempfile
+import urllib.parse
+import urllib.request
 import tarfile
 import shutil
 import traceback
@@ -1200,6 +1202,77 @@ def main():
             args.parameters = args.parameters[0]
         if args.variables is not None and isinstance(args.variables, list) and len(args.variables) == 1:
             args.variables = args.variables[0]
+
+        # ------------------------------------------------------------
+        #   Handle parameter file from remote url
+        # ------------------------------------------------------------
+        def _is_https_url(x):
+            try:
+                s = str(x)
+                if not s.startswith("https://"):
+                    return False
+                u = urllib.parse.urlparse(s)
+                return bool(u.netloc)
+            except Exception:
+                return False
+
+        def _download_url(url):
+            try:
+                if str(os.getenv("JAWM_ALLOW_URL_CONFIG", "1")).strip().lower() in {"0","false","no","off",""}:
+                    logger.error(f"URL config disabled: {url}")
+                    _errlog_exit(2)
+
+                cache_dir = os.path.expanduser(os.getenv("JAWM_URL_CACHE_DIR") or "~/.jawm/remote_params")
+                os.makedirs(cache_dir, exist_ok=True)
+
+                max_bytes = int(os.getenv("JAWM_URL_MAX_BYTES", str(1024 * 1024)))
+                timeout = float(os.getenv("JAWM_URL_TIMEOUT", "10"))
+
+                parsed = urllib.parse.urlparse(url)
+                ext = os.path.splitext(parsed.path)[1].lower() or ".yaml"
+                fname = hashlib.sha256(url.encode("utf-8")).hexdigest() + ext
+                out_path = os.path.join(cache_dir, fname)
+
+                if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                    return out_path
+
+                req = urllib.request.Request(url, headers={"User-Agent": "jawm/1 (config-fetch)"})
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    final_url = r.geturl()
+                    if not str(final_url).startswith("https://"):
+                        raise RuntimeError("redirected to non-https")
+                    data = r.read(max_bytes + 1)
+                    if len(data) > max_bytes:
+                        raise RuntimeError("remote file too large")
+
+                fd, tmp_path = tempfile.mkstemp(prefix="jawm_url_", dir=cache_dir)
+                try:
+                    with os.fdopen(fd, "wb") as f:
+                        f.write(data)
+                    os.replace(tmp_path, out_path)
+                finally:
+                    try:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+                    except Exception:
+                        pass
+
+                return out_path
+
+            except Exception:
+                logger.error(f"Failed to fetch remote config file: {url}")
+                _errlog_exit(2)
+
+        def _resolve_urls(value):
+            if not value:
+                return value
+            if isinstance(value, (list, tuple)):
+                return [_download_url(v) if _is_https_url(v) else v for v in value]
+            return _download_url(value) if _is_https_url(value) else value
+
+        # Convert CLI URL inputs to local files before path validation
+        args.parameters = _resolve_urls(args.parameters)
+        args.variables = _resolve_urls(args.variables)
 
         if _git_info_line:
             logger.info(_git_info_line)
