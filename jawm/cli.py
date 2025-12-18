@@ -1219,8 +1219,7 @@ def main():
         def _download_url(url):
             try:
                 if str(os.getenv("JAWM_ALLOW_URL_CONFIG", "1")).strip().lower() in {"0","false","no","off",""}:
-                    logger.error(f"URL config disabled: {url}")
-                    _errlog_exit(2)
+                    raise RuntimeError("URL config from remote is disabled")
 
                 cache_dir = os.path.expanduser(os.getenv("JAWM_URL_CACHE_DIR") or "~/.jawm/remote_params")
                 os.makedirs(cache_dir, exist_ok=True)
@@ -1245,6 +1244,11 @@ def main():
                     if len(data) > max_bytes:
                         raise RuntimeError("remote file too large")
 
+                    # Guard: GitHub "blob" URLs often return HTML, not raw file content
+                    sample = data.lstrip()[:1024].lower()
+                    if sample.startswith(b"<!doctype html") or sample.startswith(b"<html") or b"<html" in sample:
+                        raise RuntimeError("URL did not return raw file (got HTML)")
+
                 fd, tmp_path = tempfile.mkstemp(prefix="jawm_url_", dir=cache_dir)
                 try:
                     with os.fdopen(fd, "wb") as f:
@@ -1259,8 +1263,8 @@ def main():
 
                 return out_path
 
-            except Exception:
-                logger.error(f"Failed to fetch remote config file: {url}")
+            except Exception as e:
+                logger.error(f"Failed to fetch remote config file: {url}\nError: {e}")
                 _errlog_exit(2)
 
         def _resolve_urls(value):
