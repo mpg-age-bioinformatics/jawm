@@ -1235,20 +1235,41 @@ def main():
                 force = str(os.getenv("JAWM_URL_FORCE_REFRESH", "0")).strip().lower() in {"1","true","yes","on"}
 
                 if not force and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                    logger.info(f"[url] Using cached remote file for url: {url}")
                     return out_path
 
-                req = urllib.request.Request(url, headers={"User-Agent": "jawm/1 (config-fetch)"})
-                with urllib.request.urlopen(req, timeout=timeout) as r:
-                    final_url = r.geturl()
-                    if not str(final_url).startswith("https://"):
-                        raise RuntimeError("redirected to non-https")
-                    data = r.read(max_bytes + 1)
-                    if len(data) > max_bytes:
-                        raise RuntimeError("remote file too large")
+                logger.info(f"[url] Fetching remote file for url: {url}")
 
-                    # Guard: GitHub "blob" URLs often return HTML, not raw file content
-                    sample = data.lstrip()[:1024].lower()
-                    if sample.startswith(b"<!doctype html") or sample.startswith(b"<html") or b"<html" in sample:
+                def _fetch_url(u):
+                    req = urllib.request.Request(u, headers={"User-Agent": "jawm/1 (config-fetch)"})
+                    with urllib.request.urlopen(req, timeout=timeout) as r:
+                        final_url = r.geturl()
+                        if not str(final_url).startswith("https://"):
+                            raise RuntimeError("redirected to non-https")
+                        data = r.read(max_bytes + 1)
+                        if len(data) > max_bytes:
+                            raise RuntimeError("remote file too large")
+                        return data
+
+                def _append_raw_url(u):
+                    p = urllib.parse.urlparse(u)
+                    q = urllib.parse.parse_qs(p.query)
+                    if "raw" in q:
+                        return None
+                    new_query = (p.query + "&" if p.query else "") + "raw=1"
+                    return urllib.parse.urlunparse((p.scheme, p.netloc, p.path, p.params, new_query, p.fragment))
+
+                data = _fetch_url(url)
+                sample = data.lstrip()[:256].lower()
+                if sample.startswith(b"<!doctype html") or sample.startswith(b"<html") or b"<html" in sample:
+                    alt = _append_raw_url(url)
+                    if alt:
+                        logger.info(f"[url] URL returned HTML, Retrying with ?raw=1: {alt}")
+                        data = _fetch_url(alt)
+                        sample2 = data.lstrip()[:256].lower()
+                        if sample2.startswith(b"<!doctype html") or sample2.startswith(b"<html") or b"<html" in sample2:
+                            raise RuntimeError("URL did not return raw file (got HTML)")
+                    else:
                         raise RuntimeError("URL did not return raw file (got HTML)")
 
                 fd, tmp_path = tempfile.mkstemp(prefix="jawm_url_", dir=cache_dir)
