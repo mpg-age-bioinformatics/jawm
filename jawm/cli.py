@@ -1232,7 +1232,9 @@ def main():
                 fname = hashlib.sha256(url.encode("utf-8")).hexdigest() + ext
                 out_path = os.path.join(cache_dir, fname)
 
-                if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                force = str(os.getenv("JAWM_URL_FORCE_REFRESH", "0")).strip().lower() in {"1","true","yes","on"}
+
+                if not force and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                     return out_path
 
                 req = urllib.request.Request(url, headers={"User-Agent": "jawm/1 (config-fetch)"})
