@@ -5,6 +5,7 @@ import subprocess
 import shutil
 import tempfile
 import re
+import json
 import copy
 from glob import glob
 from jawm import Process, utils
@@ -3195,6 +3196,154 @@ finally:
 
     os.environ.clear()
     os.environ.update(_env_backup)
+
+
+print("\n>>> Test 50: CLI remote -p/-v URL (HTML blob -> retry ?raw=1 -> success + cache)")
+try:
+    _clear_params()
+
+    # Workspace
+    tmpdir = tempfile.mkdtemp(prefix="test_cli_remote_url_", dir=base_tmp)
+    cache_dir = os.path.join(tmpdir, "remote_params")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    out_json = os.path.join(tmpdir, "out.json")
+    module_path = os.path.join(tmpdir, "test_mod_remote.py")
+
+    # Module executed by cli.main() – writes observed values to JSON for assertions
+    with open(module_path, "w") as f:
+        f.write(r'''
+from jawm import Process
+import os, json
+
+p1 = Process(name="p1", script="#!/bin/bash\necho hi")
+
+out = os.environ["JAWM_TEST_OUT"]
+data = {
+  "p1_var": p1.var,
+  "REMOTE_VAR_YAML": globals().get("REMOTE_VAR_YAML"),
+  "REMOTE_NUMBER": globals().get("REMOTE_NUMBER"),
+  "REMOTE_FLAG": globals().get("REMOTE_FLAG"),
+}
+with open(out, "w") as fh:
+  json.dump(data, fh)
+''')
+
+    # Simulated user-provided "blob" URLs (these return HTML first)
+    blob_params_url = "https://github.com/mpg-age-bioinformatics/jawm_git_test/blob/main/params/params.yaml"
+    blob_vars_url   = "https://github.com/mpg-age-bioinformatics/jawm_git_test/blob/main/params/vars.yaml"
+
+    # Remote YAML content returned on retry (?raw=1)
+    params_yaml = (
+        b"- scope: global\n"
+        b"  desc: \"desc_from_remote_params\"\n"
+        b"  var:\n"
+        b"    REMOTE_PARAM_YAML: \"ok-from-remote-params\"\n"
+        b"\n"
+        b"- scope: process\n"
+        b"  name: \"*\"\n"
+        b"  var:\n"
+        b"    REMOTE_PARAM_APPLIES_TO_ALL: \"yes\"\n"
+    )
+
+    vars_yaml = (
+        b"REMOTE_VAR_YAML: \"ok-from-remote-vars\"\n"
+        b"REMOTE_NUMBER: 123\n"
+        b"REMOTE_FLAG: true\n"
+    )
+
+    html_blob = b"<!doctype html><html><body>blob page</body></html>"
+
+    # Mock urlopen
+    import urllib.request
+    old_urlopen = urllib.request.urlopen
+
+    class _Resp:
+        def __init__(self, data, url):
+            self._data = data
+            self._url = url
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def geturl(self): return self._url
+        def read(self, n=-1):
+            if n is None or n < 0:
+                return self._data
+            return self._data[:n]
+
+    calls = {"n": 0}
+    def _mock_urlopen(req, timeout=None):
+        calls["n"] += 1
+        u = getattr(req, "full_url", str(req))
+
+        # params
+        if u.startswith(blob_params_url):
+            if "raw=1" in u:
+                return _Resp(params_yaml, u)
+            return _Resp(html_blob, u)
+
+        # vars
+        if u.startswith(blob_vars_url):
+            if "raw=1" in u:
+                return _Resp(vars_yaml, u)
+            return _Resp(html_blob, u)
+
+        raise RuntimeError("Unexpected URL in test: " + u)
+
+    # Run CLI in-process
+    import jawm.cli as cli
+    old_argv = sys.argv[:]
+    old_env = os.environ.copy()
+
+    try:
+        urllib.request.urlopen = _mock_urlopen
+
+        os.environ["JAWM_ALLOW_URL_CONFIG"] = "1"
+        os.environ["JAWM_URL_CACHE_DIR"] = cache_dir
+        os.environ["JAWM_URL_MAX_BYTES"] = str(1024 * 1024)
+        os.environ["JAWM_URL_FORCE_REFRESH"] = "1"
+        os.environ["JAWM_TEST_OUT"] = out_json
+
+        sys.argv = ["jawm", module_path, "-p", blob_params_url, "-v", blob_vars_url]
+        cli.main()
+
+        with open(out_json, "r") as fh:
+            data = json.load(fh)
+
+        # Validate -p merged into Process.var
+        assert data["p1_var"].get("REMOTE_PARAM_YAML") == "ok-from-remote-params", "❌ -p remote params not applied"
+        assert data["p1_var"].get("REMOTE_PARAM_APPLIES_TO_ALL") == "yes", "❌ -p process/global merge not applied"
+
+        # Validate -v injected globals into module namespace
+        assert data["REMOTE_VAR_YAML"] == "ok-from-remote-vars", "❌ -v remote vars not injected"
+        assert data["REMOTE_NUMBER"] == 123, "❌ -v REMOTE_NUMBER mismatch"
+        assert data["REMOTE_FLAG"] is True, "❌ -v REMOTE_FLAG mismatch"
+
+        # Validate cache: second run should not call urlopen if force refresh off
+        os.environ["JAWM_URL_FORCE_REFRESH"] = "0"
+        urllib.request.urlopen = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("urlopen called despite cache"))
+
+        cli.main()
+
+    finally:
+        urllib.request.urlopen = old_urlopen
+        sys.argv = old_argv
+        os.environ.clear()
+        os.environ.update(old_env)
+
+    print("✅ Passed: CLI remote -p/-v URL (HTML retry + cache)")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
+    try:
+        Process.registry.clear()
+    except Exception:
+        pass
 
 
 
