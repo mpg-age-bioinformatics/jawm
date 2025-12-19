@@ -1004,6 +1004,68 @@ def _safe_write_file(self, path, content, mode="w", retries=5):
     return path
 
 
+@register
+def _wait_for_fs_settle(self, check_stability=False):
+    """
+    Best-effort wait for filesystem visibility of self.stdout_path.
+
+    Uses env vars:
+      - JAWM_FS_SETTLE_TIMEOUT (default 10)
+      - JAWM_FS_SETTLE_POLL    (default 0.2)
+
+    If check_stability is True:
+      - requires stable mtime for one poll cycle
+
+    Safe behavior:
+      - if stdout_path is not set -> return True immediately
+      - never raises (returns True/False)
+    """
+    try:
+        path = getattr(self, "stdout_path", None)
+        if not path:
+            return True
+
+        try:
+            timeout = float(os.getenv("JAWM_FS_SETTLE_TIMEOUT", "10"))
+        except Exception:
+            timeout = 10.0
+        if timeout <= 0:
+            return True
+
+        try:
+            poll = float(os.getenv("JAWM_FS_SETTLE_POLL", "0.2"))
+        except Exception:
+            poll = 0.2
+        if poll <= 0.05:
+            poll = 0.2
+
+        end = time.time() + timeout
+        last_mtime = None
+
+        while time.time() < end:
+            if os.path.exists(path):
+                try:
+                    with open(path, "rb"):
+                        pass
+
+                    if not check_stability:
+                        return True
+
+                    st = os.stat(path)
+                    mtime = st.st_mtime
+                    if last_mtime is not None and mtime == last_mtime:
+                        return True
+                    last_mtime = mtime
+                except Exception:
+                    pass
+
+            time.sleep(poll)
+
+        return False
+    except Exception:
+        return True
+
+
 # --------------------------------------------
 #   Plain Helper Methods without @register
 # --------------------------------------------
