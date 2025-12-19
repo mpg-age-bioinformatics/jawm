@@ -1069,7 +1069,7 @@ def _wait_for_fs_settle(self, check_stability=False):
 @register
 def _finish_wait_and_settle(self, env_flag="JAWM_PROCESS_FINISH_WAIT", default_wait=0.0, check_stability=False):
     """
-    Best-effort: optional finish wait + filesystem settle check.
+    Best/loose effort: optional finish wait + filesystem settle check.
 
     - Reads wait seconds from env_flag (float), falls back to default_wait
     - Sleeps if wait > 0
