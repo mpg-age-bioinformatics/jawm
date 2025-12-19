@@ -126,6 +126,86 @@ def _wait_for_slurm_teardown(self, timeout=10):
 
 
 @register
+def _wait_for_slurm_capacity(self):
+    """
+    Optional Slurm submission throttle (OPT-IN).
+
+    Enabled only if:
+      JAWM_MAX_SLURM_JOBS is set to an int >= 1
+
+    Tuning:
+      JAWM_MAX_SLURM_JOBS_WAIT_POLL        (default 3.0 seconds)
+      JAWM_MAX_SLURM_JOBS_SQUEUE_INTERVAL (default 2.0 seconds)
+
+    Behavior:
+      - Counts current user's jobs via: squeue -h -u <user> -o %A
+      - If squeue fails: fail-open (do not block submissions)
+      - Logs at INFO at most once per 180 seconds while waiting
+    """
+    try:
+        raw = str(os.getenv("JAWM_MAX_SLURM_JOBS", "")).strip()
+        if not raw:
+            return  # opt-in only
+
+        limit = int(raw)
+        if limit < 1:
+            return
+
+        poll = float(os.getenv("JAWM_MAX_SLURM_JOBS_WAIT_POLL", "3.0"))
+        if poll <= 0.5:
+            poll = 3.0
+
+        min_interval = float(os.getenv("JAWM_MAX_SLURM_JOBS_SQUEUE_INTERVAL", "2.0"))
+        if min_interval < 1.0:
+            min_interval = 2.0
+
+        user = os.getenv("USER") or os.getenv("LOGNAME")
+        if not user:
+            return  # fail open
+
+        # Tiny cache stored on the function object (shared across all Process instances in this run)
+        cache = getattr(self.__class__._wait_for_slurm_capacity, "_squeue_cache", None)
+        if cache is None:
+            cache = {"t": 0.0, "n": None, "last_log": 0.0}
+            setattr(self.__class__._wait_for_slurm_capacity, "_squeue_cache", cache)
+
+        def _slurm_job_count():
+            now = time.time()
+            if cache["n"] is not None and (now - cache["t"]) < min_interval:
+                return cache["n"]
+
+            cmd = ["squeue", "-h", "-u", user, "-o", "%A"]
+            out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+            n = len([ln for ln in out.splitlines() if ln.strip()])
+
+            cache["t"] = now
+            cache["n"] = n
+            return n
+
+        while True:
+            try:
+                n = _slurm_job_count()
+            except Exception:
+                return  # fail open
+
+            if n < limit:
+                return
+
+            now = time.time()
+            if now - cache["last_log"] >= 180:
+                try:
+                    self.logger.info(f"[slurm] Waiting to submit: jobs={n} >= limit={limit}")
+                except Exception:
+                    pass
+                cache["last_log"] = now
+
+            time.sleep(poll)
+
+    except Exception:
+        return  # fail open
+
+
+@register
 def _execute_slurm(self):
     """
     Execute the process as a Slurm job.
@@ -160,6 +240,9 @@ def _execute_slurm(self):
             self._safe_write_file(command_path, " ".join(sbatch_command))
 
             job_id = None
+
+            # Optional: throttle Slurm submissions (no-op unless enabled by env)
+            self._wait_for_slurm_capacity()
             
             # Submit the job script to Slurm
             result = subprocess.run(
