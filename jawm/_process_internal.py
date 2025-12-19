@@ -1066,6 +1066,30 @@ def _wait_for_fs_settle(self, check_stability=False):
         return True
 
 
+@register
+def _finish_wait_and_settle(self, env_flag="JAWM_PROCESS_FINISH_WAIT", default_wait=0.0, check_stability=False):
+    """
+    Best-effort: optional finish wait + filesystem settle check.
+
+    - Reads wait seconds from env_flag (float), falls back to default_wait
+    - Sleeps if wait > 0
+    - Calls self._wait_for_fs_settle(check_stability=check_stability)
+
+    Safe: never raises.
+    """
+    try:
+        try:
+            w = float(os.getenv(env_flag, str(default_wait)))
+        except Exception:
+            w = float(default_wait)
+
+        if w > 0:
+            time.sleep(w)
+        self._wait_for_fs_settle(check_stability=check_stability)
+    except Exception:
+        return
+
+
 # --------------------------------------------
 #   Plain Helper Methods without @register
 # --------------------------------------------

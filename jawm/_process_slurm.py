@@ -354,13 +354,7 @@ def _execute_slurm(self):
                         self.logger.info(f"Slurm job {job_id} state={state}, exit_code={exit_code}")
                     if any(state.startswith(s) for s in final_states):
                         # Best/loose effort FS settle check & finish wait
-                        try:
-                            sbatch_finish_wait = float( os.getenv("JAWM_SLURM_FINISH_WAIT", "1.5") )
-                        except Exception:
-                            sbatch_finish_wait = 1.5
-                        if sbatch_finish_wait > 0:
-                            time.sleep(sbatch_finish_wait)
-                        self._wait_for_fs_settle(check_stability=True)
+                        self._finish_wait_and_settle(env_flag="JAWM_SLURM_FINISH_WAIT", default_wait=1.5, check_stability=True)
                         if state.startswith("CANCELLED"):
                             self.logger.warning(f"Slurm job {job_id} was cancelled manually or externally.")
                         self.logger.info(f"Slurm job {job_id} completed with exit code: {exit_code}, state: {state}")

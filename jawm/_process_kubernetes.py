@@ -455,8 +455,11 @@ def _execute_kubernetes(self):
             except Exception:
                 pass
 
-            self._monitoring_completed_file(job_id, manifest_path, exit_code_int)
+            # Best/loose effort FS settle check & finish wait
+            self._finish_wait_and_settle(env_flag="JAWM_KUBERNETES_FINISH_WAIT", default_wait=0.0, check_stability=False)
+
             self.logger.info(f"K8s job {job_id} completed with exit code {exit_code_int}")
+            self._monitoring_completed_file(job_id, manifest_path, exit_code_int)
             return 0 if exit_code_int == 0 else 1
 
         def monitor_process():

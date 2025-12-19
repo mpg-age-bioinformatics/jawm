@@ -119,11 +119,15 @@ def _execute_local(self):
 
             # Subprocess is done; gather final info
             exit_code = result.returncode
-            self.logger.info(f"Process {self.name} completed with exit code: {exit_code}")
 
             # Write out the exit code and ID
             with open(exitcode_path, "w") as exc_file:
                 exc_file.write(str(exit_code))
+
+            # Best/loose effort FS settle check & finish wait
+            self._finish_wait_and_settle(env_flag="JAWM_LOCAL_FINISH_WAIT", default_wait=0.0, check_stability=False)
+
+            self.logger.info(f"Process {self.name} completed with exit code: {exit_code}")
 
             # Move from Running -> Completed in monitoring
             self._monitoring_completed_file(process_id, base_script_path, exit_code)
