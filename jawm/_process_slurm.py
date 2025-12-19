@@ -94,38 +94,6 @@ def _sanitize_slurm_name(self):
 
 
 @register
-def _wait_for_slurm_teardown(self, timeout=10):
-    """
-    Wait until Slurm+Apptainer teardown is fully completed.
-    Uses:
-      - file existence
-      - file readability
-      - stable mtime for one cycle
-    """
-    path = self.stdout_path
-    end = time.time() + timeout
-
-    last_mtime = None
-
-    while time.time() < end:
-        if os.path.exists(path):
-            try:
-                # Try to open → ensures container/FS teardown finished
-                with open(path, "rb"):
-                    pass
-                # Check mtime for stabilization
-                stat = os.stat(path)
-                mtime = stat.st_mtime
-                if last_mtime is not None and mtime == last_mtime:
-                    return True  # mtime stable for one cycle
-                last_mtime = mtime
-            except Exception:
-                pass
-        time.sleep(0.2)
-    return False
-
-
-@register
 def _wait_for_slurm_capacity(self):
     """
     Optional Slurm submission throttle (OPT-IN).
@@ -385,8 +353,14 @@ def _execute_slurm(self):
                     if elapsed_time % 600 == 0:
                         self.logger.info(f"Slurm job {job_id} state={state}, exit_code={exit_code}")
                     if any(state.startswith(s) for s in final_states):
-                        sbatch_finish_wait = int( os.getenv("JAWM_SLURM_FINISH_WAIT", "2") )
-                        time.sleep(sbatch_finish_wait)
+                        # Best/loose effort FS settle check & finish wait
+                        try:
+                            sbatch_finish_wait = float( os.getenv("JAWM_SLURM_FINISH_WAIT", "1.5") )
+                        except Exception:
+                            sbatch_finish_wait = 1.5
+                        if sbatch_finish_wait > 0:
+                            time.sleep(sbatch_finish_wait)
+                        self._wait_for_fs_settle(check_stability=True)
                         if state.startswith("CANCELLED"):
                             self.logger.warning(f"Slurm job {job_id} was cancelled manually or externally.")
                         self.logger.info(f"Slurm job {job_id} completed with exit code: {exit_code}, state: {state}")
