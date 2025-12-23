@@ -972,7 +972,8 @@ def main():
     parser.add_argument("--git-cache", help="Path for jawm's git cache (default: ~/.jawm/git)")
     parser.add_argument("--server", default="github.com", help="Git server host or URL (use 'local' to skip remote). Default: github.com")
     parser.add_argument("--user", default="mpg-age-bioinformatics", help="Git username/organization for remote. Default: mpg-age-bioinformatics")
-    parser.add_argument("--no-web", dest="no_web", action="store_true", default=False,help="Disable online workflow lookup when workflow not found locally. Default: online scanning is enabled.")
+    parser.add_argument("--no-web", dest="no_web", action="store_true", default=False, help="Disable online workflow lookup when workflow not found locally. Default: online scanning is enabled.")
+    parser.add_argument("--stats", dest="stats", action="store_true", default=False, help="Possibly record per-process resource stats (avg/peak cpu+rss).")
     parser.add_argument("-V", "--version", action="version", version=f"jawm {_VERSION}")
 
     override_group = parser.add_argument_group("override syntax")
