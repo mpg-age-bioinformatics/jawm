@@ -879,6 +879,48 @@ def _compute_run_hash_from_process_prefixes_cli():
 
 
 # ------------------------------------------------------------
+#   Start of recording stats helper methods
+# ------------------------------------------------------------
+
+def _collect_stats_op(logger):
+    """
+    Periodically collect active processes and group them by manager.
+
+    Structure:
+        { manager: { proc.hash: proc.log_path } }
+    """
+    try:
+        interval = float(os.getenv("JAWM_STATS_INTERVAL", "30"))
+        if interval < 5:
+            interval = 5
+    except Exception:
+        interval = 30
+
+    while True:
+        try:
+            grouped = {}
+
+            for proc in Process.registry.values():
+                if not isinstance(proc, Process):
+                    continue
+                if proc.finished_event.is_set():
+                    continue
+                if not proc.manager or not proc.hash or not proc.log_path:
+                    continue
+
+                grouped.setdefault(proc.manager, {})[proc.hash] = proc.log_path
+
+        except Exception as e:
+            logger.debug(f"[stats] Stats collector error: {e}")
+
+        time.sleep(interval)
+
+# ------------------------------------------------------------
+#   End of recording stats helper methods
+# ------------------------------------------------------------
+
+
+# ------------------------------------------------------------
 #   Other internal helper methods
 # ------------------------------------------------------------
 def _log_system_info(logger):
