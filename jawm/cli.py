@@ -905,10 +905,13 @@ def _collect_stats_op(logger):
                     continue
                 if proc.finished_event.is_set():
                     continue
-                if not proc.manager or not proc.hash or not proc.log_path:
+                if not proc.manager or not proc.log_path:
+                    continue
+                rid = getattr(proc, "runtime_id", None)
+                if not rid:
                     continue
 
-                grouped.setdefault(proc.manager, {})[proc.hash] = proc.log_path
+                grouped.setdefault(proc.manager, {})[str(rid)] = proc.log_path
 
         except Exception as e:
             logger.debug("[stats] error while stats collection: %s", e)
