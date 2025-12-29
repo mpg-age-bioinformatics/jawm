@@ -911,7 +911,7 @@ def _collect_stats_op(logger):
                 grouped.setdefault(proc.manager, {})[proc.hash] = proc.log_path
 
         except Exception as e:
-            logger.debug(f"[stats] Stats collector error: {e}")
+            logger.debug("[stats] error while stats collection: %s", e)
 
         time.sleep(interval)
 
@@ -1373,6 +1373,15 @@ def main():
     # Import Process and set defaults or overrides
     from jawm import Process
 
+    # Initiate stats collection thread if stats collection is enabled
+    _record_stat = bool(args.stats) or (str(os.getenv("JAWM_RECORD_STAT", "0")).strip().lower() in {"1", "true", "yes", "on"})
+
+    if _record_stat:
+        _t_stats = threading.Thread(target=_collect_stats_op, args=(logger,), daemon=True, name="jawm-stats-collector")
+        _t_stats.start()
+        logger.debug("[stats] stats collector initiated")
+
+    # Parse/override values
     no_override_params = (
         ["ALL"] if args.no_override and args.no_override.strip().upper() == "ALL"
         else [p.strip() for p in args.no_override.split(",") if p.strip()] if args.no_override else []
