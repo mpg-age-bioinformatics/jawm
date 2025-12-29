@@ -882,7 +882,7 @@ def _compute_run_hash_from_process_prefixes_cli():
 #   Start of recording stats helper methods
 # ------------------------------------------------------------
 
-def _collect_stats_op(logger):
+def _collect_stats_op(logger, stop_event):
     """
     Periodically collect active processes and run stats collecting operations by manager.
 
@@ -896,7 +896,7 @@ def _collect_stats_op(logger):
     except Exception:
         interval = 30
 
-    while True:
+    while not stop_event.is_set():
         try:
             grouped = {}
 
@@ -916,7 +916,8 @@ def _collect_stats_op(logger):
         except Exception as e:
             logger.debug("[stats] error while stats collection: %s", e)
 
-        time.sleep(interval)
+        # waits up to interval, but returns immediately if stop_event is set
+        stop_event.wait(interval)
 
 # ------------------------------------------------------------
 #   End of recording stats helper methods
@@ -1378,9 +1379,9 @@ def main():
 
     # Initiate stats collection thread if stats collection is enabled
     _record_stat = bool(args.stats) or (str(os.getenv("JAWM_RECORD_STAT", "0")).strip().lower() in {"1", "true", "yes", "on"})
-
     if _record_stat:
-        _t_stats = threading.Thread(target=_collect_stats_op, args=(logger,), daemon=True, name="jawm-stats-collector")
+        _stats_stop = threading.Event()
+        _t_stats = threading.Thread(target=_collect_stats_op, args=(logger, _stats_stop), daemon=True, name="jawm-stats-collector")
         _t_stats.start()
         logger.debug("[stats] stats collector initiated")
 
@@ -1775,6 +1776,12 @@ def main():
         sys.exit(exit_code_from_script if exit_code_from_script is not None else 1)
 
     finally:
+        try:
+            if _record_stat:
+                _stats_stop.set()
+                _t_stats.join(timeout=2.0)
+        except Exception:
+            pass
         time.sleep(0.2)
         if exit_code_def == 0:
             logger.info("Ending jawm module script from jawm command")
