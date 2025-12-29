@@ -882,7 +882,7 @@ def _compute_run_hash_from_process_prefixes_cli():
 #   Start of recording stats helper methods
 # ------------------------------------------------------------
 
-def _collect_stats_op(logger, stop_event):
+def _collect_stats_op(Process, logger, stop_event):
     """
     Periodically collect active processes and run stats collecting operations by manager.
 
@@ -913,11 +913,29 @@ def _collect_stats_op(logger, stop_event):
 
                 grouped.setdefault(proc.manager, {})[str(rid)] = proc.log_path
 
+            # Dispatch manager-specific collectors if implemented
+            for manager, items in grouped.items():
+                if not items:
+                    continue
+
+                func_name = f"_collect_stats_{manager}"
+                collector = globals().get(func_name)
+
+                if callable(collector):
+                    try:
+                        collector(items, logger)
+                    except Exception as e:
+                        logger.debug("[stats] %s failed: %s", func_name, e)
+
         except Exception as e:
             logger.debug("[stats] error while stats collection: %s", e)
 
         # waits up to interval, but returns immediately if stop_event is set
         stop_event.wait(interval)
+
+
+def _collect_stats_local(items, logger):
+    pass
 
 # ------------------------------------------------------------
 #   End of recording stats helper methods
@@ -1381,7 +1399,7 @@ def main():
     _record_stat = bool(args.stats) or (str(os.getenv("JAWM_RECORD_STAT", "0")).strip().lower() in {"1", "true", "yes", "on"})
     if _record_stat:
         _stats_stop = threading.Event()
-        _t_stats = threading.Thread(target=_collect_stats_op, args=(logger, _stats_stop), daemon=True, name="jawm-stats-collector")
+        _t_stats = threading.Thread(target=_collect_stats_op, args=(Process, logger, _stats_stop), daemon=True, name="jawm-stats-collector")
         _t_stats.start()
         logger.debug("[stats] stats collector initiated")
 
