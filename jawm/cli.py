@@ -884,10 +884,10 @@ def _compute_run_hash_from_process_prefixes_cli():
 
 def _collect_stats_op(logger):
     """
-    Periodically collect active processes and group them by manager.
+    Periodically collect active processes and run stats collecting operations by manager.
 
     Structure:
-        { manager: { proc.hash: proc.log_path } }
+        { manager: { proc.runtime_id: proc.log_path } }
     """
     try:
         interval = float(os.getenv("JAWM_STATS_INTERVAL", "30"))
@@ -900,7 +900,7 @@ def _collect_stats_op(logger):
         try:
             grouped = {}
 
-            for proc in Process.registry.values():
+            for proc in list(Process.registry.values()):
                 if not isinstance(proc, Process):
                     continue
                 if proc.finished_event.is_set():
