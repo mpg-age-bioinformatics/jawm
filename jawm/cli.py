@@ -21,6 +21,7 @@ import tarfile
 import shutil
 import traceback
 import platform
+import json
 from pathlib import Path
 
 
@@ -934,8 +935,122 @@ def _collect_stats_op(Process, logger, stop_event):
         stop_event.wait(interval)
 
 
+def _ps_sample_many(pids, timeout_s=1.0):
+    """
+    Batch-sample CPU% and RSS (MiB) for a list of PIDs using a single 'ps' call.
+    Works on Linux + macOS that has ps command.
+
+    Returns:
+        dict[str, tuple[float, float]]: { pid_str: (cpu_pct, rss_mib) }
+    """
+    if not pids:
+        return {}
+
+    # keep only digit-like PIDs
+    pids = [str(p) for p in pids if str(p).isdigit()]
+    if not pids:
+        return {}
+
+    pid_arg = ",".join(pids)
+
+    try:
+        r = subprocess.run(
+            ["ps", "-o", "pid=", "-o", "%cpu=", "-o", "rss=", "-p", pid_arg],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except Exception:
+        return {}
+
+    if not r.stdout:
+        return {}
+
+    out = {}
+    for line in r.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        pid = parts[0]
+        try:
+            cpu_pct = float(parts[1])
+            rss_mib = float(parts[2]) / 1024.0  # rss is KB
+        except Exception:
+            continue
+        out[pid] = (cpu_pct, rss_mib)
+
+    return out
+
+
+def _atomic_write_json(path, obj, logger=None):
+    """
+    Atomic JSON write: write to <path>.tmp then os.replace to final path.
+    """
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(obj, f, separators=(",", ":"))
+        os.replace(tmp, path)
+    except Exception as e:
+        if logger:
+            logger.debug("[stats] atomic write failed: %s -> %s : %s", tmp, path, e)
+        # best-effort tmp cleanup
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except Exception:
+            pass
+        raise
+
+
 def _collect_stats_local(items, logger):
-    pass
+    """
+    items: { "<pid>": "<log_path>", ... }
+    Writes: <log_path>/stats.json
+    """
+    if not items:
+        return
+
+    samples = _ps_sample_many(list(items.keys()))
+    if not samples:
+        return
+
+    for pid, (cpu_pct, rss_mib) in samples.items():
+        log_path = items.get(pid)
+        if not log_path:
+            continue
+
+        stats_path = os.path.join(log_path, "stats.json")
+
+        try:
+            with open(stats_path, "r") as f:
+                s = json.load(f)
+        except Exception:
+            s = {
+                "n": 0,
+                "cpu_sum_pct": 0.0,
+                "cpu_peak_pct": 0.0,
+                "cpu_avg_pct": 0.0,
+                "rss_sum_mib": 0.0,
+                "rss_peak_mib": 0.0,
+                "rss_avg_mib": 0.0,
+            }
+
+        # update aggregates
+        s["n"] = int(s.get("n", 0)) + 1
+        s["cpu_sum_pct"] = float(s.get("cpu_sum_pct", 0.0)) + float(cpu_pct)
+        s["cpu_peak_pct"] = max(float(s.get("cpu_peak_pct", 0.0)), float(cpu_pct))
+        s["cpu_avg_pct"] = s["cpu_sum_pct"] / s["n"]
+        s["rss_sum_mib"] = float(s.get("rss_sum_mib", 0.0)) + float(rss_mib)
+        s["rss_peak_mib"] = max(float(s.get("rss_peak_mib", 0.0)), float(rss_mib))
+        s["rss_avg_mib"] = s["rss_sum_mib"] / s["n"]
+
+        try:
+            os.makedirs(log_path, exist_ok=True)
+            _atomic_write_json(stats_path, s, logger=logger)
+        except Exception as e:
+            logger.debug("[stats] write failed for %s: %s", stats_path, e)
 
 # ------------------------------------------------------------
 #   End of recording stats helper methods
