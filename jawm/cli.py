@@ -935,6 +935,29 @@ def _collect_stats_op(Process, logger, stop_event):
         stop_event.wait(interval)
 
 
+def _atomic_write_json(path, obj, logger=None):
+    """
+    Atomic JSON write: write to <path>.tmp then os.replace to final path.
+    """
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(obj, f, separators=(",", ":"))
+        os.replace(tmp, path)
+        return True
+    except Exception as e:
+        if logger:
+            logger.debug("[stats] atomic write failed: %s -> %s : %s", tmp, path, e)
+        # best-effort tmp cleanup
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except Exception:
+            pass
+        return False
+
+
+# Helper for local stats collection
 def _ps_sample_many(pids, timeout_s=1.0):
     """
     Batch-sample CPU% and RSS (MiB) for a list of PIDs using a single 'ps' call.
@@ -982,28 +1005,7 @@ def _ps_sample_many(pids, timeout_s=1.0):
 
     return out
 
-
-def _atomic_write_json(path, obj, logger=None):
-    """
-    Atomic JSON write: write to <path>.tmp then os.replace to final path.
-    """
-    tmp = path + ".tmp"
-    try:
-        with open(tmp, "w") as f:
-            json.dump(obj, f, separators=(",", ":"))
-        os.replace(tmp, path)
-    except Exception as e:
-        if logger:
-            logger.debug("[stats] atomic write failed: %s -> %s : %s", tmp, path, e)
-        # best-effort tmp cleanup
-        try:
-            if os.path.exists(tmp):
-                os.remove(tmp)
-        except Exception:
-            pass
-        raise
-
-
+# Primary method for local stats collection
 def _collect_stats_local(items, logger):
     """
     items: { "<pid>": "<log_path>", ... }
