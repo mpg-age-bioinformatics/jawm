@@ -956,6 +956,7 @@ def _atomic_write_json(path, obj, logger=None):
             pass
         return False
 
+########## Methods for local stats collection ##########
 
 # Helper for local stats collection
 def _ps_sample_many(pids, timeout_s=1.0):
@@ -1055,10 +1056,8 @@ def _collect_stats_local(items, logger):
             logger.debug("[stats] write failed for %s: %s", stats_path, e)
 
 
-# Methods for slurm stats collection
-# ------------------------------------------------------------
-#   Slurm stats collection (100% = one full core, sstat-only)
-# ------------------------------------------------------------
+########## Methods for slurm stats collection ##########
+# Slurm stats collection (100% = one full core, sstat-only)
 
 def _get_slurm_parsers():
     # function attribute cache (no module-level globals needed elsewhere)
@@ -1162,14 +1161,7 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
     if shutil.which("sstat") is None:
         return {}
 
-    cmd = [
-        "sstat",
-        "-n",
-        "-P",
-        "-j",
-        ",".join(jobids),
-        "--format=JobID,TRESUsageInTot,AveCPU,AveRSS,MaxRSS",
-    ]
+    cmd = ["sstat", "-n", "-P", "-j", ",".join(jobids), "--format=JobID,TRESUsageInTot,AveCPU,AveRSS,MaxRSS",]
 
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
@@ -1222,17 +1214,11 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
     return out
 
 
+# Primary method for slurm stats collection
 def _collect_stats_slurm(items, logger):
     """
     items: { "<jobid>": "<log_path>", ... }
     Writes: <log_path>/stats.json
-
-    User-facing fields:
-      n, cpu_sum_pct, cpu_peak_pct, cpu_avg_pct, rss_sum_mib, rss_peak_mib, rss_avg_mib
-
-    Internal fields (needed for delta CPU%):
-      _t_last, _cpu_time_last_s, n_cpu
-
     CPU meaning:
       100% ~= one full core
       500% ~= five cores fully busy
@@ -1268,7 +1254,7 @@ def _collect_stats_slurm(items, logger):
                 "rss_avg_mib": 0.0,
                 "_t_last": 0.0,
                 "_cpu_time_last_s": 0.0,
-                "n_cpu": 0,
+                "_n_cpu": 0,
             }
 
         rss_sample = ave_rss_mib if ave_rss_mib is not None else max_rss_mib
@@ -1307,9 +1293,9 @@ def _collect_stats_slurm(items, logger):
                     s["cpu_sum_pct"] = cpu_sum
                     s["cpu_peak_pct"] = max(float(s.get("cpu_peak_pct", 0.0)), cpu_pct)
 
-                    n_cpu = int(s.get("n_cpu", 0)) + 1
-                    s["n_cpu"] = n_cpu
-                    s["cpu_avg_pct"] = cpu_sum / n_cpu
+                    _n_cpu = int(s.get("_n_cpu", 0)) + 1
+                    s["_n_cpu"] = _n_cpu
+                    s["cpu_avg_pct"] = cpu_sum / _n_cpu
 
             # always refresh baseline
             s["_t_last"] = float(now)
