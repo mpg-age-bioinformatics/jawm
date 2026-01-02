@@ -1054,6 +1054,220 @@ def _collect_stats_local(items, logger):
         except Exception as e:
             logger.debug("[stats] write failed for %s: %s", stats_path, e)
 
+
+# Methods for slurm stats collection
+def _get_slurm_parsers():
+    # function attribute cache (no global variables needed elsewhere)
+    if hasattr(_get_slurm_parsers, "_cache"):
+        return _get_slurm_parsers._cache
+    rss_re = re.compile(r"^\s*([0-9]*\.?[0-9]+)\s*([KMGTP]?)\s*$", re.IGNORECASE)
+    rss_to_mib = {"": 1.0/1024.0, "K": 1.0/1024.0, "M": 1.0, "G": 1024.0, "T": 1024.0**2, "P": 1024.0**3}
+    cpu_re = re.compile(r"^\s*(\d+):(\d+)(?::(\d+))?(?:\.(\d+))?\s*$")
+    _get_slurm_parsers._cache = (rss_re, rss_to_mib, cpu_re)
+    return _get_slurm_parsers._cache
+
+
+def _slurm_rss_to_mib(val):
+    rss_re, rss_to_mib, _ = _get_slurm_parsers()
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s or s.upper() in {"N/A", "NA", "UNKNOWN"}:
+        return None
+    m = rss_re.match(s)
+    if not m:
+        return None
+    try:
+        num = float(m.group(1))
+    except Exception:
+        return None
+    unit = (m.group(2) or "").upper()
+    factor = rss_to_mib.get(unit)
+    if factor is None:
+        return None
+    return num * factor
+
+
+def _slurm_cpu_time_to_s(val):
+    _, _, cpu_re = _get_slurm_parsers()
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s or s.upper() in {"N/A", "NA", "UNKNOWN"}:
+        return None
+    m = cpu_re.match(s)
+    if not m:
+        return None
+
+    a = int(m.group(1))
+    b = int(m.group(2))
+    c = m.group(3)
+    frac = m.group(4)
+
+    if c is None:
+        total = a * 60 + b              # MM:SS
+    else:
+        total = a * 3600 + b * 60 + int(c)  # HH:MM:SS
+
+    if frac:
+        total += float("0." + frac)
+
+    return float(total)
+
+
+def _sstat_sample_many(jobids, timeout_s=2.0):
+    """
+    Returns:
+      { jobid: (cpu_time_s_or_None, ave_rss_mib_or_None, max_rss_mib_or_None) }
+
+    Uses -P to avoid truncation (+) and to parse reliably.
+    If sstat isn't available, returns {}.
+    """
+    jobids = [str(j) for j in jobids if str(j).isdigit()]
+    if not jobids:
+        return {}
+
+    if shutil.which("sstat") is None:
+        return {}
+
+    cmd = ["sstat", "-n", "-P", "-j", ",".join(jobids), "--format=JobID,AveCPU,AveRSS,MaxRSS"]
+
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
+    except Exception:
+        return {}
+
+    if not r.stdout:
+        return {}
+
+    out = {}
+    for line in r.stdout.splitlines():
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 4:
+            continue
+
+        job_step = parts[0]                 # e.g. 594853.batch
+        base = job_step.split(".", 1)[0]    # e.g. 594853
+        if not base.isdigit():
+            continue
+
+        cpu_time_s = _slurm_cpu_time_to_s(parts[1])
+        ave_rss_mib = _slurm_rss_to_mib(parts[2])
+        max_rss_mib = _slurm_rss_to_mib(parts[3])
+
+        prev = out.get(base)
+        if prev is None:
+            out[base] = (cpu_time_s, ave_rss_mib, max_rss_mib)
+        else:
+            p_cpu, p_ave, p_max = prev
+            # keep whichever fields are available; for max keep the larger numeric peak
+            if p_max is None:
+                max_keep = max_rss_mib
+            elif max_rss_mib is None:
+                max_keep = p_max
+            else:
+                max_keep = max(p_max, max_rss_mib)
+
+            out[base] = (
+                cpu_time_s if cpu_time_s is not None else p_cpu,
+                ave_rss_mib if ave_rss_mib is not None else p_ave,
+                max_keep,
+            )
+
+    return out
+
+
+def _collect_stats_slurm(items, logger):
+    """
+    items: { "<jobid>": "<log_path>", ... }
+    Writes: <log_path>/stats.json
+
+    Same user-facing fields as local:
+      n, cpu_sum_pct, cpu_peak_pct, cpu_avg_pct, rss_sum_mib, rss_peak_mib, rss_avg_mib
+
+    Minimal internal fields needed to compute CPU% from AveCPU deltas:
+      _t_last, _cpu_time_last_s
+    """
+    if not items:
+        return
+
+    samples = _sstat_sample_many(list(items.keys()))
+    if not samples:
+        return
+
+    now = time.time()
+
+    for jobid, (cpu_time_s, ave_rss_mib, max_rss_mib) in samples.items():
+        log_path = items.get(jobid)
+        if not log_path:
+            continue
+
+        stats_path = os.path.join(log_path, "stats.json")
+
+        try:
+            with open(stats_path, "r") as f:
+                s = json.load(f)
+        except Exception:
+            s = {
+                "n": 0,
+                "cpu_sum_pct": 0.0,
+                "cpu_peak_pct": 0.0,
+                "cpu_avg_pct": 0.0,
+                "rss_sum_mib": 0.0,
+                "rss_peak_mib": 0.0,
+                "rss_avg_mib": 0.0,
+                "_t_last": 0.0,
+                "_cpu_time_last_s": 0.0,
+            }
+
+        rss_sample = ave_rss_mib if ave_rss_mib is not None else max_rss_mib
+
+        # nothing useful -> skip
+        if cpu_time_s is None and rss_sample is None and max_rss_mib is None:
+            continue
+
+        n = int(s.get("n", 0)) + 1
+        s["n"] = n
+
+        # RSS aggregates
+        if rss_sample is not None:
+            rss_sum = float(s.get("rss_sum_mib", 0.0)) + float(rss_sample)
+            s["rss_sum_mib"] = rss_sum
+
+            peak_candidate = max_rss_mib if max_rss_mib is not None else rss_sample
+            s["rss_peak_mib"] = max(float(s.get("rss_peak_mib", 0.0)), float(peak_candidate))
+
+            s["rss_avg_mib"] = rss_sum / n
+
+        # CPU aggregates (interval CPU% from AveCPU deltas)
+        if cpu_time_s is not None:
+            prev_t = float(s.get("_t_last", 0.0) or 0.0)
+            prev_cpu = float(s.get("_cpu_time_last_s", 0.0) or 0.0)
+
+            dt = (now - prev_t) if prev_t > 0 else 0.0
+            if dt <= 0:
+                dt = 1.0  # safe fallback
+
+            dcpu = float(cpu_time_s) - prev_cpu
+            if dcpu < 0:
+                dcpu = 0.0
+
+            cpu_pct = 100.0 * (dcpu / dt)
+
+            cpu_sum = float(s.get("cpu_sum_pct", 0.0)) + cpu_pct
+            s["cpu_sum_pct"] = cpu_sum
+            s["cpu_peak_pct"] = max(float(s.get("cpu_peak_pct", 0.0)), cpu_pct)
+            s["cpu_avg_pct"] = cpu_sum / n
+
+            s["_t_last"] = float(now)
+            s["_cpu_time_last_s"] = float(cpu_time_s)
+
+        try:
+            os.makedirs(log_path, exist_ok=True)
+            _atomic_write_json(stats_path, s, logger=logger)
+        except Exception as e:
+            logger.debug("[stats] slurm write failed for %s: %s", stats_path, e)
+
 # ------------------------------------------------------------
 #   End of recording stats helper methods
 # ------------------------------------------------------------
