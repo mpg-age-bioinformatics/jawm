@@ -1173,57 +1173,60 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
     if not jobids:
         return {}
 
-    cmd = ["sstat", "-n", "-P", "-j", ",".join(jobids), "--format=JobID,TRESUsageInTot,AveCPU,AveRSS,MaxRSS",]
-
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
+        cmd = ["sstat", "-n", "-P", "-j", ",".join(jobids), "--format=JobID,TRESUsageInTot,AveCPU,AveRSS,MaxRSS",]
+
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
+        except Exception:
+            return {}
+
+        if not r.stdout:
+            return {}
+
+        out = {}
+        for raw in r.stdout.splitlines():
+            line = raw.strip()
+            if not line or line.startswith("sstat:"):
+                continue
+
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 5:
+                continue
+
+            job_step = parts[0]              # e.g. 594905.batch / 594905.0
+            base = job_step.split(".", 1)[0] # e.g. 594905
+            if not base.isdigit():
+                continue
+
+            cpu_time_s = _slurm_tres_cpu_to_s(parts[1]) or _slurm_cpu_time_to_s(parts[2])
+            ave_rss_mib = _slurm_rss_to_mib(parts[3])
+            max_rss_mib = _slurm_rss_to_mib(parts[4])
+
+            prev = out.get(base)
+            if prev is None:
+                out[base] = (cpu_time_s, ave_rss_mib, max_rss_mib)
+            else:
+                p_cpu, p_ave, p_max = prev
+
+                # CPU time: keep latest non-None (monotonic counter)
+                cpu_keep = cpu_time_s if cpu_time_s is not None else p_cpu
+
+                # RSS: keep whichever AveRSS is available; for MaxRSS keep peak
+                ave_keep = p_ave if p_ave is not None else ave_rss_mib
+
+                if p_max is None:
+                    max_keep = max_rss_mib
+                elif max_rss_mib is None:
+                    max_keep = p_max
+                else:
+                    max_keep = max(p_max, max_rss_mib)
+
+                out[base] = (cpu_keep, ave_keep, max_keep)
+
+        return out
     except Exception:
         return {}
-
-    if not r.stdout:
-        return {}
-
-    out = {}
-    for raw in r.stdout.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("sstat:"):
-            continue
-
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) < 5:
-            continue
-
-        job_step = parts[0]              # e.g. 594905.batch / 594905.0
-        base = job_step.split(".", 1)[0] # e.g. 594905
-        if not base.isdigit():
-            continue
-
-        cpu_time_s = _slurm_tres_cpu_to_s(parts[1]) or _slurm_cpu_time_to_s(parts[2])
-        ave_rss_mib = _slurm_rss_to_mib(parts[3])
-        max_rss_mib = _slurm_rss_to_mib(parts[4])
-
-        prev = out.get(base)
-        if prev is None:
-            out[base] = (cpu_time_s, ave_rss_mib, max_rss_mib)
-        else:
-            p_cpu, p_ave, p_max = prev
-
-            # CPU time: keep latest non-None (monotonic counter)
-            cpu_keep = cpu_time_s if cpu_time_s is not None else p_cpu
-
-            # RSS: keep whichever AveRSS is available; for MaxRSS keep peak
-            ave_keep = p_ave if p_ave is not None else ave_rss_mib
-
-            if p_max is None:
-                max_keep = max_rss_mib
-            elif max_rss_mib is None:
-                max_keep = p_max
-            else:
-                max_keep = max(p_max, max_rss_mib)
-
-            out[base] = (cpu_keep, ave_keep, max_keep)
-
-    return out
 
 
 # Primary method for slurm stats collection
@@ -1317,7 +1320,6 @@ def _collect_stats_slurm(items, logger):
             s["_cpu_time_last_s"] = float(cpu_time_s)
 
         try:
-            os.makedirs(log_path, exist_ok=True)
             _atomic_write_json(stats_path, s, logger=logger)
         except Exception as e:
             logger.debug("[stats] slurm write failed for %s: %s", stats_path, e)
