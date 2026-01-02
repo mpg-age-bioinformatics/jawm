@@ -1079,6 +1079,21 @@ def _get_slurm_parsers():
     return _get_slurm_parsers._cache
 
 
+def _has_sstat(logger=None):
+    # cache result + one-time warning
+    if hasattr(_has_sstat, "_cached"):
+        return _has_sstat._cached
+
+    ok = shutil.which("sstat") is not None
+    _has_sstat._cached = ok
+
+    if not ok and logger and not getattr(_has_sstat, "_warned", False):
+        logger.warning("[stats] slurm stats disabled: 'sstat' not found in PATH")
+        _has_sstat._warned = True
+
+    return ok
+
+
 def _slurm_rss_to_mib(val):
     rss_re, rss_to_mib, _ = _get_slurm_parsers()
     if val is None:
@@ -1158,9 +1173,6 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
     if not jobids:
         return {}
 
-    if shutil.which("sstat") is None:
-        return {}
-
     cmd = ["sstat", "-n", "-P", "-j", ",".join(jobids), "--format=JobID,TRESUsageInTot,AveCPU,AveRSS,MaxRSS",]
 
     try:
@@ -1224,6 +1236,9 @@ def _collect_stats_slurm(items, logger):
       500% ~= five cores fully busy
     """
     if not items:
+        return
+
+    if not _has_sstat(logger):
         return
 
     jobids = list(items.keys())
