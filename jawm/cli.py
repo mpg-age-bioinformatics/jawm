@@ -1200,7 +1200,7 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
             cpu_keep = cpu_time_s if cpu_time_s is not None else p_cpu
 
             # RSS: keep whichever AveRSS is available; for MaxRSS keep peak
-            ave_keep = ave_rss_mib if ave_rss_mib is not None else p_ave
+            ave_keep = p_ave if p_ave is not None else ave_rss_mib
 
             if p_max is None:
                 max_keep = max_rss_mib
