@@ -1088,7 +1088,7 @@ def _has_sstat(logger=None):
     _has_sstat._cached = ok
 
     if not ok and logger and not getattr(_has_sstat, "_warned", False):
-        logger.warning("[stats] slurm stats disabled: 'sstat' not found in PATH")
+        logger.warning("[stats] slurm stats collection disabled (sstat required): 'sstat' not found in PATH")
         _has_sstat._warned = True
 
     return ok
@@ -1101,14 +1101,22 @@ def _slurm_rss_to_mib(val):
     s = str(val).strip()
     if not s or s.upper() in {"N/A", "NA", "UNKNOWN"}:
         return None
+
     m = rss_re.match(s)
     if not m:
         return None
+
     try:
         num = float(m.group(1))
     except Exception:
         return None
+
     unit = (m.group(2) or "").upper()
+
+    # Some Slurm setups output AveRSS as a bare integer (no suffix) in BYTES.
+    if unit == "":
+        return num / 1024.0
+
     factor = rss_to_mib.get(unit)
     if factor is None:
         return None
@@ -1174,7 +1182,7 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
         return {}
 
     try:
-        cmd = ["sstat", "-n", "-P", "-j", ",".join(jobids), "--format=JobID,TRESUsageInTot,AveCPU,AveRSS,MaxRSS",]
+        cmd = ["sstat", "-a", "-n", "-P", "-j", ",".join(jobids), "--format=JobID,TRESUsageInTot,AveCPU,AveRSS,MaxRSS",]
 
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
@@ -1209,11 +1217,21 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
             else:
                 p_cpu, p_ave, p_max = prev
 
-                # CPU time: keep latest non-None (monotonic counter)
-                cpu_keep = cpu_time_s if cpu_time_s is not None else p_cpu
+                # CPU time: keep max across steps (prevents .batch cpu=0 overwriting .0)
+                if p_cpu is None:
+                    cpu_keep = cpu_time_s
+                elif cpu_time_s is None:
+                    cpu_keep = p_cpu
+                else:
+                    cpu_keep = max(p_cpu, cpu_time_s)
 
-                # RSS: keep whichever AveRSS is available; for MaxRSS keep peak
-                ave_keep = p_ave if p_ave is not None else ave_rss_mib
+                # AveRSS: keep max across steps (prevents tiny .batch winning, stable with .0)
+                if p_ave is None:
+                    ave_keep = ave_rss_mib
+                elif ave_rss_mib is None:
+                    ave_keep = p_ave
+                else:
+                    ave_keep = max(p_ave, ave_rss_mib)
 
                 if p_max is None:
                     max_keep = max_rss_mib
@@ -1275,8 +1293,8 @@ def _collect_stats_slurm(items, logger):
                 "_n_cpu": 0,
             }
 
-        rss_sample = ave_rss_mib if ave_rss_mib is not None else max_rss_mib
-        if cpu_time_s is None and rss_sample is None and max_rss_mib is None:
+        rss_sample = max_rss_mib if max_rss_mib is not None else ave_rss_mib
+        if cpu_time_s is None and rss_sample is None:
             continue
 
         # poll tick (consistent with local)
