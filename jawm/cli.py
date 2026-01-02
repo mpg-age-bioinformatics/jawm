@@ -1056,12 +1056,16 @@ def _collect_stats_local(items, logger):
 
 
 # Methods for slurm stats collection
+# ------------------------------------------------------------
+#   Slurm stats collection (minimalistic, safe, efficient)
+# ------------------------------------------------------------
+
 def _get_slurm_parsers():
-    # function attribute cache (no global variables needed elsewhere)
+    # function attribute cache (no module-level globals needed elsewhere)
     if hasattr(_get_slurm_parsers, "_cache"):
         return _get_slurm_parsers._cache
     rss_re = re.compile(r"^\s*([0-9]*\.?[0-9]+)\s*([KMGTP]?)\s*$", re.IGNORECASE)
-    rss_to_mib = {"": 1.0/1024.0, "K": 1.0/1024.0, "M": 1.0, "G": 1024.0, "T": 1024.0**2, "P": 1024.0**3}
+    rss_to_mib = {"": 1.0 / 1024.0, "K": 1.0 / 1024.0, "M": 1.0, "G": 1024.0, "T": 1024.0**2, "P": 1024.0**3}
     cpu_re = re.compile(r"^\s*(\d+):(\d+)(?::(\d+))?(?:\.(\d+))?\s*$")
     _get_slurm_parsers._cache = (rss_re, rss_to_mib, cpu_re)
     return _get_slurm_parsers._cache
@@ -1105,7 +1109,7 @@ def _slurm_cpu_time_to_s(val):
     frac = m.group(4)
 
     if c is None:
-        total = a * 60 + b              # MM:SS
+        total = a * 60 + b  # MM:SS
     else:
         total = a * 3600 + b * 60 + int(c)  # HH:MM:SS
 
@@ -1115,13 +1119,69 @@ def _slurm_cpu_time_to_s(val):
     return float(total)
 
 
+def _slurm_tres_cpu_to_s(val):
+    """
+    Extract cpu=HH:MM:SS(.ms) from TRESUsageInTot-like string.
+    Example: "cpu=00:00:35,energy=0,mem=310992K,..."
+    """
+    if val is None:
+        return None
+    s = str(val)
+    i = s.find("cpu=")
+    if i < 0:
+        return None
+    j = s.find(",", i)
+    cpu_str = s[i + 4 :] if j < 0 else s[i + 4 : j]
+    return _slurm_cpu_time_to_s(cpu_str.strip())
+
+
+def _squeue_alloccpus_many(jobids, timeout_s=2.0):
+    """
+    Best-effort AllocCPUS lookup for normalization.
+    Returns {jobid: alloccpus_int}. Missing entries are simply absent.
+    """
+    jobids = [str(j) for j in jobids if str(j).isdigit()]
+    if not jobids:
+        return {}
+
+    if shutil.which("squeue") is None:
+        return {}
+
+    try:
+        r = subprocess.run(
+            ["squeue", "-h", "-j", ",".join(jobids), "-o", "%i|%C"],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except Exception:
+        return {}
+
+    out = {}
+    for line in (r.stdout or "").splitlines():
+        parts = [p.strip() for p in line.split("|", 1)]
+        if len(parts) != 2:
+            continue
+        jid, cpus = parts
+        if not jid.isdigit():
+            continue
+        try:
+            out[jid] = max(1, int(cpus))
+        except Exception:
+            continue
+    return out
+
+
 def _sstat_sample_many(jobids, timeout_s=2.0):
     """
     Returns:
       { jobid: (cpu_time_s_or_None, ave_rss_mib_or_None, max_rss_mib_or_None) }
 
-    Uses -P to avoid truncation (+) and to parse reliably.
-    If sstat isn't available, returns {}.
+    - Uses -P for reliable parsing and to avoid truncation markers.
+    - Ignores sstat error lines (e.g. "no steps running for job ...").
+    - CPU time prefers TRESUsageInTot cpu=... if present, else AveCPU.
+    - Aggregates over steps by base job id, keeping max RSS peak.
     """
     jobids = [str(j) for j in jobids if str(j).isdigit()]
     if not jobids:
@@ -1130,7 +1190,14 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
     if shutil.which("sstat") is None:
         return {}
 
-    cmd = ["sstat", "-n", "-P", "-j", ",".join(jobids), "--format=JobID,AveCPU,AveRSS,MaxRSS"]
+    cmd = [
+        "sstat",
+        "-n",
+        "-P",
+        "-j",
+        ",".join(jobids),
+        "--format=JobID,TRESUsageInTot,AveCPU,AveRSS,MaxRSS",
+    ]
 
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
@@ -1141,26 +1208,42 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
         return {}
 
     out = {}
-    for line in r.stdout.splitlines():
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) < 4:
+    for raw in r.stdout.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("sstat:"):
+            # e.g. "sstat: error: no steps running for job 594854"
             continue
 
-        job_step = parts[0]                 # e.g. 594853.batch
-        base = job_step.split(".", 1)[0]    # e.g. 594853
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 5:
+            continue
+
+        job_step = parts[0]                 # e.g. 594905.batch or 594905.0
+        base = job_step.split(".", 1)[0]    # e.g. 594905
         if not base.isdigit():
             continue
 
-        cpu_time_s = _slurm_cpu_time_to_s(parts[1])
-        ave_rss_mib = _slurm_rss_to_mib(parts[2])
-        max_rss_mib = _slurm_rss_to_mib(parts[3])
+        cpu_time_s = _slurm_tres_cpu_to_s(parts[1]) or _slurm_cpu_time_to_s(parts[2])
+        ave_rss_mib = _slurm_rss_to_mib(parts[3])
+        max_rss_mib = _slurm_rss_to_mib(parts[4])
 
         prev = out.get(base)
         if prev is None:
             out[base] = (cpu_time_s, ave_rss_mib, max_rss_mib)
         else:
             p_cpu, p_ave, p_max = prev
-            # keep whichever fields are available; for max keep the larger numeric peak
+
+            # CPU: keep the latest non-None (good enough for monotonic cpu time)
+            cpu_keep = cpu_time_s if cpu_time_s is not None else p_cpu
+
+            # AveRSS: keep first non-None (or latest non-None) — either is fine as "sample"
+            ave_keep = p_ave if p_ave is not None else ave_rss_mib
+            if ave_keep is None:
+                ave_keep = ave_rss_mib
+
+            # MaxRSS: keep numeric max peak
             if p_max is None:
                 max_keep = max_rss_mib
             elif max_rss_mib is None:
@@ -1168,11 +1251,7 @@ def _sstat_sample_many(jobids, timeout_s=2.0):
             else:
                 max_keep = max(p_max, max_rss_mib)
 
-            out[base] = (
-                cpu_time_s if cpu_time_s is not None else p_cpu,
-                ave_rss_mib if ave_rss_mib is not None else p_ave,
-                max_keep,
-            )
+            out[base] = (cpu_keep, ave_keep, max_keep)
 
     return out
 
@@ -1182,19 +1261,21 @@ def _collect_stats_slurm(items, logger):
     items: { "<jobid>": "<log_path>", ... }
     Writes: <log_path>/stats.json
 
-    Same user-facing fields as local:
+    Same fields as local:
       n, cpu_sum_pct, cpu_peak_pct, cpu_avg_pct, rss_sum_mib, rss_peak_mib, rss_avg_mib
 
-    Minimal internal fields needed to compute CPU% from AveCPU deltas:
-      _t_last, _cpu_time_last_s
+    Internal fields:
+      _t_last, _cpu_time_last_s, n_cpu
     """
     if not items:
         return
 
-    samples = _sstat_sample_many(list(items.keys()))
+    jobids = list(items.keys())
+    samples = _sstat_sample_many(jobids)
     if not samples:
         return
 
+    alloc_map = _squeue_alloccpus_many(jobids)
     now = time.time()
 
     for jobid, (cpu_time_s, ave_rss_mib, max_rss_mib) in samples.items():
@@ -1218,47 +1299,53 @@ def _collect_stats_slurm(items, logger):
                 "rss_avg_mib": 0.0,
                 "_t_last": 0.0,
                 "_cpu_time_last_s": 0.0,
+                "n_cpu": 0,
             }
 
         rss_sample = ave_rss_mib if ave_rss_mib is not None else max_rss_mib
-
-        # nothing useful -> skip
         if cpu_time_s is None and rss_sample is None and max_rss_mib is None:
             continue
 
+        # Count a "poll tick" for the job (consistent with local n)
         n = int(s.get("n", 0)) + 1
         s["n"] = n
 
-        # RSS aggregates
+        # RSS aggregates (sample-based)
         if rss_sample is not None:
             rss_sum = float(s.get("rss_sum_mib", 0.0)) + float(rss_sample)
             s["rss_sum_mib"] = rss_sum
 
             peak_candidate = max_rss_mib if max_rss_mib is not None else rss_sample
             s["rss_peak_mib"] = max(float(s.get("rss_peak_mib", 0.0)), float(peak_candidate))
-
             s["rss_avg_mib"] = rss_sum / n
 
-        # CPU aggregates (interval CPU% from AveCPU deltas)
+        # CPU aggregates (delta CPU time over delta wall time, normalized by AllocCPUS)
         if cpu_time_s is not None:
             prev_t = float(s.get("_t_last", 0.0) or 0.0)
             prev_cpu = float(s.get("_cpu_time_last_s", 0.0) or 0.0)
 
-            dt = (now - prev_t) if prev_t > 0 else 0.0
-            if dt <= 0:
-                dt = 1.0  # safe fallback
+            if prev_t > 0.0:
+                dt = now - prev_t
+                if dt >= 0.5:
+                    dcpu = float(cpu_time_s) - prev_cpu
+                    if dcpu < 0:
+                        dcpu = 0.0
 
-            dcpu = float(cpu_time_s) - prev_cpu
-            if dcpu < 0:
-                dcpu = 0.0
+                    alloc = float(alloc_map.get(jobid, 1) or 1)
+                    if alloc <= 0:
+                        alloc = 1.0
 
-            cpu_pct = 100.0 * (dcpu / dt)
+                    cpu_pct = 100.0 * (dcpu / (dt * alloc))
 
-            cpu_sum = float(s.get("cpu_sum_pct", 0.0)) + cpu_pct
-            s["cpu_sum_pct"] = cpu_sum
-            s["cpu_peak_pct"] = max(float(s.get("cpu_peak_pct", 0.0)), cpu_pct)
-            s["cpu_avg_pct"] = cpu_sum / n
+                    cpu_sum = float(s.get("cpu_sum_pct", 0.0)) + cpu_pct
+                    s["cpu_sum_pct"] = cpu_sum
+                    s["cpu_peak_pct"] = max(float(s.get("cpu_peak_pct", 0.0)), cpu_pct)
 
+                    n_cpu = int(s.get("n_cpu", 0)) + 1
+                    s["n_cpu"] = n_cpu
+                    s["cpu_avg_pct"] = cpu_sum / n_cpu
+
+            # always refresh baseline
             s["_t_last"] = float(now)
             s["_cpu_time_last_s"] = float(cpu_time_s)
 
