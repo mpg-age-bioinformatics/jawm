@@ -1345,15 +1345,175 @@ def _collect_stats_slurm(items, logger):
 
 ########## Collection of additional sacct field retrival at the end ##########
 
-def _has_sacct(logger=None):
-    if hasattr(_has_sacct, "_cached"):
-        return _has_sacct._cached
-    ok = shutil.which("sacct") is not None
-    _has_sacct._cached = ok
-    if not ok and logger and not getattr(_has_sacct, "_warned", False):
-        logger.warning("[stats] slurm final stats collection disabled (sacct required): 'sacct' not found in PATH")
-        _has_sacct._warned = True
-    return ok
+def _get_slurm_additional_fields():
+    raw = os.getenv("JAWM_STATS_SLURM_FIELDS", "").strip()
+    if not raw:
+        return []
+    out, seen = [], set()
+    for f in raw.split(","):
+        f = f.strip()
+        if not f or f in seen:
+            continue
+        if re.fullmatch(r"[A-Za-z0-9_]+", f):
+            seen.add(f)
+            out.append(f)
+    return out
+
+
+def _sacct_valid_fields(logger=None, timeout_s=3.0):
+    """
+    Return map {UPPER: canonical_field} from `sacct -e`.
+    No caching (called once during finalize anyway).
+    """
+    if shutil.which("sacct") is None:
+        return {}
+
+    try:
+        r = subprocess.run(["sacct", "-e"], capture_output=True, text=True, timeout=timeout_s, check=False)
+        m = {}
+        for ln in (r.stdout or "").splitlines():
+            for name in ln.split():
+                if re.fullmatch(r"[A-Za-z0-9_]+", name):
+                    m[name.upper()] = name
+        return m
+    except Exception as e:
+        if logger:
+            logger.debug("[stats] sacct -e failed for JAWM_STATS_SLURM_FIELDS: %s", e)
+        return {}
+
+
+def _sacct_fetch_additional(logger, jobids, fields, timeout_s=6.0):
+    """
+    Returns { base_jobid: {requested_field: value_str_or_NA, ...}, ... }
+    - Invalid fields => NA (soft)
+    - Values stored as-is from sacct
+    """
+    jobids = [str(j) for j in jobids if str(j).isdigit()]
+    fields = [str(f).strip() for f in (fields or []) if str(f).strip()]
+    if not jobids or not fields:
+        return {}
+
+    if shutil.which("sacct") is None:
+        return {j: {f: "NA" for f in fields} for j in jobids}
+
+    valid_map = _sacct_valid_fields(logger=logger)
+
+    pairs, invalid = [], []
+    for f in fields:
+        canon = valid_map.get(f.upper())
+        if canon:
+            pairs.append((f, canon))
+        else:
+            invalid.append(f)
+
+    if invalid and logger:
+        logger.warning("[stats] sacct: ignoring invalid fields for JAWM_STATS_SLURM_FIELDS: %s", ",".join(invalid))
+
+    # If nothing valid, return predictable NA for all jobs/fields
+    if not pairs:
+        return {j: {f: "NA" for f in fields} for j in jobids}
+
+    fmt = ["JobID"] + [canon for (_req, canon) in pairs]
+    cmd = ["sacct", "-n", "-P", "-j", ",".join(jobids), "--format=" + ",".join(fmt)]
+
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
+    except Exception as e:
+        if logger:
+            logger.warning("[stats] sacct failed for JAWM_STATS_SLURM_FIELDS: %s", e)
+        return {j: {f: "NA" for f in fields} for j in jobids}
+
+    if not r.stdout:
+        if logger:
+            err = (r.stderr or "").strip()
+            if err:
+                logger.warning("[stats] sacct for JAWM_STATS_SLURM_FIELDS returned no stdout (rc=%s): %s", r.returncode, err)
+        return {j: {f: "NA" for f in fields} for j in jobids}
+
+    out = {}
+    for line in (r.stdout or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+
+        parts = line.split("|")
+        base = (parts[0] or "").split(".", 1)[0].strip()
+        if not base.isdigit():
+            continue
+
+        row = {f: "NA" for f in fields}  # include invalid ones too (NA)
+        for i, (req, _canon) in enumerate(pairs, start=1):
+            if i < len(parts):
+                v = (parts[i] or "").strip()
+                if v and v.upper() not in {"N/A", "NA", "UNKNOWN"}:
+                    row[req] = v
+
+        # keep best row among steps (most non-NA)
+        prev = out.get(base)
+        if prev is None:
+            out[base] = row
+        else:
+            if sum(v != "NA" for v in row.values()) >= sum(v != "NA" for v in prev.values()):
+                out[base] = row
+
+    for j in jobids:
+        out.setdefault(j, {f: "NA" for f in fields})
+
+    return out
+
+
+def _additional_slurm_stats_from_sacct(Process, logger):
+    """
+    Append-only, fail-safe shutdown finalizer.
+    - Only runs if JAWM_STATS_SLURM_FIELDS is set
+    - Adds s["additional_fields"] once
+    """
+    fields = _get_slurm_additional_fields()
+    if not fields:
+        return
+
+    try:
+        items = {}
+        for proc in list(Process.registry.values()):
+            try:
+                if not isinstance(proc, Process):
+                    continue
+                if getattr(proc, "manager", None) != "slurm":
+                    continue
+                rid = getattr(proc, "runtime_id", None)
+                log_path = getattr(proc, "log_path", None)
+                if rid and log_path:
+                    items[str(rid)] = log_path
+            except Exception:
+                continue
+
+        if not items:
+            return
+
+        final_map = _sacct_fetch_additional(logger, list(items.keys()), fields=fields)
+        if not final_map:
+            return
+
+        for jobid, add in final_map.items():
+            log_path = items.get(jobid)
+            if not log_path:
+                continue
+
+            stats_path = os.path.join(log_path, "stats.json")
+            try:
+                with open(stats_path, "r") as f:
+                    s = json.load(f)
+            except Exception:
+                s = {}
+
+            if "additional_fields" in s:
+                continue
+
+            s["additional_fields"] = add
+            _atomic_write_json(stats_path, s, logger=logger)
+
+    except Exception as e:
+        logger.debug("[stats] operations for JAWM_STATS_SLURM_FIELDS failed: %s", e)
 
 # ------------------------------------------------------------
 #   End of recording stats helper methods
@@ -2216,6 +2376,12 @@ def main():
             if _record_stat:
                 _stats_stop.set()
                 _t_stats.join(timeout=2.0)
+        except Exception:
+            pass
+
+        try:
+            if _record_stat:
+                _additional_slurm_stats_from_sacct(Process, logger)
         except Exception:
             pass
         time.sleep(0.2)
