@@ -1342,6 +1342,19 @@ def _collect_stats_slurm(items, logger):
         except Exception as e:
             logger.debug("[stats] slurm write failed for %s: %s", stats_path, e)
 
+
+########## Collection of additional sacct field retrival at the end ##########
+
+def _has_sacct(logger=None):
+    if hasattr(_has_sacct, "_cached"):
+        return _has_sacct._cached
+    ok = shutil.which("sacct") is not None
+    _has_sacct._cached = ok
+    if not ok and logger and not getattr(_has_sacct, "_warned", False):
+        logger.warning("[stats] slurm final stats collection disabled (sacct required): 'sacct' not found in PATH")
+        _has_sacct._warned = True
+    return ok
+
 # ------------------------------------------------------------
 #   End of recording stats helper methods
 # ------------------------------------------------------------
