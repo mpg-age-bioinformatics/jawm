@@ -1519,6 +1519,146 @@ def _additional_slurm_stats_from_sacct(Process, logger):
     except Exception as e:
         logger.debug("[stats] operations for recording additional fields failed: %s", e)
 
+
+########## Methods for finalize summary at the end of jawm call ##########
+
+def _log_stats_summary_from_registry(Process, logger, max_items=1000):
+    """
+    Read-only aggregation of per-process <log_path>/stats.json.
+
+    - Dedupes by log_path (prevents double-counting if registry has aliases).
+    - Best-effort: never raises.
+    - Non-blocking: only local file reads (no subprocess calls).
+    """
+    try:
+        # Collect unique log_paths (fast + avoids duplicate Process aliases)
+        entries = []  # (label, log_path, stats_dict)
+        seen_lp = set()
+
+        for proc in list(Process.registry.values())[:max_items]:
+            try:
+                if not isinstance(proc, Process):
+                    continue
+
+                lp = getattr(proc, "log_path", None)
+                if not lp or lp in seen_lp:
+                    continue
+                seen_lp.add(lp)
+
+                name = getattr(proc, "name", None) or ""
+                label = name.split("|", 1)[0] if name else (str(getattr(proc, "runtime_id", "")) or "process")
+
+                sp = os.path.join(lp, "stats.json")
+                try:
+                    with open(sp, "r") as f:
+                        s = json.load(f)
+                except Exception:
+                    continue
+
+                if isinstance(s, dict) and s:
+                    entries.append((label, lp, s))
+            except Exception:
+                continue
+
+        if not entries:
+            logger.info("[stats] summary:\n\tNumber of processes: 0")
+            return
+
+        def _f(x, default=None):
+            try:
+                return float(x)
+            except Exception:
+                return default
+
+        cpu_avgs = []
+        rss_avgs = []
+
+        cpu_peak = -1.0
+        cpu_peak_label = None
+        cpu_peak_lp = None
+
+        rss_peak = -1.0
+        rss_peak_label = None
+        rss_peak_lp = None
+
+        for label, lp, s in entries:
+            # CPU avg per process
+            cpu_avg = _f(s.get("cpu_avg_pct"))
+            if cpu_avg is None:
+                cpu_sum = _f(s.get("cpu_sum_pct"), 0.0)
+                n_cpu = s.get("_n_cpu", s.get("n_cpu", None))
+                try:
+                    denom = int(n_cpu) if n_cpu is not None else int(s.get("n", 0))
+                except Exception:
+                    denom = 0
+                if denom > 0:
+                    cpu_avg = cpu_sum / float(denom)
+
+            if cpu_avg is not None:
+                cpu_avgs.append(cpu_avg)
+
+            # CPU peak per process
+            cpk = _f(s.get("cpu_peak_pct"))
+            if cpk is not None and cpk > cpu_peak:
+                cpu_peak = cpk
+                cpu_peak_label = label
+                cpu_peak_lp = lp
+
+            # RSS avg per process
+            rss_avg = _f(s.get("rss_avg_mib"))
+            if rss_avg is None:
+                rss_sum = _f(s.get("rss_sum_mib"), 0.0)
+                try:
+                    denom = int(s.get("n", 0))
+                except Exception:
+                    denom = 0
+                if denom > 0:
+                    rss_avg = rss_sum / float(denom)
+
+            if rss_avg is not None:
+                rss_avgs.append(rss_avg)
+
+            # RSS peak per process
+            rpk = _f(s.get("rss_peak_mib"))
+            if rpk is not None and rpk > rss_peak:
+                rss_peak = rpk
+                rss_peak_label = label
+                rss_peak_lp = lp
+
+        n = len(entries)
+        cpu_avg_all = (sum(cpu_avgs) / len(cpu_avgs)) if cpu_avgs else None
+        rss_avg_all = (sum(rss_avgs) / len(rss_avgs)) if rss_avgs else None
+
+        lines = ["[stats] summary:"]
+        lines.append(f"\tNumber of processes: {n}")
+
+        if cpu_avg_all is not None:
+            lines.append(f"\tAverage CPU usage of Processes: ~{cpu_avg_all:.1f}")
+        else:
+            lines.append("\tAverage CPU usage of Processes: NA")
+
+        if cpu_peak >= 0 and cpu_peak_label:
+            lines.append(f"\tPeak CPU usage by Process: {cpu_peak:.1f}")
+            lines.append(f"\tPeak CPU usage process: {cpu_peak_label}, log path: {cpu_peak_lp}")
+        else:
+            lines.append("\tPeak CPU usage by Process: NA")
+
+        if rss_avg_all is not None:
+            lines.append(f"\tAverage RSS of Processes (MiB): ~{rss_avg_all:.1f}")
+        else:
+            lines.append("\tAverage RSS of Processes (MiB): NA")
+
+        if rss_peak >= 0 and rss_peak_label:
+            lines.append(f"\tPeak RSS by Process (MiB): {rss_peak:.1f}")
+            lines.append(f"\tPeak RSS process: {rss_peak_label}, log path: {rss_peak_lp}")
+        else:
+            lines.append("\tPeak RSS by Process (MiB): NA")
+
+        logger.info("\n".join(lines))
+
+    except Exception as e:
+        logger.debug("[stats] summary aggregation failed: %s", e)
+
 # ------------------------------------------------------------
 #   End of recording stats helper methods
 # ------------------------------------------------------------
@@ -2388,6 +2528,13 @@ def main():
                 _additional_slurm_stats_from_sacct(Process, logger)
         except Exception:
             pass
+
+        try:
+            if _record_stat:
+                _log_stats_summary_from_registry(Process, logger)
+        except Exception:
+            pass
+
         time.sleep(0.2)
         if exit_code_def == 0:
             logger.info("Ending jawm module script from jawm command")
