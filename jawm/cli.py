@@ -1522,7 +1522,7 @@ def _additional_slurm_stats_from_sacct(Process, logger):
 
 ########## Methods for finalize summary at the end of jawm call ##########
 
-def _log_stats_summary_from_registry(Process, logger, max_items=1000):
+def _log_stats_summary_from_registry(Process, logger, max_items=1000, budget_s=3.0):
     """
     Read-only aggregation of per-process <log_path>/stats.json.
 
@@ -1531,11 +1531,13 @@ def _log_stats_summary_from_registry(Process, logger, max_items=1000):
     - Non-blocking: only local file reads (no subprocess calls).
     """
     try:
-        # Collect unique log_paths (fast + avoids duplicate Process aliases)
-        entries = []  # (label, log_path, stats_dict)
+        entries = []
         seen_lp = set()
+        deadline = time.monotonic() + float(budget_s or 0.0)
 
-        for proc in list(Process.registry.values())[:max_items]:
+        for i, proc in enumerate(Process.registry.values()):
+            if i >= max_items or time.monotonic() >= deadline:
+                break
             try:
                 if not isinstance(proc, Process):
                     continue
@@ -1632,10 +1634,11 @@ def _log_stats_summary_from_registry(Process, logger, max_items=1000):
         lines = ["[stats] summary:"]
         lines.append(f"\tNumber of processes: {n}")
 
-        if cpu_avg_all is not None:
-            lines.append(f"\tAverage CPU usage of Processes: ~{cpu_avg_all:.1f}")
-        else:
-            lines.append("\tAverage CPU usage of Processes: NA")
+        lines.append(
+            f"\tAverage CPU usage of Processes: ~{cpu_avg_all:.1f}"
+            if cpu_avg_all is not None else
+            "\tAverage CPU usage of Processes: NA"
+        )
 
         if cpu_peak >= 0 and cpu_peak_label:
             lines.append(f"\tPeak CPU usage by Process: {cpu_peak:.1f}")
@@ -1643,10 +1646,11 @@ def _log_stats_summary_from_registry(Process, logger, max_items=1000):
         else:
             lines.append("\tPeak CPU usage by Process: NA")
 
-        if rss_avg_all is not None:
-            lines.append(f"\tAverage RSS of Processes (MiB): ~{rss_avg_all:.1f}")
-        else:
-            lines.append("\tAverage RSS of Processes (MiB): NA")
+        lines.append(
+            f"\tAverage RSS of Processes (MiB): ~{rss_avg_all:.1f}"
+            if rss_avg_all is not None else
+            "\tAverage RSS of Processes (MiB): NA"
+        )
 
         if rss_peak >= 0 and rss_peak_label:
             lines.append(f"\tPeak RSS by Process (MiB): {rss_peak:.1f}")
