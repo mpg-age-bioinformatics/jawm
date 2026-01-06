@@ -1378,11 +1378,11 @@ def _sacct_valid_fields(logger=None, timeout_s=3.0):
         return m
     except Exception as e:
         if logger:
-            logger.debug("[stats] sacct -e failed for JAWM_STATS_SLURM_FIELDS: %s", e)
+            logger.debug("[stats] sacct -e failed for recording additional fields: %s", e)
         return {}
 
 
-def _sacct_fetch_additional(logger, jobids, fields, timeout_s=6.0):
+def _sacct_fetch_additional(logger, jobids, fields, timeout_s=5.0):
     """
     Returns { base_jobid: {requested_field: value_str_or_NA, ...}, ... }
     - Invalid fields => NA (soft)
@@ -1406,8 +1406,9 @@ def _sacct_fetch_additional(logger, jobids, fields, timeout_s=6.0):
         else:
             invalid.append(f)
 
-    if invalid and logger:
-        logger.warning("[stats] sacct: ignoring invalid fields for JAWM_STATS_SLURM_FIELDS: %s", ",".join(invalid))
+    if invalid and logger and not getattr(_sacct_fetch_additional, "_warned_invalid", False):
+        logger.warning("[stats] sacct: ignoring invalid keys for recording additional fields: %s", ",".join(invalid))
+        _sacct_fetch_additional._warned_invalid = True
 
     # If nothing valid, return predictable NA for all jobs/fields
     if not pairs:
@@ -1420,14 +1421,14 @@ def _sacct_fetch_additional(logger, jobids, fields, timeout_s=6.0):
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
     except Exception as e:
         if logger:
-            logger.warning("[stats] sacct failed for JAWM_STATS_SLURM_FIELDS: %s", e)
+            logger.warning("[stats] sacct failed for recording additional fields: %s", e)
         return {j: {f: "NA" for f in fields} for j in jobids}
 
     if not r.stdout:
         if logger:
             err = (r.stderr or "").strip()
             if err:
-                logger.warning("[stats] sacct for JAWM_STATS_SLURM_FIELDS returned no stdout (rc=%s): %s", r.returncode, err)
+                logger.debug("[stats] sacct for recording additional fields returned no stdout (rc=%s): %s", r.returncode, err)
         return {j: {f: "NA" for f in fields} for j in jobids}
 
     out = {}
@@ -1510,10 +1511,13 @@ def _additional_slurm_stats_from_sacct(Process, logger):
                 continue
 
             s["additional_fields"] = add
-            _atomic_write_json(stats_path, s, logger=logger)
+            try:
+                _atomic_write_json(stats_path, s, logger=logger)
+            except Exception as e:
+                logger.debug("[stats] slurm write failed for %s: %s", stats_path, e)
 
     except Exception as e:
-        logger.debug("[stats] operations for JAWM_STATS_SLURM_FIELDS failed: %s", e)
+        logger.debug("[stats] operations for recording additional fields failed: %s", e)
 
 # ------------------------------------------------------------
 #   End of recording stats helper methods
