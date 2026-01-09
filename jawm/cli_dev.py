@@ -532,6 +532,13 @@ def _run_init(module_name, server="github.com", user="mpg-age-bioinformatics", m
 
     print(f"🌱 Initializing Git repository in {target}")
     ok, err = _git("init", "-b", "main")
+    if (not ok) and err and ("unknown switch" in err or "unknown option" in err):
+        ok, err = _git("init")
+        if ok:
+            co_ok, co_err = _git("checkout", "-B", "main")
+            if not co_ok:
+                print(f"⚠️ Could not switch to main: {co_err}")
+
     if ok:
         _git("add", "-A")
         commit_ok, commit_err = _git("commit", "-m", "Initial commit (scaffolded by jawm init)")
