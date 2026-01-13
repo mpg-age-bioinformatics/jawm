@@ -1534,6 +1534,7 @@ def _log_stats_summary_from_registry(Process, logger, max_items=1000, budget_s=3
         entries = []
         seen_lp = set()
         deadline = time.monotonic() + float(budget_s or 0.0)
+        _mib_to_gb = 1048576.0 / 1_000_000_000.0
 
         for i, proc in enumerate(Process.registry.values()):
             if i >= max_items or time.monotonic() >= deadline:
@@ -1563,7 +1564,7 @@ def _log_stats_summary_from_registry(Process, logger, max_items=1000, budget_s=3
                 continue
 
         if not entries:
-            logger.info("[stats] summary:\n\tNumber of processes: 0")
+            logger.info("[stats] :::SUMMARY:::\n\tNumber of jawm Processes: 0")
             return
 
         def _f(x, default=None):
@@ -1630,32 +1631,32 @@ def _log_stats_summary_from_registry(Process, logger, max_items=1000, budget_s=3
         cpu_avg_all = (sum(cpu_avgs) / len(cpu_avgs)) if cpu_avgs else None
         rss_avg_all = (sum(rss_avgs) / len(rss_avgs)) if rss_avgs else None
 
-        lines = ["[stats] summary:"]
-        lines.append(f"\tNumber of processes: {n}")
+        lines = ["[stats] :::SUMMARY::: (CPU: ~100% = 1 full core; memory in GB decimal)"]
+        lines.append(f"\tNumber of jawm Processes: {n}")
 
         lines.append(
-            f"\tAverage CPU usage of Processes: ~{cpu_avg_all:.1f}"
+            f"\tAverage CPU usage across jawm Processes: ~{cpu_avg_all:.1f}%"
             if cpu_avg_all is not None else
-            "\tAverage CPU usage of Processes: NA"
+            "\tAverage CPU usage across jawm Processes: NA"
         )
 
         if cpu_peak >= 0 and cpu_peak_label:
-            lines.append(f"\tPeak CPU usage by Process: {cpu_peak:.1f}")
-            lines.append(f"\tPeak CPU usage process: {cpu_peak_label}, log path: {cpu_peak_lp}")
+            lines.append(f"\tPeak CPU usage across jawm Processes: {cpu_peak:.1f}%")
+            lines.append(f"\tPeak CPU jawm Process: {cpu_peak_label} (log path: {cpu_peak_lp})")
         else:
-            lines.append("\tPeak CPU usage by Process: NA")
+            lines.append("\tPeak CPU usage across jawm Processes: NA")
 
         lines.append(
-            f"\tAverage RSS of Processes (MiB): ~{rss_avg_all:.1f}"
+            f"\tAverage memory (RSS) usage across jawm Processes: ~{(rss_avg_all * _mib_to_gb):.3f} GB"
             if rss_avg_all is not None else
-            "\tAverage RSS of Processes (MiB): NA"
+            "\tAverage memory (RSS) usage across jawm Processes: NA"
         )
 
         if rss_peak >= 0 and rss_peak_label:
-            lines.append(f"\tPeak RSS by Process (MiB): {rss_peak:.1f}")
-            lines.append(f"\tPeak RSS process: {rss_peak_label}, log path: {rss_peak_lp}")
+            lines.append(f"\tPeak memory (RSS) usage across jawm Processes: {(rss_peak * _mib_to_gb):.3f} GB")
+            lines.append(f"\tPeak memory (RSS) jawm Process: {rss_peak_label} (log path: {rss_peak_lp})")
         else:
-            lines.append("\tPeak RSS by Process (MiB): NA")
+            lines.append("\tPeak memory (RSS) usage across jawm Processes: NA")
 
         logger.info("\n".join(lines))
 
