@@ -1006,7 +1006,7 @@ def _ps_sample_many(pids, timeout_s=1.0):
 
     return out
 
-# Primary method for local stats collection
+
 def _collect_stats_local(items, logger):
     """
     items: { "<pid>": "<log_path>", ... }
@@ -1031,7 +1031,7 @@ def _collect_stats_local(items, logger):
                 s = json.load(f)
         except Exception:
             s = {
-                "n": 0,
+                "poll_count": 0,
                 "cpu_sum_pct": 0.0,
                 "cpu_peak_pct": 0.0,
                 "cpu_avg_pct": 0.0,
@@ -1041,13 +1041,13 @@ def _collect_stats_local(items, logger):
             }
 
         # update aggregates
-        s["n"] = int(s.get("n", 0)) + 1
+        s["poll_count"] = int(s.get("poll_count", 0)) + 1
         s["cpu_sum_pct"] = float(s.get("cpu_sum_pct", 0.0)) + float(cpu_pct)
         s["cpu_peak_pct"] = max(float(s.get("cpu_peak_pct", 0.0)), float(cpu_pct))
-        s["cpu_avg_pct"] = s["cpu_sum_pct"] / s["n"]
+        s["cpu_avg_pct"] = s["cpu_sum_pct"] / float(s["poll_count"])
         s["rss_sum_mib"] = float(s.get("rss_sum_mib", 0.0)) + float(rss_mib)
         s["rss_peak_mib"] = max(float(s.get("rss_peak_mib", 0.0)), float(rss_mib))
-        s["rss_avg_mib"] = s["rss_sum_mib"] / s["n"]
+        s["rss_avg_mib"] = s["rss_sum_mib"] / float(s["poll_count"])
 
         try:
             os.makedirs(log_path, exist_ok=True)
@@ -1281,16 +1281,16 @@ def _collect_stats_slurm(items, logger):
                 s = json.load(f)
         except Exception:
             s = {
-                "n": 0,
+                "poll_count": 0,
                 "cpu_sum_pct": 0.0,
                 "cpu_peak_pct": 0.0,
                 "cpu_avg_pct": 0.0,
                 "rss_sum_mib": 0.0,
                 "rss_peak_mib": 0.0,
                 "rss_avg_mib": 0.0,
-                "_t_last": 0.0,
-                "_cpu_time_last_s": 0.0,
-                "_n_cpu": 0,
+                "_cpu_baseline_t": 0.0,
+                "_cpu_baseline_time_s": 0.0,
+                "_cpu_sample_count": 0,
             }
 
         rss_sample = max_rss_mib if max_rss_mib is not None else ave_rss_mib
@@ -1298,8 +1298,8 @@ def _collect_stats_slurm(items, logger):
             continue
 
         # poll tick (consistent with local)
-        n = int(s.get("n", 0)) + 1
-        s["n"] = n
+        poll_count = int(s.get("poll_count", 0)) + 1
+        s["poll_count"] = poll_count
 
         # RSS aggregates
         if rss_sample is not None:
@@ -1308,12 +1308,12 @@ def _collect_stats_slurm(items, logger):
 
             peak_candidate = max_rss_mib if max_rss_mib is not None else rss_sample
             s["rss_peak_mib"] = max(float(s.get("rss_peak_mib", 0.0)), float(peak_candidate))
-            s["rss_avg_mib"] = rss_sum / n
+            s["rss_avg_mib"] = rss_sum / float(poll_count)
 
         # CPU aggregates: 100% = one full core (no alloccpus normalization)
         if cpu_time_s is not None:
-            prev_t = float(s.get("_t_last", 0.0) or 0.0)
-            prev_cpu = float(s.get("_cpu_time_last_s", 0.0) or 0.0)
+            prev_t = float(s.get("_cpu_baseline_t", 0.0) or 0.0)
+            prev_cpu = float(s.get("_cpu_baseline_time_s", 0.0) or 0.0)
 
             # first baseline: store and skip computing cpu_pct
             if prev_t > 0.0:
@@ -1329,13 +1329,13 @@ def _collect_stats_slurm(items, logger):
                     s["cpu_sum_pct"] = cpu_sum
                     s["cpu_peak_pct"] = max(float(s.get("cpu_peak_pct", 0.0)), cpu_pct)
 
-                    _n_cpu = int(s.get("_n_cpu", 0)) + 1
-                    s["_n_cpu"] = _n_cpu
-                    s["cpu_avg_pct"] = cpu_sum / _n_cpu
+                    cpu_n = int(s.get("_cpu_sample_count", 0)) + 1
+                    s["_cpu_sample_count"] = cpu_n
+                    s["cpu_avg_pct"] = cpu_sum / float(cpu_n)
 
             # always refresh baseline
-            s["_t_last"] = float(now)
-            s["_cpu_time_last_s"] = float(cpu_time_s)
+            s["_cpu_baseline_t"] = float(now)
+            s["_cpu_baseline_time_s"] = float(cpu_time_s)
 
         try:
             _atomic_write_json(stats_path, s, logger=logger)
@@ -1588,9 +1588,8 @@ def _log_stats_summary_from_registry(Process, logger, max_items=1000, budget_s=3
             cpu_avg = _f(s.get("cpu_avg_pct"))
             if cpu_avg is None:
                 cpu_sum = _f(s.get("cpu_sum_pct"), 0.0)
-                n_cpu = s.get("_n_cpu", s.get("n_cpu", None))
                 try:
-                    denom = int(n_cpu) if n_cpu is not None else int(s.get("n", 0))
+                    denom = int(s.get("_cpu_sample_count") or 0) or int(s.get("poll_count") or 0)
                 except Exception:
                     denom = 0
                 if denom > 0:
@@ -1611,7 +1610,7 @@ def _log_stats_summary_from_registry(Process, logger, max_items=1000, budget_s=3
             if rss_avg is None:
                 rss_sum = _f(s.get("rss_sum_mib"), 0.0)
                 try:
-                    denom = int(s.get("n", 0))
+                    denom = int(s.get("poll_count") or 0)
                 except Exception:
                     denom = 0
                 if denom > 0:
