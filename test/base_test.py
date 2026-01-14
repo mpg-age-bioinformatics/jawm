@@ -1205,24 +1205,25 @@ except Exception as e:
 
 print("\n>>> Test 24: Hashing via -p (scope: hash): new → mismatch(no overwrite) → overwrite(true) → reference check")
 
-def cli_cmd(args):
-    if shutil.which("jawm"):
-        return ["jawm", *args]
-    return [sys.executable, "-m", "jawm.cli", *args]
-
-def run_cli(args, timeout=45, cwd=None):
-    r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout, cwd=cwd)
-    both = (r.stdout or "") + (r.stderr or "")
-    return r.returncode, r.stdout, r.stderr, both
-
-def tail(path):
-    if not os.path.exists(path):
-        return None
-    with open(path, "r", encoding="utf-8") as f:
-        lines = [ln for ln in f.read().splitlines() if ln.strip()]
-    return lines[-1] if lines else None
-
 try:
+
+    def cli_cmd(args):
+        if shutil.which("jawm"):
+            return ["jawm", *args]
+        return [sys.executable, "-m", "jawm.cli", *args]
+
+    def run_cli(args, timeout=45, cwd=None):
+        r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout, cwd=cwd)
+        both = (r.stdout or "") + (r.stderr or "")
+        return r.returncode, r.stdout, r.stderr, both
+
+    def tail(path):
+        if not os.path.exists(path):
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            lines = [ln for ln in f.read().splitlines() if ln.strip()]
+        return lines[-1] if lines else None
+
     root = tempfile.mkdtemp(prefix="cli_hash_p_scope_", dir=base_tmp)
     wf = os.path.join(root, "wf"); os.makedirs(wf, exist_ok=True)
 
@@ -3341,6 +3342,86 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
     _restore_params(bak_default, bak_override)
     try:
+        Process.registry.clear()
+    except Exception:
+        pass
+
+
+print("\n>>> Test 51: CLI -w/--workdir creates + chdir early (relative -l resolves under workdir)")
+
+tmpdir = None
+try:
+    def run_cli(args, timeout=45, cwd=None):
+        r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout, cwd=cwd)
+        both = (r.stdout or "") + (r.stderr or "")
+        return r.returncode, r.stdout, r.stderr, both
+
+    def cli_cmd(args):
+        if shutil.which("jawm"):
+            return ["jawm", *args]
+        return [sys.executable, "-m", "jawm.cli", *args]
+        _clear_params()
+
+    tmpdir = tempfile.mkdtemp(prefix="test_cli_workdir_", dir=base_tmp)
+
+    # Create a minimal workflow directory (absolute path)
+    wf_dir = os.path.join(tmpdir, "workflow_abs")
+    os.makedirs(wf_dir, exist_ok=True)
+    with open(os.path.join(wf_dir, "main.py"), "w", encoding="utf-8") as f:
+        f.write("print('WORKDIR_TEST_RUN')\n")
+
+    # Workdir does NOT exist yet (CLI should create it)
+    workdir = os.path.join(tmpdir, "new_workdir")
+    assert not os.path.exists(workdir), "❌ precondition failed: workdir should not exist yet"
+
+    # Use a RELATIVE logs directory on purpose; should resolve under -w after os.chdir()
+    rel_logs = "logs_rel"
+    expected_runs_dir = os.path.join(workdir, rel_logs, "jawm_runs")
+
+    # Run from a different cwd to ensure we don't accidentally create logs in the caller cwd
+    rc, out, err, both = run_cli([wf_dir, "-w", workdir, "-l", rel_logs], cwd=tmpdir)
+    print(both)
+    assert rc == 0, f"❌ CLI failed with -w\n{both}"
+    assert "WORKDIR_TEST_RUN" in both, "❌ workflow did not run (missing expected stdout marker)"
+
+    # Workdir should be created
+    assert os.path.isdir(workdir), "❌ -w did not create the workdir"
+
+    # Logs should be created under workdir (because -w applied early)
+    assert os.path.isdir(expected_runs_dir), (
+        f"❌ expected logs directory not created under workdir: {expected_runs_dir}"
+    )
+    log_files = glob(os.path.join(expected_runs_dir, "*.log"))
+    assert log_files, "❌ No CLI run log file created under workdir logs directory"
+
+    # And NOT created in the original cwd (tmpdir)
+    assert not os.path.isdir(os.path.join(tmpdir, rel_logs)), (
+        "❌ logs_rel unexpectedly created in the caller cwd; -w may not be applied early"
+    )
+
+    # ------------------------------------------------------------
+    # Negative test: -w points to an existing file => exit code 2
+    # ------------------------------------------------------------
+    bad_path = os.path.join(tmpdir, "not_a_dir")
+    with open(bad_path, "w", encoding="utf-8") as f:
+        f.write("I am a file, not a directory.\n")
+
+    rc2, out2, err2, both2 = run_cli([wf_dir, "-w", bad_path], cwd=tmpdir)
+    print(both2)
+    assert rc2 == 2, f"❌ expected rc=2 when -w points to a file, got rc={rc2}\n{both2}"
+
+    print("✅ Passed: CLI -w/--workdir creates directory + applies cwd early + rejects file target")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    try:
+        if tmpdir and os.path.isdir(tmpdir):
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        _restore_params(bak_default, bak_override)
         Process.registry.clear()
     except Exception:
         pass
