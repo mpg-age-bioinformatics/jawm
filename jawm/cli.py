@@ -1757,6 +1757,7 @@ def main():
     parser.add_argument("-p", "--parameters", nargs="+", default=None, help="YAML file(s) or directory of parameter config files to be used as default param_file.")
     parser.add_argument("-v", "--variables", nargs="+", default=None, help="YAML or .rc file(s) or directory of files of script variables to inject into the module script.")
     parser.add_argument("-l", "--logs-directory", dest="logs_directory", default=None, help="Directory to store logs; sets default logs_directory. CLI logs are saved in <logs_directory>/jawm_runs (default: ./logs/jawm_runs).")
+    parser.add_argument("-w", "--workdir", dest="workdir", default=None, help="Change/set custom working directory before resolving paths.")
     parser.add_argument("-r", "--resume", action="store_true", default=None, help="Resume mode: skip executing already successfully completed processes.")
     parser.add_argument("-n", "--no-override", dest="no_override", nargs="?", const="ALL", help="Disable override for all or specific parameters (comma-separated).")
     parser.add_argument("--git-cache", help="Path for jawm's git cache (default: ~/.jawm/git)")
@@ -1772,6 +1773,15 @@ def main():
 
     args, unknown_args = parser.parse_known_args()
 
+    # ------------------------------------------------------------
+    #   Apply workdir early so relative paths behave as expected
+    # ------------------------------------------------------------
+    if args.workdir:
+        wd = os.path.abspath(os.path.expanduser(args.workdir))
+        if not os.path.isdir(wd):
+            print(f"[jawm] ERROR: user defined workdir does not exist or is not a directory: {wd}", file=sys.stderr)
+            sys.exit(2)
+        os.chdir(wd)
 
     # ------------------------------------------------------------
     #   Module label and timestamp
