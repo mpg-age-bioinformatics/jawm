@@ -1777,11 +1777,17 @@ def main():
     #   Apply workdir early so relative paths behave as expected
     # ------------------------------------------------------------
     if args.workdir:
-        wd = os.path.abspath(os.path.expanduser(args.workdir))
-        if not os.path.isdir(wd):
-            print(f"[jawm] ERROR: user defined workdir does not exist or is not a directory: {wd}", file=sys.stderr)
+        _wd = os.path.abspath(os.path.expanduser(args.workdir))
+        if os.path.exists(_wd) and not os.path.isdir(_wd):
+            print(f"[jawm] ERROR: user defined workdir exists but is not a directory: {_wd}", file=sys.stderr)
             sys.exit(2)
-        os.chdir(wd)
+        if not os.path.isdir(_wd):
+            try:
+                os.makedirs(_wd, exist_ok=True)
+            except Exception as e:
+                print(f"[jawm] ERROR: could not create user defined workdir: {_wd} ({e})", file=sys.stderr)
+                sys.exit(2)
+        os.chdir(_wd)
 
     # ------------------------------------------------------------
     #   Module label and timestamp
