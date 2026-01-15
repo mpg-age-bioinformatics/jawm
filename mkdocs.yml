@@ -1,11 +1,12 @@
 site_name: jawm
-site_description: Just Another Workflow Manager — lightweight, Python-native workflow orchestration for local + HPC.
+site_description: Just Another Workflow Manager — lightweight, Python-native workflow orchestration.
 repo_name: mpg-age-bioinformatics/jawm
 repo_url: https://github.com/mpg-age-bioinformatics/jawm
 edit_uri: edit/main/docs/
 
 theme:
   name: material
+  # name: readthedocs
   language: en
   features:
     - navigation.instant
@@ -16,8 +17,9 @@ theme:
     - toc.integrate
     - search.suggest
     - search.highlight
-    - content.action.edit
-    - content.action.view
+    # - content.action.edit
+    # - content.action.view
+    - content.code.copy
   icon:
     repo: fontawesome/brands/github
 
@@ -40,4 +42,11 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting started: getting-started.md
+  - Getting Started: getting-started.md
+  - Process: process.md
+  - Module: module.md
+  - CLI Tools: cli-tools.md
+  - Testing: testing.md
+  - Advanced Development: development.md
+  - Version Log: verson-log.md
+  - Support: support.md

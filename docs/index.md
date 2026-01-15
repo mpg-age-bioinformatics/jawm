@@ -1,6 +1,6 @@
 # jawm — Just Another Workflow Manager
 
-jawm is a lightweight, Python-native workflow manager for building reproducible,
+`jawm` is a lightweight, Python-native workflow manager for building reproducible,
 dependency-aware workflows that run unchanged on laptops, HPC clusters, and Kubernetes.
 
 It is designed for researchers, data scientists, and engineers who want the flexibility
@@ -58,11 +58,13 @@ triggers them based on the definations.
 ## Quick example
 
 ```python
-from jawm import Process
+import jawm
 
-p = Process(
+p = jawm.Process(
     name="hello_world",
-    script="#!/bin/bash\necho \"Hello from jawm\""
+    script="""#!/bin/bash
+echo "Hello from jawm"
+"""
 )
 
 p.execute()
@@ -81,14 +83,7 @@ This process will:
 
 ## Execution environments
 
-jawm supports multiple execution backends out of the box:
-
-- Local execution — default, ideal for development and small runs
-- Slurm — submit processes as batch jobs on HPC clusters
-- Kubernetes — run processes as Kubernetes Jobs
-- Containers — optional execution inside Docker or Apptainer
-
-Switching between them requires no changes to workflow logic.
+`jawm` supports multiple execution backends out of the box including Local, Slurm, Kubernetes with Containers support. Switching between them requires no changes to workflow logic.
 
 ---
 
@@ -106,7 +101,7 @@ All configuration sources follow explicit and documented precedence rules.
 
 ## When to use jawm
 
-jawm is a good fit if you:
+`jawm` is a good fit if you:
 - want Python-native workflows without a separate DSL,
 - work across machines and different systems,
 - need reproducibility and observability,
@@ -118,7 +113,7 @@ It is intentionally minimal and composable, leaving orchestration decisions in y
 
 ## Project status
 
-jawm is under active development.
+`jawm` is under active development.
 The public API is stabilizing, but some interfaces may evolve prior to a 1.0.0 release.
 
 ---
