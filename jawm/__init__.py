@@ -55,4 +55,4 @@ from . import utils
 import logging
 logging.getLogger("jawm").addHandler(logging.NullHandler())
 
-__all__ = ["Process", "utils"]
+__all__ = ["Process", "utils", "cli"]

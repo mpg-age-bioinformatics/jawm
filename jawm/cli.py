@@ -2563,3 +2563,129 @@ def main():
         # Now, if the script wanted to exit with a specific code, honor it
         if exit_code_from_script is not None:
             sys.exit(exit_code_from_script)
+
+
+
+# ------------------------------------------------------------
+#   jawm command from python jawm.cli.run()
+# ------------------------------------------------------------
+def run(argv=None, *, cwd=None, inprocess=False, capture=False, check=False):
+    """
+    Run jawm from Python with the same argv style as the CLI.
+
+    Parameters
+    ----------
+    argv : list[str] | str | None
+        CLI args excluding program name.
+        - As a list: ["module.py", "--option", "value"]
+        - As a string: 'module.py --option value' (will be split like a shell command)
+    cwd : str | None
+        Working directory to run from.
+    inprocess : bool
+        If False (default), run in a separate process (CLI-faithful, no side effects).
+        If True, call main() in-process (faster, but may affect logging/stdout).
+    capture : bool
+        If True, return (rc, stdout, stderr). In subprocess mode capture is reliable.
+        In in-process mode capture is best-effort (CLI may tee/replace stdout/stderr).
+    check : bool
+        If True, raise RuntimeError on non-zero exit code.
+
+    Returns
+    -------
+    int OR (int, str, str)
+        If capture=False: rc
+        If capture=True: (rc, stdout, stderr)
+
+    Examples
+    --------
+    Equivalent to running on the command line:
+        $ jawm module.py --some-flag --param value -l logs_dir
+
+    From Python (recommended, subprocess mode by default):
+
+    >>> from jawm import cli
+    >>> rc = cli.run(["module.py", "--some-flag", "--param", "value", "-l", "logs_dir"])
+    >>> assert rc == 0
+
+    You can also pass a single string (supports quotes):
+
+    >>> rc = cli.run('module.py --some-flag --param "value with spaces" -l logs_dir')
+
+    Run from a specific working directory (like `cd /path && jawm ...`):
+
+    >>> rc = cli.run(["module.py", "--some-flag"], cwd="/path/to/project")
+
+    Run in-process (faster, but may affect logging/stdout of the caller):
+
+    >>> rc = cli.run(["module.py", "--some-flag"], inprocess=True)
+
+    Capture output (especially useful in subprocess mode):
+
+    >>> rc, out, err = cli.run(["--help"], capture=True)
+    >>> print(out)
+    """
+    import contextlib
+    import shlex
+
+    if argv is None:
+        argv = []
+    elif isinstance(argv, str):
+        argv = shlex.split(argv)
+    else:
+        argv = list(argv)
+
+    if not inprocess:
+        cmd = [sys.executable, "-m", "jawm.cli"] + argv
+        if capture:
+            r = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=False)
+            rc, out, err = int(r.returncode), (r.stdout or ""), (r.stderr or "")
+        else:
+            r = subprocess.run(cmd, cwd=cwd, check=False)
+            rc, out, err = int(r.returncode), "", ""
+    else:
+        old_argv = sys.argv[:]
+        old_cwd = os.getcwd()
+        out_buf = io.StringIO() if capture else None
+        err_buf = io.StringIO() if capture else None
+        try:
+            if cwd is not None:
+                os.chdir(cwd)
+            sys.argv = ["jawm"] + argv
+
+            if capture:
+                with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+                    try:
+                        main()
+                        rc = 0
+                    except SystemExit as e:
+                        code = getattr(e, "code", 0)
+                        rc = int(code) if isinstance(code, int) else (0 if code is None else 1)
+            else:
+                try:
+                    main()
+                    rc = 0
+                except SystemExit as e:
+                    code = getattr(e, "code", 0)
+                    rc = int(code) if isinstance(code, int) else (0 if code is None else 1)
+
+            out = out_buf.getvalue() if capture else ""
+            err = err_buf.getvalue() if capture else ""
+        finally:
+            sys.argv = old_argv
+            try:
+                os.chdir(old_cwd)
+            except Exception:
+                pass
+
+    if check and rc != 0:
+        raise RuntimeError(f"[jawm] ERROR: jawm cli run failed with exit code {rc}")
+
+    return (rc, out, err) if capture else rc
+
+
+# ------------------------------------------------------------
+#   Call the main
+# ------------------------------------------------------------
+if __name__ == "__main__":
+    raise SystemExit(main())
+
