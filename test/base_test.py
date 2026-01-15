@@ -3427,6 +3427,59 @@ finally:
         pass
 
 
+print("\n>>> Test 52: Python cli.run wrapper (subprocess/inprocess, argv string, cwd, check)")
+try:
+    import jawm.cli as jawm_cli
+
+    tmpdir = tempfile.mkdtemp(prefix="test_py_cli_run_", dir=base_tmp)
+    workdir = os.path.join(tmpdir, "work")
+    os.makedirs(workdir, exist_ok=True)
+
+    # Create a minimal script that the CLI can execute (direct .py path)
+    script_path = os.path.join(workdir, "script.py")
+    with open(script_path, "w") as f:
+        f.write("print('PY_CLI_RUN_OK')\n")
+
+    # ---- 1) Default mode (subprocess) with list argv + capture ----
+    logs1 = "logs_1"
+    rc, out, err = jawm_cli.run(["script.py", "-l", logs1], cwd=workdir, capture=True)
+    assert rc == 0, f"❌ cli.run subprocess(list) failed rc={rc}\nstdout:\n{out}\nstderr:\n{err}"
+    assert "PY_CLI_RUN_OK" in (out + err), "❌ subprocess capture did not include script output"
+    assert os.path.isdir(os.path.join(workdir, logs1, "jawm_runs")), "❌ logs_1/jawm_runs not created under cwd"
+
+    # ---- 2) Subprocess with string argv (shlex.split) ----
+    logs2 = "logs_2"
+    rc, out, err = jawm_cli.run(f"script.py -l {logs2}", cwd=workdir, capture=True)
+    assert rc == 0, f"❌ cli.run subprocess(str) failed rc={rc}\nstdout:\n{out}\nstderr:\n{err}"
+    assert "PY_CLI_RUN_OK" in (out + err), "❌ subprocess(str) capture did not include script output"
+    assert os.path.isdir(os.path.join(workdir, logs2, "jawm_runs")), "❌ logs_2/jawm_runs not created under cwd"
+
+    # ---- 3) In-process run (no subprocess) ----
+    logs3 = "logs_3"
+    rc = jawm_cli.run(["script.py", "-l", logs3], cwd=workdir, inprocess=True)
+    assert rc == 0, f"❌ cli.run inprocess(list) failed rc={rc}"
+    assert os.path.isdir(os.path.join(workdir, logs3, "jawm_runs")), "❌ logs_3/jawm_runs not created under cwd (inprocess)"
+
+    # ---- 4) check=True should raise on failure ----
+    raised = False
+    try:
+        # Intentionally missing script
+        jawm_cli.run(["definitely_not_here_12345.py"], cwd=workdir, check=True, capture=True)
+    except RuntimeError:
+        raised = True
+    assert raised, "❌ check=True did not raise RuntimeError on failure"
+
+    print("✅ Passed: Python cli.run wrapper (subprocess/inprocess, argv string, cwd, check)")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 
 
 
