@@ -52,8 +52,18 @@ except Exception:
 
 from .process import Process
 from . import utils
-from . import cli
 import logging
 logging.getLogger("jawm").addHandler(logging.NullHandler())
 
 __all__ = ["Process", "utils", "cli"]
+
+def __getattr__(name):
+    if name == "cli":
+        import importlib
+        mod = importlib.import_module(".cli", __name__)
+        globals()["cli"] = mod
+        return mod
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+def __dir__():
+    return sorted(list(globals().keys()) + ["cli"])
