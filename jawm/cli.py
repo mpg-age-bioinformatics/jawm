@@ -1762,6 +1762,7 @@ class _IgnoreAction(argparse.Action):
 #   Start of the main method
 # ------------------------------------------------------------
 def main():
+    """Entry point for the `jawm` CLI: parse args, configure logging, and run the workflow module."""
     # ------------------------------------------------------------
     #   Parse CLI arguments
     # ------------------------------------------------------------

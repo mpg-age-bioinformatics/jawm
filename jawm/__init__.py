@@ -52,6 +52,7 @@ except Exception:
 
 from .process import Process
 from . import utils
+from . import cli
 import logging
 logging.getLogger("jawm").addHandler(logging.NullHandler())
 
