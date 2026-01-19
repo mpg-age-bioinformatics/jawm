@@ -139,7 +139,7 @@ class _EmojiFormatter(logging.Formatter):
 # ------------------------------------------------------------
 #   Git related vars and method
 # ------------------------------------------------------------
-GIT_PAT = re.compile(
+_GIT_PAT = re.compile(
     r"""
     ^(?P<scheme>(?:https://|ssh://|git@|gh:|file://)?)
     (?P<host_repo>
@@ -170,12 +170,12 @@ def _looks_like_sha(s):
 def _is_git_target(s):
     if os.path.exists(s):            # never treat existing paths as git
         return False
-    return bool(GIT_PAT.match(s))
+    return bool(_GIT_PAT.match(s))
 
 
 def _normalize_git_url(target):
 
-    m = GIT_PAT.match(target)
+    m = _GIT_PAT.match(target)
     if not m:
         return None
 
