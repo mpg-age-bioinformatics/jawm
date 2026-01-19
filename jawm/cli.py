@@ -1724,6 +1724,19 @@ def _nested_insert(target, key_path, value):
     cur[key_path[-1]] = value
 
 
+def _coalesce_var_prefix(keypath, skeys=("mk", "map")):
+    """
+    Keep var.mk.* and var.map.* as dotted keys instead of nesting.
+    ["var","mk","output_folder"] -> ["var","mk.output_folder"]
+    """
+    try:
+        if isinstance(keypath, list) and len(keypath) >= 3 and keypath[0] == "var" and keypath[1] in skeys:
+            return ["var", keypath[1] + "." + ".".join(keypath[2:])]
+    except Exception:
+        pass
+    return keypath
+
+
 # Custom action class for args --help
 class _IgnoreAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -2167,7 +2180,7 @@ def main():
     for raw in sys.argv[1:]:
         m = _GLOBAL_RE.match(raw)
         if m:
-            keypath = m.group(1).split(".")
+            keypath = _coalesce_var_prefix(m.group(1).split("."))
             value = m.group(2)
             _nested_insert(global_overrides, keypath, value)
             continue
@@ -2175,7 +2188,7 @@ def main():
         m = _PROCESS_RE.match(raw)
         if m:
             pname = m.group(1)
-            keypath = m.group(2).split(".")
+            keypath = _coalesce_var_prefix(m.group(2).split("."))
             value = m.group(3)
             entry = process_overrides.setdefault(pname, {})
             _nested_insert(entry, keypath, value)
