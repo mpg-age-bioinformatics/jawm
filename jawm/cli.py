@@ -337,6 +337,47 @@ def _resolve_git_to_local(target, cache_root):
             full = _rev_parse_commit(prefix)
             return full
 
+        def _pick_tag(tmp_repo_dir, mode):
+            """
+            mode:
+            - "last-tag": most recently created tag (git creatordate)
+            - "latest-tag": highest version-like tag (numeric compare), fallback to lexicographic
+            Returns tag name or None.
+            """
+            # fetch tags (lightweight)
+            _git("fetch", "--filter=blob:none", "--tags", "origin", cwd=tmp_repo_dir, check=False)
+
+            if mode == "last-tag":
+                r = _git(
+                    "for-each-ref",
+                    "--sort=-creatordate",
+                    "--format=%(refname:strip=2)",
+                    "refs/tags",
+                    cwd=tmp_repo_dir,
+                    check=False,
+                )
+                tags = [ln.strip() for ln in (r.stdout or "").splitlines() if ln.strip()]
+                return tags[0] if tags else None
+
+            # latest-tag (version-ish)
+            r = _git("tag", "-l", cwd=tmp_repo_dir, check=False)
+            tags = [ln.strip() for ln in (r.stdout or "").splitlines() if ln.strip()]
+            if not tags:
+                return None
+
+            def _ver_key(t):
+                nums = re.findall(r"\d+", t)
+                return tuple(int(x) for x in nums) if nums else ()
+
+            # prefer tags with numbers; among them pick max by numeric tuple
+            with_nums = [t for t in tags if _ver_key(t)]
+            if with_nums:
+                return max(with_nums, key=_ver_key)
+
+            # fallback if no numeric tags exist
+            return max(tags)
+
+
         safe_repo = sanitize_repo(url)
 
         # --- Resolve the exact commit SHA we want ----------------------------
@@ -369,9 +410,21 @@ def _resolve_git_to_local(target, cache_root):
                     if not sha:
                         raise RuntimeError("Could not resolve the abbreviated commit.")
             else:
-                # branch/tag
-                _git("fetch", "--filter=blob:none", "--depth=1", "origin", ref, cwd=tmp)
-                sha = _git("rev-parse", "FETCH_HEAD", cwd=tmp).stdout.strip()
+                # Support special tokens
+                if ref in ("latest-tag", "last-tag"):
+                    try:
+                        picked = _pick_tag(tmp, ref)
+                    except Exception:
+                        picked = None
+                    if picked:
+                        ref = picked
+                    else:
+                        _git("fetch", "--filter=blob:none", "--depth=1", "origin", "HEAD", cwd=tmp)
+                        sha = _git("rev-parse", "FETCH_HEAD^{commit}", cwd=tmp).stdout.strip()
+                        ref = None
+                if ref:
+                    _git("fetch", "--filter=blob:none", "--depth=1", "origin", ref, cwd=tmp)
+                    sha = _git("rev-parse", "FETCH_HEAD", cwd=tmp).stdout.strip()
 
         else:
             # No ref → try cache freshness before hitting the network
