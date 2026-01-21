@@ -340,12 +340,15 @@ def _resolve_git_to_local(target, cache_root):
         def _pick_tag(tmp_repo_dir, mode):
             """
             mode:
-            - "last-tag": most recently created tag (git creatordate)
-            - "latest-tag": highest version-like tag (numeric compare), fallback to lexicographic
+              - "last-tag": most recently created tag (git creatordate)
+              - "latest-tag": highest version-like tag (numeric compare), fallback to lexicographic
             Returns tag name or None.
             """
-            # fetch tags (lightweight)
-            _git("fetch", "--filter=blob:none", "--tags", "origin", cwd=tmp_repo_dir, check=False)
+            # fetch tags (best-effort; don't fail resolution just because fetch-tags failed)
+            try:
+                _git("fetch", "--filter=blob:none", "--tags", "origin", cwd=tmp_repo_dir, check=False)
+            except Exception:
+                pass
 
             if mode == "last-tag":
                 r = _git(
@@ -369,15 +372,25 @@ def _resolve_git_to_local(target, cache_root):
                 nums = re.findall(r"\d+", t)
                 return tuple(int(x) for x in nums) if nums else ()
 
-            # prefer tags with numbers; among them pick max by numeric tuple
             with_nums = [t for t in tags if _ver_key(t)]
             if with_nums:
                 return max(with_nums, key=_ver_key)
 
-            # fallback if no numeric tags exist
             return max(tags)
 
+        # --- End of internal helper methods --- #
 
+        # Normalize special tokens early so everything downstream behaves like a real ref
+        if ref in ("latest-tag", "last-tag"):
+            picked = None
+            try:
+                picked = _pick_tag(tmp, ref)
+            except Exception:
+                picked = None
+            # If no tags exist, treat it like "no ref" (default branch behavior)
+            ref = picked if picked else None
+
+        # Santize repo url
         safe_repo = sanitize_repo(url)
 
         # --- Resolve the exact commit SHA we want ----------------------------
@@ -410,21 +423,9 @@ def _resolve_git_to_local(target, cache_root):
                     if not sha:
                         raise RuntimeError("Could not resolve the abbreviated commit.")
             else:
-                # Support special tokens
-                if ref in ("latest-tag", "last-tag"):
-                    try:
-                        picked = _pick_tag(tmp, ref)
-                    except Exception:
-                        picked = None
-                    if picked:
-                        ref = picked
-                    else:
-                        _git("fetch", "--filter=blob:none", "--depth=1", "origin", "HEAD", cwd=tmp)
-                        sha = _git("rev-parse", "FETCH_HEAD^{commit}", cwd=tmp).stdout.strip()
-                        ref = None
-                if ref:
-                    _git("fetch", "--filter=blob:none", "--depth=1", "origin", ref, cwd=tmp)
-                    sha = _git("rev-parse", "FETCH_HEAD", cwd=tmp).stdout.strip()
+                # branch/tag
+                _git("fetch", "--filter=blob:none", "--depth=1", "origin", ref, cwd=tmp)
+                sha = _git("rev-parse", "FETCH_HEAD", cwd=tmp).stdout.strip()
 
         else:
             # No ref → try cache freshness before hitting the network
@@ -1966,14 +1967,24 @@ def main():
                     ref_commit = None
                     if ref:
                         remote_url = f"git@{args.server}:{args.user}/{repo_name}.git"
-                        result = subprocess.run(
-                            ["git", "ls-remote", remote_url, ref],
-                            capture_output=True, text=True, check=True
-                        )
-                        for line in result.stdout.splitlines():
-                            if line.endswith(f"refs/tags/{ref}") or line.endswith(f"refs/heads/{ref}"):
-                                ref_commit = line.split()[0]
-                                break
+
+                        # Special tokens: resolve via the same resolver used for initial download
+                        if ref in ("latest-tag", "last-tag"):
+                            try:
+                                resolved_path = Path(_resolve_git_to_local(args.module, cache_root)).resolve()
+                                commit_file2 = (resolved_path / ".commit") if resolved_path.is_dir() else (resolved_path.parent / ".commit")
+                                ref_commit = commit_file2.read_text(encoding="utf-8", errors="ignore").strip() if commit_file2.exists() else None
+                            except Exception:
+                                ref_commit = None
+                        else:
+                            result = subprocess.run(
+                                ["git", "ls-remote", remote_url, ref],
+                                capture_output=True, text=True, check=True
+                            )
+                            for line in result.stdout.splitlines():
+                                if line.endswith(f"refs/tags/{ref}") or line.endswith(f"refs/heads/{ref}"):
+                                    ref_commit = line.split()[0]
+                                    break
                     else:
                         ref_commit = local_commit  # no tag given → accept current hash
 
