@@ -116,6 +116,9 @@ tests = [
     ("https subdir",                f"{REMOTE_REPO}//examples"),
     ("https file path",             f"{REMOTE_REPO}//main.py"),
     ("https branch",                f"{REMOTE_REPO}@main//examples/demo.py"),
+    ("https latest-tag",            f"{REMOTE_REPO}@latest-tag"),
+    ("https last-tag",              f"{REMOTE_REPO}@last-tag"),
+    
 
     # --- SSH / SCP style ---
     ("ssh tag",                     f"{SSH_REPO}@v1.0.0"),
@@ -127,6 +130,8 @@ tests = [
     ("user/repo ref shorthand",     "jawm_git_test@main"),
     ("user/repo path shorthand",    "jawm_git_test@v1.0.0//examples/demo.py"),
     ("org/repo shorthand",          "mpg-age-bioinformatics/jawm_git_test@main"),
+    ("shorthand latest-tag",        "jawm_git_test@latest-tag"),
+    ("shorthand last-tag",          "jawm_git_test@last-tag"),
 
     # --- missing file (graceful fail) ---
     ("https missing file",          f"{REMOTE_REPO}@v1.0.0////no_such_file.py", True),
@@ -198,6 +203,27 @@ try:
 except Exception as e:
     print(f"❌ Cache reuse test failed: {e}")
     failed += 1
+
+# -------------------------------------------------------
+# REUSE TEST: latest-tag / last-tag should be reusable
+# -------------------------------------------------------
+print("\n>>> Testing reuse behavior for latest-tag / last-tag")
+for token in ("latest-tag", "last-tag"):
+    print(f"\n--- reuse: {token} ---")
+    try:
+        target = f"{REMOTE_REPO}@{token}"
+
+        # First run: clean dir, should succeed and create local repo folder + .commit
+        run_jawm(target, expect_fail=False, clean_dir=True)
+
+        # Second run: DO NOT clean dir, should reuse and succeed
+        run_jawm(target, expect_fail=False, clean_dir=False)
+
+        passed += 1
+        print(f"✅ Passed: {token} reuse works")
+    except Exception as e:
+        print(f"❌ {token} reuse failed: {e}")
+        failed += 1
 
 # -------------------------------------------------------
 # SUMMARY
