@@ -383,20 +383,21 @@ def _resolve_git_to_local(target, cache_root, logger=None):
         # Normalize special tokens early so everything downstream behaves like a real ref
         if ref in ("latest-tag", "last-tag"):
             stoken = ref
-            picked = None
             try:
-                picked = _pick_tag(tmp, ref)
-            except Exception:
-                picked = None
-            # If no tags exist, treat it like "no ref" (default branch behavior)
-            if picked:
+                picked = _pick_tag(tmp, stoken)
+            except Exception as e:
                 if logger:
-                    logger.info(f"[git] Special token '{stoken}' resolved to tag '{picked}'")
-                ref = picked
-            else:
+                    logger.error(f"[git] Failed to resolve special token '{stoken}': {e}")
+                raise RuntimeError(f"Could not resolve special token '{stoken}'")
+            
+            if not picked:
                 if logger:
-                    logger.warning(f"[git] Could not resolve special token '{stoken}' (no tags or tag fetch failed); falling back to default branch")
-                ref = None
+                    logger.error(f"[git] Could not resolve special token '{stoken}' (no tags or tag fetch failed)")
+                raise RuntimeError(f"Could not resolve special token '{stoken}'")
+
+            if logger:
+                logger.info(f"[git] Special token '{stoken}' resolved to tag '{picked}'")
+            ref = picked
 
         # Santize repo url
         safe_repo = sanitize_repo(url)
@@ -1982,8 +1983,12 @@ def main():
                                 resolved_path = Path(_resolve_git_to_local(args.module, cache_root, logger=logger)).resolve()
                                 commit_file2 = (resolved_path / ".commit") if resolved_path.is_dir() else (resolved_path.parent / ".commit")
                                 ref_commit = commit_file2.read_text(encoding="utf-8", errors="ignore").strip() if commit_file2.exists() else None
-                            except Exception:
-                                ref_commit = None
+                                if not ref_commit:
+                                    logger.error(f"Failed to resolve/verify special token '{ref}' for reuse-check: missing/empty .commit file")
+                                    _errlog_exit(1)
+                            except Exception as e:
+                                logger.error(f"[git] Failed to resolve/verify special token '{ref}' for reuse-check: {e}")
+                                _errlog_exit(1)
                         else:
                             result = subprocess.run(
                                 ["git", "ls-remote", remote_url, ref],
