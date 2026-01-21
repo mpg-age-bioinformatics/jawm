@@ -225,7 +225,7 @@ def _git(*args, cwd=None, check=True):
     return r
 
 
-def _resolve_git_to_local(target, cache_root):
+def _resolve_git_to_local(target, cache_root, logger=None):
     """
     Resolve a git target to a local cached folder or subpath.
 
@@ -382,13 +382,21 @@ def _resolve_git_to_local(target, cache_root):
 
         # Normalize special tokens early so everything downstream behaves like a real ref
         if ref in ("latest-tag", "last-tag"):
+            stoken = ref
             picked = None
             try:
                 picked = _pick_tag(tmp, ref)
             except Exception:
                 picked = None
             # If no tags exist, treat it like "no ref" (default branch behavior)
-            ref = picked if picked else None
+            if picked:
+                if logger:
+                    logger.info(f"[git] Special token '{stoken}' resolved to tag '{picked}'")
+                ref = picked
+            else:
+                if logger:
+                    logger.warning(f"[git] Could not resolve special token '{stoken}' (no tags or tag fetch failed); falling back to default branch")
+                ref = None
 
         # Santize repo url
         safe_repo = sanitize_repo(url)
@@ -1971,7 +1979,7 @@ def main():
                         # Special tokens: resolve via the same resolver used for initial download
                         if ref in ("latest-tag", "last-tag"):
                             try:
-                                resolved_path = Path(_resolve_git_to_local(args.module, cache_root)).resolve()
+                                resolved_path = Path(_resolve_git_to_local(args.module, cache_root, logger=logger)).resolve()
                                 commit_file2 = (resolved_path / ".commit") if resolved_path.is_dir() else (resolved_path.parent / ".commit")
                                 ref_commit = commit_file2.read_text(encoding="utf-8", errors="ignore").strip() if commit_file2.exists() else None
                             except Exception:
@@ -2018,7 +2026,7 @@ def main():
             if not skip_clone:
                 logger.info(f"Module '{module_raw}' not found locally — attempting online lookup...")
                 try:
-                    resolved = _resolve_git_to_local(args.module, cache_root)
+                    resolved = _resolve_git_to_local(args.module, cache_root, logger=logger)
                 except Exception as e:
                     logger.error(
                         f"[git] Failed to fetch workflow '{args.module}' from remote.\n"
@@ -2066,7 +2074,7 @@ def main():
             args.module = str(dst)
 
             if not skip_clone:
-                _git_info_line = f"[git] resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
+                _git_info_line = f"[git] Resolved '{_original_module}' → '{resolved}' (copied to '{dst}')"
 
             # Append subpath inside the repo if provided
             if subpath:
@@ -2337,7 +2345,7 @@ def main():
             if latest_mtime > commit_mtime:
                 logger.warning(f"[git] Local directory modified since export of commit {commit[:8]}")
             else:
-                logger.info(f"[git] Local directory likely unchanged since the stamp commit")
+                logger.info(f"[git] Local directory likely unchanged (or fresh) since the stamp commit")
         except Exception as e:
             logger.warning(f"[git] Could not check commit status: {e}")
 
