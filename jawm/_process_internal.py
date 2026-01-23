@@ -5,6 +5,7 @@ import fnmatch
 import shlex
 import hashlib
 import time
+import glob
 from functools import reduce
 from datetime import datetime
 from urllib.parse import urlparse
@@ -145,6 +146,14 @@ def _parse_yaml_config(self, param_file):
             else:
                 target[k] = v
 
+    def _norm_abs(path):
+        """Normalize path for consistent existence checks + readable messages."""
+        return os.path.abspath(os.path.normpath(path))
+
+    def _has_glob_chars(s):
+        # minimal glob detection
+        return any(ch in s for ch in ("*", "?", "["))
+
     def _load_yaml_entries(path, base_dir):
         """Load YAML as list-of-entries, apply relpath expansion using base_dir."""
         with open(path, "r") as f:
@@ -158,7 +167,7 @@ def _parse_yaml_config(self, param_file):
         """
         Expand `includes:` directives in-place, preserving order.
         Includes are resolved relative to base_dir (the containing YAML file's directory).
-        Cycle-safe via `visited` (realpaths). Raises on missing include.
+        Cycle-safe via `visited` (realpaths). Raises on missing explicit include.
         """
         i = 0
         while i < len(entries):
@@ -180,40 +189,55 @@ def _parse_yaml_config(self, param_file):
                 if not os.path.isabs(p):
                     p = os.path.join(base_dir, p)
 
+                # Normalize early
+                p = _norm_abs(p)
+
                 if os.path.isdir(p):
-                    expanded_paths.extend(sorted(
-                        os.path.join(p, f)
-                        for f in os.listdir(p)
-                        if f.endswith((".yaml", ".yml"))
-                    ))
+                    expanded_paths.extend(
+                        sorted(
+                            _norm_abs(os.path.join(p, f))
+                            for f in os.listdir(p)
+                            if f.endswith((".yaml", ".yml"))
+                        )
+                    )
                 else:
-                    expanded_paths.append(p)
+                    # Wildcard support (glob)
+                    if _has_glob_chars(p):
+                        matches = sorted(_norm_abs(m) for m in glob.glob(p))
+                        # If nothing matches, ignore
+                        if matches:
+                            expanded_paths.extend(matches)
+                    else:
+                        # Explicit include: keep old safety (error if missing)
+                        expanded_paths.append(p)
 
             inserted = []
             for inc_path in expanded_paths:
+                # For explicit includes we ensured existence by checking below.
                 if not os.path.exists(inc_path):
+                    # If it's a glob match that disappeared, just skip.
                     raise ValueError(f"Included YAML path not found: {inc_path}")
 
                 real = os.path.realpath(inc_path)
                 if real in visited:
-                    # Avoid infinite loops
                     continue
                 visited.add(real)
 
-                inc_base_dir = os.path.dirname(os.path.abspath(inc_path))
+                inc_base_dir = os.path.dirname(_norm_abs(inc_path))
                 inc_entries = _load_yaml_entries(inc_path, inc_base_dir)
                 _expand_includes_in_place(inc_entries, visited, inc_base_dir)
                 inserted.extend(inc_entries)
 
             # Replace the includes-only entry with the included entries at the same position
-            entries[i:i+1] = inserted
+            entries[i:i + 1] = inserted
             # Do NOT increment i; process what we inserted next.
         return entries
 
     for yaml_file in param_file:
         try:
+            yaml_file = _norm_abs(yaml_file)
             visited = {os.path.realpath(yaml_file)}
-            base_dir = os.path.dirname(os.path.abspath(yaml_file))
+            base_dir = os.path.dirname(yaml_file)
 
             yaml_data = _load_yaml_entries(yaml_file, base_dir)
             _expand_includes_in_place(yaml_data, visited, base_dir)
