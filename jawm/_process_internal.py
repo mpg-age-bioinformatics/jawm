@@ -114,7 +114,7 @@ def _run_manager(self):
 def _parse_yaml_config(self, param_file):
     """
     Parses one or multiple YAML files or a directory containing YAMLs and merges configurations.
-    Optional `includes:` support (list or string) to include additional param files, resolved relative to os.getcwd().
+    Optional `includes:` support (list or string) to include additional param files, resolved relative to YAML file.
 
     :param param_file: A string (single file or directory) or a list of YAML file paths.
     :return: Dictionary with merged global and process-specific parameters.
@@ -145,19 +145,19 @@ def _parse_yaml_config(self, param_file):
             else:
                 target[k] = v
 
-    def _load_yaml_entries(path):
-        """Load YAML as list-of-entries, apply relpath expansion using CWD."""
+    def _load_yaml_entries(path, base_dir):
+        """Load YAML as list-of-entries, apply relpath expansion using base_dir."""
         with open(path, "r") as f:
             data = yaml.safe_load(f) or []
-        data = _expand_relpaths_in_value(data, os.getcwd())
+        data = _expand_relpaths_in_value(data, base_dir)
         if isinstance(data, dict):
             data = [data]
         return data if isinstance(data, list) else []
 
-    def _expand_includes_in_place(entries, visited):
+    def _expand_includes_in_place(entries, visited, base_dir):
         """
         Expand `includes:` directives in-place, preserving order.
-        Includes are resolved relative to os.getcwd().
+        Includes are resolved relative to base_dir (the containing YAML file's directory).
         Cycle-safe via `visited` (realpaths). Raises on missing include.
         """
         i = 0
@@ -178,7 +178,7 @@ def _parse_yaml_config(self, param_file):
             for p in inc_list:
                 p = os.path.expanduser(os.path.expandvars(str(p)))
                 if not os.path.isabs(p):
-                    p = os.path.join(os.getcwd(), p)
+                    p = os.path.join(base_dir, p)
 
                 if os.path.isdir(p):
                     expanded_paths.extend(sorted(
@@ -196,28 +196,27 @@ def _parse_yaml_config(self, param_file):
 
                 real = os.path.realpath(inc_path)
                 if real in visited:
-                    # Avoid infinite loops; keep behavior predictable.
-                    # (Skipping is safer than recursing forever.)
+                    # Avoid infinite loops
                     continue
                 visited.add(real)
 
-                inc_entries = _load_yaml_entries(inc_path)
-                _expand_includes_in_place(inc_entries, visited)  # recursive include support
+                inc_base_dir = os.path.dirname(os.path.abspath(inc_path))
+                inc_entries = _load_yaml_entries(inc_path, inc_base_dir)
+                _expand_includes_in_place(inc_entries, visited, inc_base_dir)
                 inserted.extend(inc_entries)
 
-            # Remove the includes-only entry (most compatible, least surprising)
-            # and splice included entries at the same position.
+            # Replace the includes-only entry with the included entries at the same position
             entries[i:i+1] = inserted
-            # Do NOT increment i here; process what we just inserted.
+            # Do NOT increment i; process what we inserted next.
         return entries
 
     for yaml_file in param_file:
         try:
-            visited = set()
-            visited.add(os.path.realpath(yaml_file))
+            visited = {os.path.realpath(yaml_file)}
+            base_dir = os.path.dirname(os.path.abspath(yaml_file))
 
-            yaml_data = _load_yaml_entries(yaml_file)
-            _expand_includes_in_place(yaml_data, visited)
+            yaml_data = _load_yaml_entries(yaml_file, base_dir)
+            _expand_includes_in_place(yaml_data, visited, base_dir)
 
         except Exception as e:
             try:
