@@ -1800,6 +1800,10 @@ def _coalesce_var_prefix(keypath, skeys=("mk", "map")):
     return keypath
 
 
+def _is_override_token(tok):
+    return tok.startswith("--global.") or tok.startswith("--process.")
+
+
 # Custom action class for args --help
 class _IgnoreAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -2255,22 +2259,52 @@ def main():
     global_overrides = {}
     process_overrides = {}
 
-    for raw in sys.argv[1:]:
+    ua = sys.argv[1:]
+    i = 0
+    while i < len(ua):
+        raw = ua[i]
+
+        # "=" syntax
         m = _GLOBAL_RE.match(raw)
         if m:
             keypath = _coalesce_var_prefix(m.group(1).split("."))
-            value = m.group(2)
-            _nested_insert(global_overrides, keypath, value)
+            _nested_insert(global_overrides, keypath, m.group(2))
+            i += 1
             continue
 
         m = _PROCESS_RE.match(raw)
         if m:
             pname = m.group(1)
             keypath = _coalesce_var_prefix(m.group(2).split("."))
-            value = m.group(3)
             entry = process_overrides.setdefault(pname, {})
-            _nested_insert(entry, keypath, value)
+            _nested_insert(entry, keypath, m.group(3))
+            i += 1
             continue
+
+        # space syntax: --global.<path> <value>
+        if raw.startswith("--global.") and "=" not in raw and i + 1 < len(ua):
+            val = ua[i + 1]
+            if not _is_override_token(val) and ((not val.startswith("-")) or re.match(r"^-?\d", val)):
+                keypath = _coalesce_var_prefix(raw[len("--global."):].split("."))
+                _nested_insert(global_overrides, keypath, val)
+                i += 2
+                continue
+
+        # space syntax: --process.<name>.<path> <value>
+        if raw.startswith("--process.") and "=" not in raw and i + 1 < len(ua):
+            val = ua[i + 1]
+            if not _is_override_token(val) and ((not val.startswith("-")) or re.match(r"^-?\d", val)):
+                rest = raw[len("--process."):]
+                parts = rest.split(".", 1)
+                if len(parts) == 2:
+                    pname, keyrest = parts[0], parts[1]
+                    keypath = _coalesce_var_prefix(keyrest.split("."))
+                    entry = process_overrides.setdefault(pname, {})
+                    _nested_insert(entry, keypath, val)
+                    i += 2
+                    continue
+
+        i += 1
 
     Process._cli_global_overrides = global_overrides or {}
     Process._cli_process_overrides = process_overrides or {}
