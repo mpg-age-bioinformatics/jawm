@@ -114,6 +114,7 @@ def _run_manager(self):
 def _parse_yaml_config(self, param_file):
     """
     Parses one or multiple YAML files or a directory containing YAMLs and merges configurations.
+    Optional `includes:` support (list or string) to include additional param files, resolved relative to os.getcwd().
 
     :param param_file: A string (single file or directory) or a list of YAML file paths.
     :return: Dictionary with merged global and process-specific parameters.
@@ -123,47 +124,113 @@ def _parse_yaml_config(self, param_file):
     # Ensure param_file is a list
     if isinstance(param_file, str):
         if os.path.isdir(param_file):
-            # Use all .yaml/.yml files in the directory
-            param_file = sorted([
+            param_file = sorted(
                 os.path.join(param_file, f)
                 for f in os.listdir(param_file)
                 if f.endswith((".yaml", ".yml"))
-            ])
+            )
         else:
             param_file = [param_file]
     elif isinstance(param_file, list):
         # Only expand individual files; directories not allowed in list
         param_file = [p for p in param_file if os.path.isfile(p)]
 
-    # Merge helper and var
-    STRUCT_KEYS = {"scope", "name"}
+    STRUCT_KEYS = {"scope", "name", "includes"}
+
     def _merge(target, new):
         """Shallow-merge dict values, overwrite scalars."""
         for k, v in new.items():
             if k in target and isinstance(target[k], dict) and isinstance(v, dict):
-                target[k] = {**target[k], **v}     # merge dict -> dict
+                target[k] = {**target[k], **v}
             else:
-                target[k] = v 
+                target[k] = v
+
+    def _load_yaml_entries(path):
+        """Load YAML as list-of-entries, apply relpath expansion using CWD."""
+        with open(path, "r") as f:
+            data = yaml.safe_load(f) or []
+        data = _expand_relpaths_in_value(data, os.getcwd())
+        if isinstance(data, dict):
+            data = [data]
+        return data if isinstance(data, list) else []
+
+    def _expand_includes_in_place(entries, visited):
+        """
+        Expand `includes:` directives in-place, preserving order.
+        Includes are resolved relative to os.getcwd().
+        Cycle-safe via `visited` (realpaths). Raises on missing include.
+        """
+        i = 0
+        while i < len(entries):
+            entry = entries[i]
+            if not isinstance(entry, dict):
+                i += 1
+                continue
+
+            incs = entry.get("includes")
+            if not incs:
+                i += 1
+                continue
+
+            inc_list = incs if isinstance(incs, (list, tuple)) else [incs]
+            expanded_paths = []
+
+            for p in inc_list:
+                p = os.path.expanduser(os.path.expandvars(str(p)))
+                if not os.path.isabs(p):
+                    p = os.path.join(os.getcwd(), p)
+
+                if os.path.isdir(p):
+                    expanded_paths.extend(sorted(
+                        os.path.join(p, f)
+                        for f in os.listdir(p)
+                        if f.endswith((".yaml", ".yml"))
+                    ))
+                else:
+                    expanded_paths.append(p)
+
+            inserted = []
+            for inc_path in expanded_paths:
+                if not os.path.exists(inc_path):
+                    raise ValueError(f"Included YAML path not found: {inc_path}")
+
+                real = os.path.realpath(inc_path)
+                if real in visited:
+                    # Avoid infinite loops; keep behavior predictable.
+                    # (Skipping is safer than recursing forever.)
+                    continue
+                visited.add(real)
+
+                inc_entries = _load_yaml_entries(inc_path)
+                _expand_includes_in_place(inc_entries, visited)  # recursive include support
+                inserted.extend(inc_entries)
+
+            # Remove the includes-only entry (most compatible, least surprising)
+            # and splice included entries at the same position.
+            entries[i:i+1] = inserted
+            # Do NOT increment i here; process what we just inserted.
+        return entries
 
     for yaml_file in param_file:
         try:
-            with open(yaml_file, "r") as file:
-                yaml_data = yaml.safe_load(file) or []
-                yaml_data = _expand_relpaths_in_value(yaml_data, os.getcwd())
+            visited = set()
+            visited.add(os.path.realpath(yaml_file))
+
+            yaml_data = _load_yaml_entries(yaml_file)
+            _expand_includes_in_place(yaml_data, visited)
+
         except Exception as e:
-            # It may not log in error summary if self.error_summary_file is not yet there
             try:
-                self._log_error_summary(f"Failed to load/parse YAML file {yaml_file}: {str(e)}", type_text="ErrorYAML")
-            except:
+                self._log_error_summary(
+                    f"Failed to load/parse YAML file {yaml_file}: {str(e)}",
+                    type_text="ErrorYAML",
+                )
+            except Exception:
                 pass
             if hasattr(self.__class__, "stop_future_event"):
                 self.__class__.stop_future_event.set()
-            ter_err = f"Failed to load/parse YAML file {yaml_file}:\n{str(e)}"
-            raise ValueError(ter_err) from None
+            raise ValueError(f"Failed to load/parse YAML file {yaml_file}:\n{str(e)}") from None
 
-        if isinstance(yaml_data, dict):
-            yaml_data = [yaml_data]
-    
         # Operate on the entries
         for entry in yaml_data:
             if not isinstance(entry, dict):
@@ -180,7 +247,6 @@ def _parse_yaml_config(self, param_file):
 
             # Merge Process-specific config (supports single name or list of names)
             elif scope == "process" and name and self.name:
-                # Normalize name to a list
                 names = name if isinstance(name, (list, tuple)) else [name]
                 for n in names:
                     if fnmatch.fnmatch(self.name, n):
