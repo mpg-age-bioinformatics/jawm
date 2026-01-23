@@ -2911,7 +2911,7 @@ print("X1_SLURM=", x1.manager_slurm)
     #   --process.p*.var.a 11
     #   --process.p1.var.x 55
     # ============================================================
-    mk_out_dir = os.path.abspath("mk_out_dir")
+    mk_out_dir = tempfile.mkdtemp(prefix="mk_out_dir_", dir=tmpdir)
     rc2 = subprocess.run(
         cli_cmd([
             module_path,
@@ -2950,12 +2950,10 @@ print("X1_SLURM=", x1.manager_slurm)
         f"❌ x1.var overrides incorrect (space syntax). Got: {x1_line}"
 
     # mk special-case: should be coalesced into dotted key, NOT nested dict
-    assert "'mk.output_folder': 'mk_out_dir'" in p1_line, \
-        f"❌ mk coalescing failed for p1. Got: {p1_line}"
-    assert "'mk.output_folder': 'mk_out_dir'" in p2_line, \
-        f"❌ mk coalescing failed for p2. Got: {p2_line}"
-    assert "'mk.output_folder': 'mk_out_dir'" in x1_line, \
-        f"❌ mk coalescing failed for x1. Got: {x1_line}"
+    
+    assert f"'mk.output_folder': '{mk_out_dir}'" in p1_line, f"❌ mk coalescing failed for p1. Got: {p1_line}"
+    assert f"'mk.output_folder': '{mk_out_dir}'" in p2_line, f"❌ mk coalescing failed for p2. Got: {p2_line}"
+    assert f"'mk.output_folder': '{mk_out_dir}'" in x1_line, f"❌ mk coalescing failed for x1. Got: {x1_line}"
 
     # Ensure it did NOT become nested {"mk": {...}} in the printed var dict line
     assert "'mk': {" not in p1_line and "'mk': {" not in p2_line and "'mk': {" not in x1_line, \
