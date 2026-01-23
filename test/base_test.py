@@ -3537,7 +3537,7 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-print("\n>>> Test 53: YAML includes (list-of-entries) — YAML-file-relative + precedence at position")
+print("\n>>> Test 53: YAML includes (list-of-entries) — YAML-file-relative + wildcard + ../path + precedence at position")
 
 try:
     _clear_params()
@@ -3550,7 +3550,11 @@ try:
     cfg_dir = os.path.join(tmpdir, "cfg")
     os.makedirs(cfg_dir, exist_ok=True)
 
-    # Included YAML (base.yaml) at tmpdir/base.yaml
+    # An include directory with multiple YAMLs (for wildcard tests)
+    inc_dir = os.path.join(tmpdir, "inc")
+    os.makedirs(inc_dir, exist_ok=True)
+
+    # Included YAML (base.yaml) at tmpdir/base.yaml (included via ../base.yaml)
     base_yaml = os.path.join(tmpdir, "base.yaml")
     with open(base_yaml, "w") as f:
         f.write(
@@ -3567,7 +3571,36 @@ try:
 """
         )
 
-    # Main YAML includes ../base.yaml (relative to main.yaml location)
+    # Two wildcard-included YAMLs in tmpdir/inc/*.yaml
+    # These are included AFTER "MAINZ_BEFORE" but BEFORE "MAINX_AFTER"
+    # so they must override earlier entries but be overridable by later entries.
+    inc1_yaml = os.path.join(inc_dir, "10_inc.yaml")
+    with open(inc1_yaml, "w") as f:
+        f.write(
+            """\
+- scope: global
+  var:
+    w: "W1"
+    z: "Z_FROM_WILDCARD_1"
+"""
+        )
+
+    inc2_yaml = os.path.join(inc_dir, "20_inc.yaml")
+    with open(inc2_yaml, "w") as f:
+        f.write(
+            """\
+- scope: global
+  var:
+    w2: "W2"
+    z: "Z_FROM_WILDCARD_2"
+"""
+        )
+
+    # Main YAML includes:
+    #  - "../base.yaml"               (../path include)
+    #  - "../inc/*.yaml"              (wildcard include, two files)
+    #  - "../no_such_dir/*.yaml"      (wildcard matches nothing; should NOT error)
+    # Order matters for precedence.
     main_yaml = os.path.join(cfg_dir, "main.yaml")
     with open(main_yaml, "w") as f:
         f.write(
@@ -3578,6 +3611,8 @@ try:
 
 - includes:
   - "../base.yaml"
+  - "../inc/*.yaml"
+  - "../no_such_dir/*.yaml"
 
 - scope: global
   var:
@@ -3620,7 +3655,6 @@ print("X1_VAR=", x1.var)
 
     # IMPORTANT:
     # Run from a cwd that is NOT cfg_dir (and not tmpdir), to prove YAML-relative includes work.
-    # Using base_tmp is perfect because it’s outside the YAML location.
     rc = subprocess.run(
         cli_cmd([module_path, "-p", main_yaml]),
         capture_output=True,
@@ -3633,33 +3667,45 @@ print("X1_VAR=", x1.var)
     print(out)
     assert rc.returncode == 0, "❌ CLI run with includes failed"
 
-    # --- Expected precedence checks (include spliced at position) ---
-    # z:
-    #   MAINZ_BEFORE (before include) should be overridden by BASEZ (from included base.yaml after it)
-    # x:
-    #   BASE (from include) should be overridden by MAINX_AFTER (after include)
-    # p1 a:
-    #   BASEA (from include process p*) should be overridden by MAIN_P1 (after include, process-specific)
     outq = out.replace('"', "'")
     assert "P1_VAR=" in outq and "X1_VAR=" in outq, "❌ Missing var output lines"
 
-    # p1 must have local, x=MAINX_AFTER, z=BASEZ, a=MAIN_P1
+    # --- Expected precedence checks (include spliced at position) ---
+    #
+    # z:
+    #   MAINZ_BEFORE (before includes)
+    #   then base.yaml sets z=BASEZ
+    #   then wildcard inc/*.yaml sets z=Z_FROM_WILDCARD_2 (because 20_inc.yaml > 10_inc.yaml in sorted order)
+    # so final z must be Z_FROM_WILDCARD_2
+    #
+    # x:
+    #   base.yaml sets x=BASE
+    #   then after includes main.yaml sets x=MAINX_AFTER
+    #
+    # p1 a:
+    #   base.yaml process p* sets a=BASEA
+    #   main.yaml later sets p1 a=MAIN_P1
+    #
+    # wildcard vars:
+    #   w=W1, w2=W2 should exist
     assert "'local': 'L'" in outq, "❌ local key missing"
     assert "'x': 'MAINX_AFTER'" in outq, "❌ x precedence failed (should be MAINX_AFTER)"
-    assert "'z': 'BASEZ'" in outq, "❌ z precedence failed (should be BASEZ from include)"
+    assert "'z': 'Z_FROM_WILDCARD_2'" in outq, "❌ z precedence failed (should come from wildcard include)"
+    assert "'w': 'W1'" in outq and "'w2': 'W2'" in outq, "❌ wildcard-included globals missing"
     assert "P1_VAR=" in outq and "'a': 'MAIN_P1'" in outq, "❌ p1 process override failed (a should be MAIN_P1)"
 
-    # x1 should get globals x/z but not process 'a'
+    # x1 should get globals x/z/w/w2 but not process 'a'
     x1_line = ""
     for ln in outq.splitlines():
         if ln.startswith("X1_VAR="):
             x1_line = ln
             break
     assert x1_line, "❌ Could not find X1_VAR line"
-    assert "'x': 'MAINX_AFTER'" in x1_line and "'z': 'BASEZ'" in x1_line, "❌ x1 did not receive global vars"
+    assert "'x': 'MAINX_AFTER'" in x1_line and "'z': 'Z_FROM_WILDCARD_2'" in x1_line, "❌ x1 did not receive global vars"
+    assert "'w': 'W1'" in x1_line and "'w2': 'W2'" in x1_line, "❌ x1 missing wildcard globals"
     assert "'a':" not in x1_line, "❌ x1 incorrectly received process var 'a' from p*"
 
-    print("✅ Passed: YAML includes — YAML-relative, spliced order, precedence")
+    print("✅ Passed: YAML includes — YAML-relative, wildcard, ../path, spliced order, precedence")
     passed += 1
 
 except Exception as e:
