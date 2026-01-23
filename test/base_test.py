@@ -3537,6 +3537,139 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+print("\n>>> Test 53: YAML includes (list-of-entries) — YAML-file-relative + precedence at position")
+
+try:
+    _clear_params()
+
+    # --- Setup workspace ---
+    tmpdir = tempfile.mkdtemp(prefix="test_yaml_includes_", dir=base_tmp)
+    module_path = os.path.join(tmpdir, "test_mod_includes.py")
+
+    # Put main.yaml in a subfolder so includes MUST be YAML-relative (not CWD-relative)
+    cfg_dir = os.path.join(tmpdir, "cfg")
+    os.makedirs(cfg_dir, exist_ok=True)
+
+    # Included YAML (base.yaml) at tmpdir/base.yaml
+    base_yaml = os.path.join(tmpdir, "base.yaml")
+    with open(base_yaml, "w") as f:
+        f.write(
+            """\
+- scope: global
+  var:
+    x: "BASE"
+    z: "BASEZ"
+
+- scope: process
+  name: "p*"
+  var:
+    a: "BASEA"
+"""
+        )
+
+    # Main YAML includes ../base.yaml (relative to main.yaml location)
+    main_yaml = os.path.join(cfg_dir, "main.yaml")
+    with open(main_yaml, "w") as f:
+        f.write(
+            """\
+- scope: global
+  var:
+    z: "MAINZ_BEFORE"
+
+- includes:
+  - "../base.yaml"
+
+- scope: global
+  var:
+    x: "MAINX_AFTER"
+
+- scope: process
+  name: "p1"
+  var:
+    a: "MAIN_P1"
+"""
+        )
+
+    # Module prints final resolved vars
+    with open(module_path, "w") as f:
+        f.write(
+            r'''
+from jawm import Process
+
+p1 = Process(
+    name="p1",
+    script="#!/bin/bash\necho hi",
+    var={"local": "L"},
+)
+
+x1 = Process(
+    name="x1",
+    script="#!/bin/bash\necho hi",
+    var={"local": "L"},
+)
+
+print("P1_VAR=", p1.var)
+print("X1_VAR=", x1.var)
+'''
+        )
+
+    def cli_cmd(args):
+        if shutil.which("jawm"):
+            return ["jawm", *args]
+        return [sys.executable, "-m", "jawm.cli", *args]
+
+    # IMPORTANT:
+    # Run from a cwd that is NOT cfg_dir (and not tmpdir), to prove YAML-relative includes work.
+    # Using base_tmp is perfect because it’s outside the YAML location.
+    rc = subprocess.run(
+        cli_cmd([module_path, "-p", main_yaml]),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=base_tmp,
+    )
+
+    out = (rc.stdout or "") + (rc.stderr or "")
+    print(out)
+    assert rc.returncode == 0, "❌ CLI run with includes failed"
+
+    # --- Expected precedence checks (include spliced at position) ---
+    # z:
+    #   MAINZ_BEFORE (before include) should be overridden by BASEZ (from included base.yaml after it)
+    # x:
+    #   BASE (from include) should be overridden by MAINX_AFTER (after include)
+    # p1 a:
+    #   BASEA (from include process p*) should be overridden by MAIN_P1 (after include, process-specific)
+    outq = out.replace('"', "'")
+    assert "P1_VAR=" in outq and "X1_VAR=" in outq, "❌ Missing var output lines"
+
+    # p1 must have local, x=MAINX_AFTER, z=BASEZ, a=MAIN_P1
+    assert "'local': 'L'" in outq, "❌ local key missing"
+    assert "'x': 'MAINX_AFTER'" in outq, "❌ x precedence failed (should be MAINX_AFTER)"
+    assert "'z': 'BASEZ'" in outq, "❌ z precedence failed (should be BASEZ from include)"
+    assert "P1_VAR=" in outq and "'a': 'MAIN_P1'" in outq, "❌ p1 process override failed (a should be MAIN_P1)"
+
+    # x1 should get globals x/z but not process 'a'
+    x1_line = ""
+    for ln in outq.splitlines():
+        if ln.startswith("X1_VAR="):
+            x1_line = ln
+            break
+    assert x1_line, "❌ Could not find X1_VAR line"
+    assert "'x': 'MAINX_AFTER'" in x1_line and "'z': 'BASEZ'" in x1_line, "❌ x1 did not receive global vars"
+    assert "'a':" not in x1_line, "❌ x1 incorrectly received process var 'a' from p*"
+
+    print("✅ Passed: YAML includes — YAML-relative, spliced order, precedence")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
+
 
 
 
