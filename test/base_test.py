@@ -2903,7 +2903,65 @@ print("X1_SLURM=", x1.manager_slurm)
     assert "{'resources': {'mem': 'PY'}}" in out, \
         "❌ x1 incorrectly received process-specific slurm override"
 
-    print("✅ Passed: CLI nested overrides — global & process patterns")
+
+    # ============================================================
+    # EXTRA: Test space-syntax + mk special-case coalescing
+    #   --global.var.g 999
+    #   --global.var.mk.output_folder mk_out_dir
+    #   --process.p*.var.a 11
+    #   --process.p1.var.x 55
+    # ============================================================
+    mk_out_dir = os.path.abspath("mk_out_dir")
+    rc2 = subprocess.run(
+        cli_cmd([
+            module_path,
+            "--global.var.g", "999",
+            "--global.var.mk.output_folder", mk_out_dir,
+            "--process.p*.var.a", "11",
+            "--process.p1.var.x", "55",
+            "--process.p*.manager_slurm.resources.mem", "2048",
+        ]),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    out2 = (rc2.stdout or "") + (rc2.stderr or "")
+    print(out2)
+
+    assert rc2.returncode == 0, "❌ CLI space-syntax override execution failed"
+
+    # Grab only the var lines so checks are stable even if other logs change
+    def _line(prefix, blob):
+        for ln in blob.splitlines():
+            if ln.startswith(prefix):
+                return ln.replace('"', "'")
+        return ""
+
+    p1_line = _line("P1_VAR=", out2)
+    p2_line = _line("P2_VAR=", out2)
+    x1_line = _line("X1_VAR=", out2)
+
+    # Space-syntax worked (same semantic outcome)
+    assert "'g': '999'" in p1_line and "'a': '11'" in p1_line and "'x': '55'" in p1_line, \
+        f"❌ p1.var missing expected overrides (space syntax). Got: {p1_line}"
+    assert "'g': '999'" in p2_line and "'a': '11'" in p2_line and "'x':" not in p2_line, \
+        f"❌ p2.var overrides incorrect (space syntax). Got: {p2_line}"
+    assert "'g': '999'" in x1_line and "'a': 'PY'" in x1_line, \
+        f"❌ x1.var overrides incorrect (space syntax). Got: {x1_line}"
+
+    # mk special-case: should be coalesced into dotted key, NOT nested dict
+    assert "'mk.output_folder': 'mk_out_dir'" in p1_line, \
+        f"❌ mk coalescing failed for p1. Got: {p1_line}"
+    assert "'mk.output_folder': 'mk_out_dir'" in p2_line, \
+        f"❌ mk coalescing failed for p2. Got: {p2_line}"
+    assert "'mk.output_folder': 'mk_out_dir'" in x1_line, \
+        f"❌ mk coalescing failed for x1. Got: {x1_line}"
+
+    # Ensure it did NOT become nested {"mk": {...}} in the printed var dict line
+    assert "'mk': {" not in p1_line and "'mk': {" not in p2_line and "'mk': {" not in x1_line, \
+        "❌ mk was nested instead of being coalesced to mk.output_folder"
+
+    print("✅ Passed: CLI nested overrides — global, process patterns, space syntax and mk special-case")
     passed += 1
 
 except Exception as e:
@@ -2912,6 +2970,7 @@ except Exception as e:
 
 finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
+    shutil.rmtree(mk_out_dir, ignore_errors=True)
     _restore_params(bak_default, bak_override)
 
 
