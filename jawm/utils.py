@@ -729,16 +729,47 @@ def load_modules(
     # Determine the CALLER's file directory
     def _caller_dir():
         try:
-            # Walk the stack to find the first frame outside this module.
             this_file = pathlib.Path(__file__).resolve()
+            chosen = None
             for frame_info in inspect.stack():
-                fpath = pathlib.Path(frame_info.filename).resolve()
+                try:
+                    fpath = pathlib.Path(frame_info.filename).resolve()
+                except Exception:
+                    continue
                 if fpath != this_file and fpath.exists():
-                    return fpath.parent
+                    chosen = fpath.parent
+                    break
+
+            if chosen is None:
+                return pathlib.Path(os.getcwd()).resolve()
+
+            # If the "caller" we found is inside python/site-packages land,
+            # then it's probably notebook/runtime internals — use CWD instead.
+            try:
+                import site
+                prefixes = set()
+
+                for p in (getattr(sys, "prefix", None), getattr(sys, "base_prefix", None), getattr(sys, "exec_prefix", None)):
+                    if p:
+                        prefixes.add(pathlib.Path(p).resolve())
+
+                for sp in (site.getsitepackages() or []):
+                    prefixes.add(pathlib.Path(sp).resolve())
+                usp = site.getusersitepackages()
+                if usp:
+                    prefixes.add(pathlib.Path(usp).resolve())
+
+                if any(pref in chosen.parents for pref in prefixes):
+                    return pathlib.Path(os.getcwd()).resolve()
+
+            except Exception:
+                # If prefix detection fails, keep chosen (backwards compatible)
+                pass
+
+            return chosen
+
         except Exception:
-            pass
-        # Fallback (e.g., interactive/REPL)
-        return pathlib.Path(os.getcwd()).resolve()
+            return pathlib.Path(os.getcwd()).resolve()
 
     caller_base = _caller_dir()
 
