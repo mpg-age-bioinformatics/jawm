@@ -690,6 +690,7 @@ def load_modules(
     address="github.com",
     user="mpg-age-bioinformatics",
     modules_root=None,
+    strict=True,
 ):
     """
     Dynamically imports Python modules or folders, safely.
@@ -719,6 +720,9 @@ def load_modules(
           1. Explicit argument (resolved relative to caller file if not absolute)
           2. Environment variable JAWM_MODULES_PATH (same)
           3. Default: <caller_file_dir>/.submodules
+    strict : bool
+        If True (default), exit with code 1 on the first import failure (after logging traceback).
+        If False, log failures and continue importing what can be imported. 
     """
     logger = logging.getLogger("jawm.utils|load_modules")
 
@@ -1065,6 +1069,8 @@ def load_modules(
             logger.info(f"Imported module: {module_name} ({file_path})")
         except Exception as e:
             logger.error(f"Failed to import {file_path}: {e}", exc_info=True)
+            if strict:
+                raise SystemExit(1) from None
 
     logger.info(f"Successfully loaded {len(imported_modules)} module(s): {', '.join(imported_modules)}")
     return imported_modules
