@@ -519,6 +519,9 @@ class Process:
                     self.when = False
             else:
                 self.is_valid("basic")
+        # Additional default validations
+        if self.var is not None and not isinstance(self.var, dict):
+            self.logger.warning(f"'var' must be a dict (or None), got {type(self.var).__name__}; this may break other features")
 
         # Enforce consistency between error_strategy and retries
         if self.error_strategy == "fail" and self.retries != 0:
