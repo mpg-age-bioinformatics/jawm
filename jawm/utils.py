@@ -1075,8 +1075,10 @@ def load_modules(
             py_files.append(repo_path)
         elif repo_path.is_dir():
             for f in repo_path.rglob("*.py"):
-                if "__pycache__" not in f.parts:
-                    py_files.append(f)
+                parts = f.parts
+                if "__pycache__" in parts or ".ipynb_checkpoints" in parts or f.name.endswith("-checkpoint.py"):
+                    continue
+                py_files.append(f)
         else:
             logger.error(f"Invalid path type: {repo_path}")
             raise ValueError(f"Invalid path: {repo_path}")
