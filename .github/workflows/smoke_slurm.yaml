@@ -1,0 +1,102 @@
+name: "jawm Smoke Slurm Tests"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  slurm-jawm-test:
+    runs-on: [self-hosted, jawm]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure Docker Compose
+        uses: docker/setup-compose-action@v1
+
+      - name: Clone slurm-docker-cluster
+        run: |
+          git clone --depth=1 https://github.com/giovtorres/slurm-docker-cluster.git _slurm
+
+      - name: Build & start cluster (docker compose)
+        run: |
+          cd _slurm
+          export DOCKER_BUILDKIT=1
+          export BUILDKIT_PROGRESS=plain
+          docker compose up -d --build
+
+      - name: Wait until Slurm responds (sinfo)
+        run: |
+          cd _slurm
+          for i in {1..60}; do
+            if docker exec slurmctld bash -lc 'sinfo >/dev/null 2>&1'; then
+              echo "Slurm is ready"
+              break
+            fi
+            echo "Waiting for Slurm... ($i)"
+            sleep 3
+          done
+          docker exec slurmctld bash -lc 'sinfo'
+
+      - name: Run jawm slurm tests (base_test.py -p parameters/slurm.yaml)
+        run: |
+          # Copy this repo into the controller container (shared /data)
+          tar -czf repo.tgz .
+          docker cp repo.tgz slurmctld:/data/repo.tgz
+
+          docker exec slurmctld bash -lc '
+            set -euo pipefail
+
+            # Ensure python & pip exist in the container (safe no-op if already installed)
+            command -v python3 >/dev/null 2>&1 || (
+              (command -v apt-get >/dev/null 2>&1 && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip) ||
+              (command -v dnf >/dev/null 2>&1 && dnf -y install python3 python3-pip) ||
+              (command -v yum >/dev/null 2>&1 && yum -y install python3 python3-pip) ||
+              (echo "No package manager to install python3" >&2 && exit 1)
+            )
+
+            # Ensure pip exists too (some images have python but not pip)
+            python3 -m pip --version >/dev/null 2>&1 || (
+              (command -v apt-get >/dev/null 2>&1 && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip) ||
+              (command -v dnf >/dev/null 2>&1 && dnf -y install python3-pip) ||
+              (command -v yum >/dev/null 2>&1 && yum -y install python3-pip) ||
+              (echo "pip not available after install attempt" >&2 && exit 1)
+            )
+
+            python3 --version
+            pip3 --version
+
+            cd /data
+            rm -rf repo && mkdir repo
+            tar -xzf repo.tgz -C repo
+            cd repo
+
+            # Install jawm
+            pip3 install -U pip
+            pip3 install -e .
+
+            # Optional: show slurm tools
+            sinfo
+            which sbatch
+            which srun
+            which sacct || true
+
+            # Run your slurm test exactly as you do locally
+            cd test
+            jawm base_test.py -p parameters/slurm.yaml
+          '
+
+      - name: Logs / status (debug)
+        if: always()
+        run: |
+          docker ps -a || true
+          docker logs slurmctld --tail=200 || true
+          docker logs slurmdbd --tail=200 || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          cd _slurm
+          docker compose down -v
