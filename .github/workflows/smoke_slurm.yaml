@@ -59,7 +59,7 @@ jobs:
       - name: Run jawm slurm tests (base_test.py -p parameters/slurm.yaml)
         run: |
           # Copy this repo into the controller container (shared /data)
-          tar -czf repo.tgz .
+          git archive --format=tar.gz -o repo.tgz HEAD
           docker cp repo.tgz slurmctld:/data/repo.tgz
 
           docker exec slurmctld bash -lc '
