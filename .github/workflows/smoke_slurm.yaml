@@ -20,12 +20,23 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/giovtorres/slurm-docker-cluster.git _slurm
 
-      - name: Build & start cluster (docker compose)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build slurm cluster images (BuildKit)
+        env:
+          DOCKER_BUILDKIT: "1"
+          COMPOSE_DOCKER_CLI_BUILD: "1"
+          BUILDKIT_PROGRESS: plain
+          DOCKER_DEFAULT_PLATFORM: linux/amd64
         run: |
           cd _slurm
-          export DOCKER_BUILDKIT=1
-          export BUILDKIT_PROGRESS=plain
-          docker compose up -d --build
+          docker compose build --pull
+
+      - name: Start cluster
+        run: |
+          cd _slurm
+          docker compose up -d --no-build
 
       - name: Wait until Slurm responds (sinfo)
         run: |
@@ -74,8 +85,8 @@ jobs:
             cd repo
 
             # Install jawm
-            pip3 install -U pip
-            pip3 install -e .
+            python3 -m pip install -U pip
+            python3 -m pip install -e .
 
             # Optional: show slurm tools
             sinfo
