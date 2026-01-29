@@ -28,10 +28,15 @@ jobs:
           DOCKER_BUILDKIT: "1"
           COMPOSE_DOCKER_CLI_BUILD: "1"
           BUILDKIT_PROGRESS: plain
-          DOCKER_DEFAULT_PLATFORM: linux/amd64
         run: |
           cd _slurm
-          docker compose build --pull
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64) TARCH=amd64 ;;
+            aarch64|arm64) TARCH=arm64 ;;
+            *) echo "Unsupported runner arch: $ARCH" && exit 1 ;;
+          esac
+          docker compose build --pull --build-arg TARGETARCH=$TARCH
 
       - name: Start cluster
         run: |
