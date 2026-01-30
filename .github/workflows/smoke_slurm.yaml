@@ -69,15 +69,15 @@ jobs:
           cd _slurm
           docker compose up -d --no-build
 
-      - name: Wait until Slurm responds (sinfo)
+      - name: Wait until Slurm nodes are ready (sinfo)
         run: |
           cd _slurm
           for i in {1..60}; do
-            if docker compose exec -T slurmctld bash -lc 'sinfo >/dev/null 2>&1'; then
-              echo "Slurm is ready"
+            if docker compose exec -T slurmctld bash -lc 'test "$(sinfo -h -o %D 2>/dev/null || echo 0)" -ge 1'; then
+              echo "Slurm nodes are ready"
               break
             fi
-            echo "Waiting for Slurm... ($i)"
+            echo "Waiting for Slurm nodes... ($i)"
             sleep 3
           done
           docker compose exec -T slurmctld bash -lc 'sinfo'
@@ -86,8 +86,9 @@ jobs:
         run: |
           # Copy this repo into the controller container (shared /data)
           git archive --format=tar.gz -o repo.tgz HEAD
-          CID=$(cd _slurm && docker compose ps -q slurmctld)
-          docker cp repo.tgz "${CID}:/data/repo.tgz"
+          cd _slurm
+          CID=$(docker compose ps -q slurmctld)
+          docker cp ../repo.tgz "${CID}:/data/repo.tgz"
 
           docker compose exec -T slurmctld bash -lc '
             set -euo pipefail
