@@ -7,7 +7,31 @@ permissions:
   contents: read
 
 jobs:
+  pick-versions:
+    runs-on: [self-hosted, jawm]
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSIONS=("20.11.9" "21.08.8" "22.05.9" "23.11.6" "24.05.3" "25.05.3" "25.11.2")
+          mapfile -t picked < <(printf "%s\n" "${VERSIONS[@]}" | shuf -n 3)
+
+          echo "Picked versions:"
+          printf '%s\n' "${picked[@]}"
+
+          json='{"slurm_version":["'"${picked[0]}"'","'"${picked[1]}"'","'"${picked[2]}"'"]}'
+          echo "matrix=$json" >> "$GITHUB_OUTPUT"
+
   slurm-jawm-test:
+    needs: pick-versions
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.pick-versions.outputs.matrix) }}
+    name: "Slurm ${{ matrix.slurm_version }}"
     runs-on: [self-hosted, jawm]
 
     steps:
@@ -36,7 +60,9 @@ jobs:
             aarch64|arm64) TARCH=arm64 ;;
             *) echo "Unsupported runner arch: $ARCH" && exit 1 ;;
           esac
-          docker compose build --pull --build-arg TARGETARCH=$TARCH
+          docker compose build --pull \
+            --build-arg TARGETARCH="$TARCH" \
+            --build-arg SLURM_VERSION="${{ matrix.slurm_version }}"
 
       - name: Start cluster
         run: |
@@ -47,22 +73,23 @@ jobs:
         run: |
           cd _slurm
           for i in {1..60}; do
-            if docker exec slurmctld bash -lc 'sinfo >/dev/null 2>&1'; then
+            if docker compose exec -T slurmctld bash -lc 'sinfo >/dev/null 2>&1'; then
               echo "Slurm is ready"
               break
             fi
             echo "Waiting for Slurm... ($i)"
             sleep 3
           done
-          docker exec slurmctld bash -lc 'sinfo'
+          docker compose exec -T slurmctld bash -lc 'sinfo'
 
       - name: Run jawm slurm tests (base_test.py -p parameters/slurm.yaml)
         run: |
           # Copy this repo into the controller container (shared /data)
           git archive --format=tar.gz -o repo.tgz HEAD
-          docker cp repo.tgz slurmctld:/data/repo.tgz
+          CID=$(cd _slurm && docker compose ps -q slurmctld)
+          docker cp repo.tgz "${CID}:/data/repo.tgz"
 
-          docker exec slurmctld bash -lc '
+          docker compose exec -T slurmctld bash -lc '
             set -euo pipefail
 
             # Ensure python & pip exist in the container (safe no-op if already installed)
@@ -82,7 +109,7 @@ jobs:
             )
 
             python3 --version
-            pip3 --version
+            python3 -m pip --version
 
             cd /data
             rm -rf repo && mkdir repo
@@ -107,9 +134,10 @@ jobs:
       - name: Logs / status (debug)
         if: always()
         run: |
-          docker ps -a || true
-          docker logs slurmctld --tail=200 || true
-          docker logs slurmdbd --tail=200 || true
+          cd _slurm
+          docker compose ps || true
+          docker compose logs --tail=200 slurmctld || true
+          docker compose logs --tail=200 slurmdbd || true
 
       - name: Tear down
         if: always()
