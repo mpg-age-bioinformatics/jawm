@@ -44,6 +44,11 @@ jobs:
         run: |
           git clone --depth=1 https://github.com/giovtorres/slurm-docker-cluster.git _slurm
 
+      - name: Patch dnf install to be resilient (dnf --nobest)
+        run: |
+          cd _slurm
+          find . -name 'Dockerfile*' -print0 | xargs -0 sed -i 's/dnf -y install/dnf -y --nobest install/g'
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -60,6 +65,7 @@ jobs:
             aarch64|arm64) TARCH=arm64 ;;
             *) echo "Unsupported runner arch: $ARCH" && exit 1 ;;
           esac
+          test -f .env || cp .env.example .env
           sed -i "s/^SLURM_VERSION=.*/SLURM_VERSION=${{ matrix.slurm_version }}/" .env
           docker compose build --pull --build-arg TARGETARCH="$TARCH"
 
