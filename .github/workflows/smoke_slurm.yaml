@@ -16,7 +16,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSIONS=("20.11.9" "21.08.8" "22.05.9" "23.11.6" "24.05.3" "24.11.7" "25.05.3" "25.11.2")
+          VERSIONS=("23.11.6" "24.11.2" "24.11.7" "25.05.3" "25.05.6" "25.11.2")
           mapfile -t picked < <(printf "%s\n" "${VERSIONS[@]}" | shuf -n 3)
 
           echo "Picked versions:"
@@ -60,9 +60,8 @@ jobs:
             aarch64|arm64) TARCH=arm64 ;;
             *) echo "Unsupported runner arch: $ARCH" && exit 1 ;;
           esac
-          docker compose build --pull \
-            --build-arg TARGETARCH="$TARCH" \
-            --build-arg SLURM_VERSION="${{ matrix.slurm_version }}"
+          sed -i "s/^SLURM_VERSION=.*/SLURM_VERSION=${{ matrix.slurm_version }}/" .env
+          docker compose build --pull --build-arg TARGETARCH="$TARCH"
 
       - name: Start cluster
         run: |
