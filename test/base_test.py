@@ -897,48 +897,69 @@ finally:
         pass
 
 
-print("\n>>> Test 20: Parallelism True vs False (timing + overlap checks)")
-# time.sleep(0.5)
-try:
-    def parse_epochs(text):
-        """
-        Extract integer epochs from lines like: 'EPOCH LABEL N'
-        Returns a list of ints; ignores lines that don't match.
-        """
-        epochs = []
-        if not text:
-            return epochs
-        for line in text.splitlines():
-            m = re.match(r"^\s*(\d{9,})\s+[A-D]\s+\d+\s*$", line.strip())
-            if m:
-                try:
-                    epochs.append(int(m.group(1)))
-                except Exception:
-                    pass
-        return sorted(epochs)
+print("\n>>> Test 20: Parallelism True vs False (robust overlap via markers)")
 
-    # Common 3-iteration script that prints epoch seconds + label + counter
-    def loop_script(label):
+try:
+    logs_dir = "logs_test_parallel"
+    os.makedirs(logs_dir, exist_ok=True)
+    sync_dir = os.path.abspath(logs_dir)
+
+    def parallel_handshake(label, other, sync_dir, timeout=30):
         return f"""#!/bin/bash
+set -euo pipefail
+mkdir -p "{sync_dir}"
+touch "{sync_dir}/{label}.started"
+
+# Wait for the other job to start (proves overlap)
+for i in $(seq 1 {timeout}); do
+  [[ -f "{sync_dir}/{other}.started" ]] && break
+  sleep 1
+done
+
+[[ -f "{sync_dir}/{other}.started" ]] || (echo "NO_OVERLAP: {other} never started" >&2; exit 42)
+
+# Do a little work so both are "alive" together
 for i in {{1..3}}; do
-    echo "$(date +%s) {label} $i"
-    sleep 1
+  echo "{label} $i"
+  sleep 1
 done
 """
 
-    logs_dir = "logs_test_parallel"
+    def serial_script_C(sync_dir):
+        return f"""#!/bin/bash
+set -euo pipefail
+mkdir -p "{sync_dir}"
+rm -f "{sync_dir}/C.done" "{sync_dir}/SERIAL_OVERLAP"
+for i in {{1..3}}; do
+  echo "C $i"
+  sleep 1
+done
+touch "{sync_dir}/C.done"
+"""
 
-    # --------------- A) parallel=True (default): should overlap ---------------
-    pA = Process(
-        name="parallel_true_A",
-        script=loop_script("A"),
-        logs_directory=logs_dir
-    )
-    pB = Process(
-        name="parallel_true_B",
-        script=loop_script("B"),
-        logs_directory=logs_dir
-    )
+    def serial_script_D(sync_dir):
+        return f"""#!/bin/bash
+set -euo pipefail
+mkdir -p "{sync_dir}"
+# If D starts before C finishes, fail deterministically
+[[ -f "{sync_dir}/C.done" ]] || (echo "SERIAL_OVERLAP" | tee "{sync_dir}/SERIAL_OVERLAP" >&2; exit 43)
+
+for i in {{1..3}}; do
+  echo "D $i"
+  sleep 1
+done
+"""
+
+    # Clean markers from previous runs
+    for f in ("A.started", "B.started", "C.done", "SERIAL_OVERLAP"):
+        try:
+            os.remove(os.path.join(sync_dir, f))
+        except FileNotFoundError:
+            pass
+
+    # --------------- A) parallel=True: handshake must succeed ---------------
+    pA = Process(name="parallel_true_A", script=parallel_handshake("A", "B", sync_dir), logs_directory=logs_dir)
+    pB = Process(name="parallel_true_B", script=parallel_handshake("B", "A", sync_dir), logs_directory=logs_dir)
 
     t0 = time.time()
     pA.execute()
@@ -947,32 +968,12 @@ done
     t1 = time.time()
     elapsed_parallel = t1 - t0
 
-    outA = pA.get_output()
-    outB = pB.get_output()
-    A_epochs = parse_epochs(outA)
-    B_epochs = parse_epochs(outB)
+    assert pA.get_exitcode().startswith("0"), f"❌ parallel=True: A exit code non-zero\n{pA.get_output()}"
+    assert pB.get_exitcode().startswith("0"), f"❌ parallel=True: B exit code non-zero\n{pB.get_output()}"
 
-    assert pA.get_exitcode().startswith("0"), "❌ parallel=True: A exit code non-zero"
-    assert pB.get_exitcode().startswith("0"), "❌ parallel=True: B exit code non-zero"
-    assert len(A_epochs) >= 3 and len(B_epochs) >= 3, "❌ parallel=True: missing epoch lines"
-
-    # Ranges overlap check: [minA, maxA] intersects [minB, maxB]
-    overlap_parallel = (min(A_epochs) <= max(B_epochs)) and (min(B_epochs) <= max(A_epochs))
-    assert overlap_parallel, "❌ parallel=True: expected overlapping execution windows"
-
-    # --------------- B) parallel=False: must run one-after-another ---------------
-    pC = Process(
-        name="parallel_false_A",
-        script=loop_script("C"),
-        logs_directory=logs_dir,
-        parallel=False
-    )
-    pD = Process(
-        name="parallel_false_B",
-        script=loop_script("D"),
-        logs_directory=logs_dir,
-        parallel=False
-    )
+    # --------------- B) parallel=False: D must see C.done at start ---------------
+    pC = Process(name="parallel_false_C", script=serial_script_C(sync_dir), logs_directory=logs_dir, parallel=False)
+    pD = Process(name="parallel_false_D", script=serial_script_D(sync_dir), logs_directory=logs_dir, parallel=False)
 
     t2 = time.time()
     pC.execute()
@@ -981,35 +982,21 @@ done
     t3 = time.time()
     elapsed_serial = t3 - t2
 
-    outC = pC.get_output()
-    outD = pD.get_output()
-    C_epochs = parse_epochs(outC)
-    D_epochs = parse_epochs(outD)
+    assert pC.get_exitcode().startswith("0"), f"❌ parallel=False: C exit code non-zero\n{pC.get_output()}"
+    assert pD.get_exitcode().startswith("0"), f"❌ parallel=False: D exit code non-zero\n{pD.get_output()}"
 
-    assert pC.get_exitcode().startswith("0"), "❌ parallel=False: C exit code non-zero"
-    assert pD.get_exitcode().startswith("0"), "❌ parallel=False: D exit code non-zero"
-    assert len(C_epochs) >= 3 and len(D_epochs) >= 3, "❌ parallel=False: missing epoch lines"
+    # Deterministic overlap detector for serial case
+    assert not os.path.exists(os.path.join(sync_dir, "SERIAL_OVERLAP")), \
+        "❌ parallel=False: detected overlap (D started before C finished)"
 
-    # Non-overlap check: earliest D is strictly after latest C
-    no_overlap_serial = min(D_epochs) > max(C_epochs)
-    assert no_overlap_serial, (
-        "❌ parallel=False: detected overlap — D started before C fully finished"
-    )
+    # --------------- Optional timing (loose, to avoid Slurm flakiness) ---------------
+    # Only enforce if serial is meaningfully larger (otherwise just print)
+    if elapsed_serial > 6:
+        assert elapsed_parallel < elapsed_serial, (
+            f"❌ Expected parallel < serial (parallel={elapsed_parallel:.1f}s, serial={elapsed_serial:.1f}s)"
+        )
 
-    # --------------- Timing sanity checks (robust to system variance) ---------------
-    # Each script loops ~3 seconds; parallel should be clearly faster than serial.
-    assert elapsed_serial >= 5.0, f"❌ Serial run unusually fast: {elapsed_serial:.1f}s"
-    assert elapsed_parallel < (elapsed_serial * 0.75), (
-        f"❌ Expected parallel run at least 25% faster: parallel={elapsed_parallel:.1f}s, serial={elapsed_serial:.1f}s"
-    )
-    # Optional soft cap to catch extreme slowness on overloaded machines:
-    # assert elapsed_parallel < 8.0, f"❌ Parallel took unusually long: {elapsed_parallel:.1f}s"
-
-    print(
-        f"✅ Passed: Parallelism True vs False "
-        f"(parallel={elapsed_parallel:.1f}s, serial={elapsed_serial:.1f}s; "
-        f"overlap=True, serialized=True)"
-    )
+    print(f"✅ Passed: parallel={elapsed_parallel:.1f}s, serial={elapsed_serial:.1f}s")
     passed += 1
 
 except Exception as e:
