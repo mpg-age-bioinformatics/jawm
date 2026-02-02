@@ -1,0 +1,162 @@
+name: "jawm Smoke K8s Tests"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pick-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CANDIDATES=(
+            "v1.35.0"
+            "v1.34.2"
+            "v1.33.2"
+            "v1.32.11"
+            "v1.31.2"
+            "v1.30.6"
+            "v1.29.10"
+            "v1.28.15"
+            "v1.27.2"
+            "v1.26.15"
+            "v1.25.16"
+            "v1.24.17"
+            "v1.23.17"
+          )
+
+          echo "Checking which kindest/node tags exist..."
+          supported=()
+          for tag in "${CANDIDATES[@]}"; do
+            if docker manifest inspect "kindest/node:${tag}" >/dev/null 2>&1; then
+              supported+=("$tag")
+              echo "  ✅ $tag"
+            else
+              echo "  ❌ $tag (missing)"
+            fi
+          done
+
+          if [ "${#supported[@]}" -lt 3 ]; then
+            echo "Not enough supported kindest/node tags (${#supported[@]})."
+            exit 1
+          fi
+
+          mapfile -t picked < <(printf "%s\n" "${supported[@]}" | shuf -n 3)
+
+          echo "Picked versions:"
+          printf "%s\n" "${picked[@]}"
+
+          json='{"k8s_node_image":["'"${picked[0]}"'","'"${picked[1]}"'","'"${picked[2]}"'"]}'
+          echo "matrix=$json" >> "$GITHUB_OUTPUT"
+
+  k8s-jawm-test:
+    needs: pick-versions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.pick-versions.outputs.matrix) }}
+    name: "K8s kindest/node:${{ matrix.k8s_node_image }}"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl (match cluster version)
+        shell: bash
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION="${{ matrix.k8s_node_image }}"
+
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64) KARCH=amd64 ;;
+            aarch64|arm64) KARCH=arm64 ;;
+            *) echo "Unsupported arch: $ARCH" && exit 1 ;;
+          esac
+
+          curl -fL --retry 5 --retry-delay 2 --connect-timeout 20 \
+            -o kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KARCH}/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+          kubectl version --client=true
+
+      - name: Install kind (latest release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          KIND_VERSION="$(curl -fsSL https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r .tag_name)"
+          curl -fsSL -o kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          chmod +x kind
+          sudo mv kind /usr/local/bin/kind
+          kind --version
+
+      - name: Create kind cluster
+        shell: bash
+        env:
+          NODE_IMAGE: kindest/node:${{ matrix.k8s_node_image }}
+        run: |
+          set -euo pipefail
+          SAFE_TAG="$(echo "${{ matrix.k8s_node_image }}" | tr '.' '-')"
+          CLUSTER_NAME="jawm-${SAFE_TAG}"
+          echo "CLUSTER_NAME=$CLUSTER_NAME" >> "$GITHUB_ENV"
+
+          kind create cluster --name "$CLUSTER_NAME" --image "$NODE_IMAGE" --wait 120s
+
+          kubectl cluster-info
+          kubectl get nodes -o wide
+
+          kubectl create namespace jawm >/dev/null 2>&1 || true
+          kubectl get namespace jawm
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install jawm (editable)
+        shell: bash
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+          PIP_ROOT_USER_ACTION: ignore
+        run: |
+          set -euo pipefail
+          python -m pip install -U pip
+          python -m pip install -e .
+
+      - name: Run jawm k8s tests (base_test.py -p parameters/k8.yaml)
+        shell: bash
+        env:
+          PIP_DISABLE_PIP_VERSION_CHECK: "1"
+          PIP_ROOT_USER_ACTION: ignore
+        run: |
+          set -euo pipefail
+          cd test
+          jawm base_test.py -p parameters/k8.yaml
+
+      - name: Debug info on failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo "=== nodes ==="
+          kubectl get nodes -o wide || true
+          echo "=== pods all namespaces ==="
+          kubectl get pods -A -o wide || true
+          echo "=== events (last 200) ==="
+          kubectl get events -A --sort-by=.lastTimestamp | tail -200 || true
+
+      - name: Tear down kind cluster
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -n "${CLUSTER_NAME:-}" ]; then
+            kind delete cluster --name "$CLUSTER_NAME" || true
+          fi
