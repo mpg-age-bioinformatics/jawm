@@ -16,7 +16,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSIONS=("23.11.6" "24.11.2" "24.11.7" "25.05.3" "25.05.6" "25.11.2")
+          VERSIONS=("24.11.0" "24.11.2" "24.11.7" "25.05.3" "25.05.6" "25.11.0" "25.11.2")
           mapfile -t picked < <(printf "%s\n" "${VERSIONS[@]}" | shuf -n 3)
 
           echo "Picked versions:"
