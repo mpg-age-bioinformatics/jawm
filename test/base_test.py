@@ -2026,14 +2026,26 @@ try:
 
     # --- Environment-based timeout: JAWM_WAIT_TIMEOUT=3 ---
     os.environ["JAWM_WAIT_TIMEOUT"] = "3"
-    p3 = Process(name="p3_env", script="#!/bin/bash\nsleep 3", logs_directory=logs)
+
+    # Make the job longer than the timeout so wait returns due to timeout, not completion.
+    p3 = Process(name="p3_env", script="#!/bin/bash\nsleep 7", logs_directory=logs)
+
     t0 = time.time()
     p3.execute()
-    Process.wait(p3.hash, log=False)
+    Process.wait(p3.hash, log=False)   # should return after ~3s because of env timeout
     dt = time.time() - t0
+
     del os.environ["JAWM_WAIT_TIMEOUT"]
-    assert 2.0 <= dt <= 4.5, f"❌ Env timeout not applied (elapsed={dt:.2f}s)"
-    print(f" ✓ Environment timeout respected (JAWM_WAIT_TIMEOUT=3 → waited {dt:.1f}s)")
+
+    # Wait should have returned "early"
+    assert dt < 4.5, f"❌ Env timeout not applied (elapsed={dt:.2f}s)"
+    assert not p3.finished_event.is_set(), "❌ p3_env unexpectedly finished within env timeout"
+
+    # Now ensure it can finish normally
+    Process.wait(p3.hash, log=False, timeout=50)
+    Process.reset_runtime()
+
+    print(f" ✓ Environment timeout respected (JAWM_WAIT_TIMEOUT=3 → returned after {dt:.1f}s)")
 
     # --- ✅ Summary ---
     print("✅ Passed: Process.wait(), timeout, and environment behavior")
@@ -2361,6 +2373,7 @@ finally:
 
 print("\n>>> Test 42: retry_overrides update base script per retry")
 try:
+    _clear_params()
     tmp_logs = tempfile.mkdtemp(prefix="retry_override_test_", dir=base_tmp)
 
     p = Process(
@@ -2402,6 +2415,7 @@ except Exception as e:
 
 finally:
     shutil.rmtree(tmp_logs, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
 
 
 print("\n>>> Test 43: Params order check: YAML vs Python vs CLI overrides (-l, -r)")
