@@ -27,12 +27,13 @@ jobs:
 
   slurm-jawm-test:
     needs: pick-versions
+    runs-on: [self-hosted, jawm]
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       max-parallel: 1
       matrix: ${{ fromJSON(needs.pick-versions.outputs.matrix) }}
     name: "Slurm ${{ matrix.slurm_version }}"
-    runs-on: [self-hosted, jawm]
 
     steps:
       - uses: actions/checkout@v4

@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   pick-versions:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, jawm]
     outputs:
       matrix: ${{ steps.pick.outputs.matrix }}
     steps:
@@ -59,9 +59,11 @@ jobs:
 
   k8s-jawm-test:
     needs: pick-versions
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, jawm]
+    timeout-minutes: 40
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix: ${{ fromJSON(needs.pick-versions.outputs.matrix) }}
     name: "K8s kindest/node:${{ matrix.k8s_node_image }}"
 
@@ -73,7 +75,6 @@ jobs:
         run: |
           set -euo pipefail
           KUBECTL_VERSION="${{ matrix.k8s_node_image }}"
-
           ARCH="$(uname -m)"
           case "$ARCH" in
             x86_64) KARCH=amd64 ;;
@@ -91,8 +92,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          KIND_VERSION="$(curl -fsSL https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r .tag_name)"
-          curl -fsSL -o kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+          KIND_VERSION="v0.31.0"
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64) KARCH=amd64 ;;
+            aarch64|arm64) KARCH=arm64 ;;
+            *) echo "Unsupported arch: $ARCH" && exit 1 ;;
+          esac
+          curl -fsSL -o kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${KARCH}"
           chmod +x kind
           sudo mv kind /usr/local/bin/kind
           kind --version
@@ -103,9 +110,11 @@ jobs:
           NODE_IMAGE: kindest/node:${{ matrix.k8s_node_image }}
         run: |
           set -euo pipefail
+          export KUBECONFIG="$PWD/kubeconfig"
           SAFE_TAG="$(echo "${{ matrix.k8s_node_image }}" | tr '.' '-')"
           CLUSTER_NAME="jawm-${SAFE_TAG}"
           echo "CLUSTER_NAME=$CLUSTER_NAME" >> "$GITHUB_ENV"
+          echo "KUBECONFIG=$KUBECONFIG" >> "$GITHUB_ENV"
 
           kind create cluster --name "$CLUSTER_NAME" --image "$NODE_IMAGE" --wait 120s
 
@@ -157,6 +166,7 @@ jobs:
         shell: bash
         run: |
           set +e
+          export KUBECONFIG="${KUBECONFIG:-$PWD/kubeconfig}"
           if [ -n "${CLUSTER_NAME:-}" ]; then
             kind delete cluster --name "$CLUSTER_NAME" || true
           fi
