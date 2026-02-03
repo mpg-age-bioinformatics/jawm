@@ -45,54 +45,10 @@ def _generate_k8s_manifest(self):
     os.makedirs(self.log_path, exist_ok=True)
     manifest_path = os.path.join(self.log_path, f"{self.name}.k8s.json")
 
-    # 1) Prepare the in-container command
+    # 1) Read the base script content
     base_script_path = self._generate_base_script()
     with open(base_script_path, "r") as f:
         core_script = f.read()
-
-    script_b64 = base64.b64encode(core_script.encode("utf-8")).decode("ascii")
-
-    cmd_parts = []
-
-    # Optional host-level pre-hook (executed inside container in current design)
-    if self.before_script:
-        cmd_parts.append(self.before_script.strip())
-
-    # Create temp file, materialize script, make it executable
-    cmd_parts.append(f'TMPFILE="$(mktemp /tmp/{self.name}.XXXXXX)"')
-    cmd_parts.append("echo {b64} | base64 -d > \"$TMPFILE\"".format(b64=shlex.quote(script_b64)))
-    cmd_parts.append('chmod +x "$TMPFILE"')
-
-    # Container-level pre-hook
-    if self.container_before_script:
-        cmd_parts.append(self.container_before_script.strip())
-
-    # Execute the actual file (shebang respected)
-    cmd_parts.append('"$TMPFILE"')
-
-    # Container-level post-hook
-    if self.container_after_script:
-        cmd_parts.append(self.container_after_script.strip())
-
-    # Cleanup temp file
-    cmd_parts.append('rm -f "$TMPFILE"')
-
-    # Optional host-level post-hook (executed inside container in current design)
-    if self.after_script:
-        cmd_parts.append(self.after_script.strip())
-
-    # Compose final strings for each shell
-    cmd_core = " && ".join(cmd_parts)
-    cmd_str_bash = f"set -euo pipefail && {cmd_core}"  # bash supports pipefail
-    cmd_str_sh   = f"set -eu && {cmd_core}"            # sh does not; no -l here
-
-    # Prefer bash if present; otherwise fallback to sh
-    container_command = [
-        "/bin/sh", "-c",
-        f'[ -x /bin/bash ] && exec /bin/bash -lc {shlex.quote(cmd_str_bash)} '
-        f'|| exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
-    ]
-
 
     # 2) Resolve image & env
     def _infer_image_from_shebang(line):
@@ -185,8 +141,79 @@ def _generate_k8s_manifest(self):
         **labels_extra
     }
 
-    # 5) Build the manifest
-    manifest = {
+    # ConfigMap-backed script
+    script_cm_name = self._k8s_sanitize_label(
+        f"{self.name}-{self.hash}-script",
+        max_len=63,
+        fallback_suffix="jawm-script"
+    )
+
+    configmap = {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+            "name": script_cm_name,
+            "labels": labels_block,
+            **({"annotations": annotations} if annotations else {})
+        },
+        "data": {
+            "script": core_script
+        }
+    }
+
+    # Add ConfigMap volume + mount
+    script_volume = {
+        "name": "jawm-script",
+        "configMap": {
+            "name": script_cm_name,
+            "defaultMode": 0o755
+        }
+    }
+    script_mount = {
+        "name": "jawm-script",
+        "mountPath": "/jawm",
+        "readOnly": True
+    }
+
+    volumeMounts = _merge_mounts(volumeMounts, [script_mount])
+    volumes = _merge_vols(volumes, [script_volume])
+
+    # 1) Prepare the in-container command (now executes /jawm/script)
+    cmd_parts = []
+
+    # Optional host-level pre-hook (executed inside container in current design)
+    if self.before_script:
+        cmd_parts.append(self.before_script.strip())
+
+    # Container-level pre-hook
+    if self.container_before_script:
+        cmd_parts.append(self.container_before_script.strip())
+
+    # Execute the mounted script (shebang respected)
+    cmd_parts.append("/jawm/script")
+
+    # Container-level post-hook
+    if self.container_after_script:
+        cmd_parts.append(self.container_after_script.strip())
+
+    # Optional host-level post-hook (executed inside container in current design)
+    if self.after_script:
+        cmd_parts.append(self.after_script.strip())
+
+    # Compose final strings for each shell
+    cmd_core = " && ".join(cmd_parts) if cmd_parts else "/jawm/script"
+    cmd_str_bash = f"set -euo pipefail && {cmd_core}"  # bash supports pipefail
+    cmd_str_sh   = f"set -eu && {cmd_core}"            # sh does not; no -l here
+
+    # Prefer bash if present; otherwise fallback to sh
+    container_command = [
+        "/bin/sh", "-c",
+        f'[ -x /bin/bash ] && exec /bin/bash -lc {shlex.quote(cmd_str_bash)} '
+        f'|| exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
+    ]
+
+    # 5) Build the Job manifest (unchanged structure; only command/volumes/mounts changed)
+    job = {
         "apiVersion": "batch/v1",
         "kind": "Job",
         "metadata": {
@@ -226,6 +253,13 @@ def _generate_k8s_manifest(self):
         }
     }
 
+    # Write a single file containing both ConfigMap + Job
+    manifest = {
+        "apiVersion": "v1",
+        "kind": "List",
+        "items": [configmap, job]
+    }
+
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
@@ -233,6 +267,7 @@ def _generate_k8s_manifest(self):
     self._k8s_namespace = namespace
     self._k8s_job_name = job_name
     self._k8s_container_name = container_name
+    self._k8s_script_cm_name = script_cm_name
     return manifest_path
 
 
@@ -260,6 +295,14 @@ def _execute_kubernetes(self):
                 if getattr(self, "_k8s_namespace", None):
                     del_cmd.extend(["-n", self._k8s_namespace])
                 subprocess.run(del_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+                # Also clean up previous script ConfigMap (best-effort)
+                cm = getattr(self, "_k8s_script_cm_name", None)
+                if cm:
+                    del_cm_cmd = ["kubectl", "delete", "configmap", cm, "--ignore-not-found=true"]
+                    if getattr(self, "_k8s_namespace", None):
+                        del_cm_cmd.extend(["-n", self._k8s_namespace])
+                    subprocess.run(del_cm_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
             # kubectl apply
             cmd = ["kubectl", "apply", "-f", manifest_path]
@@ -429,7 +472,6 @@ def _execute_kubernetes(self):
                                     except Exception:
                                         self._log_error_summary(f"K8s job failed (could not build failure summary! records on: {self.stderr_path})", type_text="K8sAttempt")
 
-
                                 break
                     except Exception:
                         pass
@@ -445,7 +487,7 @@ def _execute_kubernetes(self):
                     f.write(str(exit_code_int))
             except Exception:
                 pass
-            
+
             # Ensure stdout/stderr files exist even if container produced nothing
             try:
                 if not os.path.exists(self.stdout_path):
@@ -460,6 +502,15 @@ def _execute_kubernetes(self):
 
             self.logger.info(f"K8s job {job_id} completed with exit code {exit_code_int}")
             self._monitoring_completed_file(job_id, manifest_path, exit_code_int)
+
+            # Best-effort cleanup of script ConfigMap
+            cm = getattr(self, "_k8s_script_cm_name", None)
+            if cm:
+                del_cm_cmd = ["kubectl", "delete", "configmap", cm, "--ignore-not-found=true"]
+                if getattr(self, "_k8s_namespace", None):
+                    del_cm_cmd.extend(["-n", self._k8s_namespace])
+                subprocess.run(del_cm_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
             return 0 if exit_code_int == 0 else 1
 
         def monitor_process():
@@ -494,4 +545,3 @@ def _execute_kubernetes(self):
         self.finished_event.set()
         self.stop_future_event.set()
         return
-
