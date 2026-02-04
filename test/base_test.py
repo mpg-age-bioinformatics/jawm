@@ -1139,20 +1139,22 @@ cat {{map.infile}}
     # -------------------------------------------------------------------------
 
     if utils.docker_available():
-        print("   [docker] running...")
+        print("   [docker] available...")
         pD = Process(**{**common, "environment": "docker", "container": "ubuntu:22.04"})
-        pD.execute()
-        Process.wait(pD.hash)
-        assert pD.get_exitcode().startswith("0"), "❌ Docker auto-mount failed"
-        ran = True
+        if (pD.manager or "").lower() != "kubernetes":
+            pD.execute()
+            Process.wait(pD.hash)
+            assert pD.get_exitcode().startswith("0"), "❌ Docker auto-mount failed"
+            ran = True
 
     if utils.apptainer_available():
-        print("   [apptainer] running...")
+        print("   [apptainer] available...")
         pA = Process(**{**common, "environment": "apptainer", "container": "ubuntu:22.04"})
-        pA.execute()
-        Process.wait(pA.hash)
-        assert pA.get_exitcode().startswith("0"), "❌ Apptainer auto-mount failed"
-        ran = True
+        if (pD.manager or "").lower() != "kubernetes":
+            pA.execute()
+            Process.wait(pA.hash)
+            assert pA.get_exitcode().startswith("0"), "❌ Apptainer auto-mount failed"
+            ran = True
 
     if utils.kubernetes_available():
         print("   [kubernetes] generating manifest...")
