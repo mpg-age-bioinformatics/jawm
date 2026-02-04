@@ -5,7 +5,6 @@ import shlex
 import subprocess
 import threading
 import re
-import base64
 from datetime import datetime
 
 # Setup method registration for dynamic injection into the main Process class
@@ -70,6 +69,14 @@ def _generate_k8s_manifest(self):
         self.logger.warning(f"Container image not provided; inferred '{image}' from shebang. it may fail if required dependencies are missing.")
 
     env_list = [{"name": k, "value": str(v)} for k, v in (self.env or {}).items()]
+
+    # Unbuffer python stdout in containers (helps kubectl logs reliability)
+    try:
+        if "python" in (first_line or "").lower():
+            if not any(e.get("name") == "PYTHONUNBUFFERED" for e in env_list):
+                env_list.append({"name": "PYTHONUNBUFFERED", "value": "1"})
+    except Exception:
+        pass
 
     # 3) Pull K8s options from manager_kubernetes (safe defaults)
     mk = dict(self.manager_kubernetes or {})
@@ -290,8 +297,17 @@ def _execute_kubernetes(self):
 
             # Ensure a fresh Job for this attempt (applicable for retry)
             if attempt_i != 1:
-                self.logger.info(f"Launching K8s attempt {attempt_i}/{total_attempts}: clearing previous job {getattr(self, '_k8s_job_name', '')}")
-                del_cmd = ["kubectl", "delete", "job", (getattr(self, "_k8s_job_name", "") or ""), "--ignore-not-found=true", "--wait=true"]
+                self.logger.info(
+                    f"Launching K8s attempt {attempt_i}/{total_attempts}: clearing previous job {getattr(self, '_k8s_job_name', '')}"
+                )
+                del_cmd = [
+                    "kubectl",
+                    "delete",
+                    "job",
+                    (getattr(self, "_k8s_job_name", "") or ""),
+                    "--ignore-not-found=true",
+                    "--wait=true",
+                ]
                 if getattr(self, "_k8s_namespace", None):
                     del_cmd.extend(["-n", self._k8s_namespace])
                 subprocess.run(del_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -312,6 +328,7 @@ def _execute_kubernetes(self):
                 cf.write(" ".join(shlex.quote(c) for c in cmd))
             self.logger.info(f"Submitting process {self.name} with K8s command: {' '.join(cmd)}")
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
             # log apply output
             apply_log = os.path.join(self.log_path, f"{self.name}.kubectl_apply.log")
             with open(apply_log, "w") as f:
@@ -335,24 +352,40 @@ def _execute_kubernetes(self):
                     base += ["-n", self._k8s_namespace]
                 full_cmd = base + args
 
-                res = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                res2 = subprocess.run(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
-                if res.returncode != 0 or (expect_success and res.stderr.strip()):
+                if expect_success and (res2.returncode != 0 or res2.stderr.strip()):
                     msg = (
-                        f"kubectl command failed (rc={res.returncode}): "
+                        f"kubectl command failed (rc={res2.returncode}): "
                         f"{' '.join(full_cmd)}\n"
-                        f"STDERR: {self._tail_text(res.stderr)}"
+                        f"STDERR: {self._tail_text(res2.stderr)}"
                     )
                     self.logger.error(f"{msg}{self._elog_path()}")
-                    # Also log into central error summary file
                     self._log_error_summary(msg, type_text="K8sKubectl")
 
-                return res
+                return res2
 
             exit_code_int = 1
             elapsed_time = 0
             last_pod_name = None
             selected_container = getattr(self, "_k8s_container_name", None)
+
+            # -Periodic log append using --since (best-effort) ---
+            # default 60s; can be overridden with env var JAWM_K8S_LOG_OUTPUT_INTERVAL
+            last_log_pull_ts = 0
+            try:
+                log_since_sec = max(20, int(os.environ.get("JAWM_K8S_LOG_OUTPUT_INTERVAL", "60")))
+                since_window_sec = log_since_sec + max(5, min(30, log_since_sec // 6))
+            except Exception:
+                log_since_sec = 60
+                since_window_sec = 70
+
+            # Ensure output file exists (do not truncate; keep behavior minimal)
+            try:
+                if not os.path.exists(self.stdout_path):
+                    open(self.stdout_path, "w").close()
+            except Exception:
+                pass
 
             while True:
                 pods = _kubectl(["get", "pods", "-l", f"job-name={job_id}", "-o", "json"])
@@ -371,19 +404,36 @@ def _execute_kubernetes(self):
                             last_pod_name = pod["metadata"]["name"]
                             phase = pod.get("status", {}).get("phase")
 
+                            # -Append logs periodically while running (best-effort) ---
+                            # Only while pod is not yet terminal.
+                            now = time.time()
+                            if (
+                                last_pod_name
+                                and phase not in {"Succeeded", "Failed"}
+                                and (now - last_log_pull_ts) >= log_since_sec
+                            ):
+                                last_log_pull_ts = now
+                                try:
+                                    # Use --since to only fetch recent logs
+                                    lres = _kubectl(["logs", last_pod_name, f"--since={since_window_sec}s"], expect_success=False)
+                                    if lres.stdout:
+                                        with open(self.stdout_path, "a") as f:
+                                            f.write(lres.stdout)
+                                            f.flush()
+                                except Exception:
+                                    pass
+
                             if phase in {"Succeeded", "Failed"}:
                                 # Decide logs command (single container => no -c needed)
                                 logs_args = ["logs", last_pod_name]
                                 try:
                                     containers = pod.get("spec", {}).get("containers", []) or []
                                     if selected_container:
-                                        # ensure the selected container actually exists; else fall back
                                         if any(c.get("name") == selected_container for c in containers):
                                             logs_args += ["-c", selected_container]
                                         elif len(containers) == 1:
                                             pass  # omit -c for single container
                                         else:
-                                            # try the first container if multiple
                                             logs_args += ["-c", containers[0].get("name")]
                                     else:
                                         if len(containers) == 1:
@@ -391,7 +441,6 @@ def _execute_kubernetes(self):
                                         elif len(containers) > 1:
                                             logs_args += ["-c", containers[0].get("name")]
                                 except Exception:
-                                    # best-effort: omit -c
                                     pass
 
                                 out = _kubectl(logs_args)
@@ -426,7 +475,9 @@ def _execute_kubernetes(self):
                                         exit_code_int = 1
 
                                 state_txt = "succeeded" if exit_code_int == 0 else "failed"
-                                self.logger.info(f"[K8s] Job {job_id} {state_txt} (pod={last_pod_name}, exit={exit_code_int})")
+                                self.logger.info(
+                                    f"[K8s] Job {job_id} {state_txt} (pod={last_pod_name}, exit={exit_code_int})"
+                                )
 
                                 # Pod describe in failure
                                 if exit_code_int != 0 and last_pod_name:
@@ -443,14 +494,6 @@ def _execute_kubernetes(self):
                                     try:
                                         term = ((chosen or {}).get("state", {}) or {}).get("terminated", {}) or {}
                                         pod_status = (pod.get("status", {}) or {})
-                                        reason = (
-                                            term.get("reason")
-                                            or pod_status.get("reason")
-                                            or ((chosen or {}).get("state", {}).get("waiting", {}) or {}).get("reason")
-                                            or "NA"
-                                        )
-
-                                        # prefer pod/container message, else fall back to logs tail
                                         msg_raw = (term.get("message") or pod_status.get("message") or "").strip()
                                         if not msg_raw:
                                             try:
@@ -470,7 +513,10 @@ def _execute_kubernetes(self):
                                         )
                                         self._log_error_summary(summary, type_text="K8sAttempt")
                                     except Exception:
-                                        self._log_error_summary(f"K8s job failed (could not build failure summary! records on: {self.stderr_path})", type_text="K8sAttempt")
+                                        self._log_error_summary(
+                                            f"K8s job failed (could not build failure summary! records on: {self.stderr_path})",
+                                            type_text="K8sAttempt",
+                                        )
 
                                 break
                     except Exception:
