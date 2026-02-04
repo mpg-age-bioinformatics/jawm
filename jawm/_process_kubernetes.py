@@ -375,10 +375,10 @@ def _execute_kubernetes(self):
             last_log_pull_ts = 0
             try:
                 log_since_sec = max(20, int(os.environ.get("JAWM_K8S_LOG_OUTPUT_INTERVAL", "60")))
-                since_window_sec = log_since_sec + max(5, min(30, log_since_sec // 6))
+                since_window_sec = log_since_sec + 2
             except Exception:
                 log_since_sec = 60
-                since_window_sec = 70
+                since_window_sec = 62
 
             # Ensure output file exists (do not truncate; keep behavior minimal)
             try:
