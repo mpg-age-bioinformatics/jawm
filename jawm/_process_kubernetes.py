@@ -387,26 +387,121 @@ def _execute_kubernetes(self):
             except Exception:
                 pass
 
+            # Startup watchdog to avoid hanging forever in Pending/ContainerCreating ---
+            try:
+                pod_start_timeout_sec = int(os.environ.get("JAWM_K8S_POD_START_TIMEOUT", "600"))  # 10 min default
+            except Exception:
+                pod_start_timeout_sec = 600
+
+            first_seen_pod_ts = None
+            pending_since_ts = None
+            last_seen_pod_uid = None
+
+            # Reasons that are almost always "won't recover without intervention"
+            TERMINAL_WAITING_REASONS = {
+                "ErrImagePull",
+                "ImagePullBackOff",
+                "CreateContainerConfigError",
+                "CreateContainerError",
+                "RunContainerError",
+                "InvalidImageName",
+                "CrashLoopBackOff",
+            }
+
             while True:
                 pods = _kubectl(["get", "pods", "-l", f"job-name={job_id}", "-o", "json"])
                 if pods.returncode == 0:
                     try:
                         data = json.loads(pods.stdout)
                         items = data.get("items", [])
+
                         # bail out fast if user killed the job
                         if getattr(self, "_k8s_killed", False):
                             exit_code_int = 130  # synthetic "killed"
                             break
+
                         if items:
                             # pick the newest pod if multiple (e.g., retries)
-                            items.sort(key=lambda i: i.get("metadata", {}).get("creationTimestamp", ""), reverse=True)
+                            items.sort(
+                                key=lambda i: i.get("metadata", {}).get("creationTimestamp", ""),
+                                reverse=True
+                            )
                             pod = items[0]
                             last_pod_name = pod["metadata"]["name"]
                             phase = pod.get("status", {}).get("phase")
-
-                            # -Append logs periodically while running (best-effort) ---
-                            # Only while pod is not yet terminal.
                             now = time.time()
+
+                            # Watchdog bookkeeping (handles "stuck ContainerCreating/Pending") ---
+                            pod_uid = pod.get("metadata", {}).get("uid")
+                            if first_seen_pod_ts is None:
+                                first_seen_pod_ts = now
+
+                            # If we switched to a different pod (rare but possible), reset pending timers
+                            if pod_uid and pod_uid != last_seen_pod_uid:
+                                last_seen_pod_uid = pod_uid
+                                pending_since_ts = None
+
+                            # Detect "waiting reason" (image pull/mount/etc.) without needing describe
+                            waiting_reason = None
+                            waiting_message = None
+                            try:
+                                sts = pod.get("status", {}).get("containerStatuses", []) or []
+                                for cs in sts:
+                                    st = (cs.get("state") or {})
+                                    if "waiting" in st:
+                                        waiting_reason = st["waiting"].get("reason")
+                                        waiting_message = st["waiting"].get("message")
+                                        break
+                            except Exception:
+                                pass
+
+                            # Also catch FailedMount via events (describe) only when needed.
+                            # We only do describe if we're stuck long enough OR reason looks terminal.
+                            is_non_terminal = phase not in {"Succeeded", "Failed"}
+                            if is_non_terminal:
+                                if pending_since_ts is None:
+                                    pending_since_ts = now
+
+                                # Fast-fail on terminal waiting reasons
+                                if waiting_reason in TERMINAL_WAITING_REASONS:
+                                    try:
+                                        desc = _kubectl(["describe", "pod", last_pod_name], expect_success=False)
+                                        try:
+                                            with open(self.stderr_path, "a") as f:
+                                                f.write("\n\n=== kubectl describe pod (startup failure) ===\n")
+                                                f.write(desc.stdout or desc.stderr or "")
+                                        except Exception:
+                                            pass
+                                        self._log_error_summary(
+                                            f"K8s pod startup failed: pod={last_pod_name} reason={waiting_reason} msg={waiting_message or 'NA'}",
+                                            type_text="K8sStartup"
+                                        )
+                                    except Exception:
+                                        pass
+                                    exit_code_int = 1
+                                    break
+
+                                # Timeout if stuck too long
+                                if pending_since_ts and (now - pending_since_ts) >= pod_start_timeout_sec:
+                                    # Describe gives the real reason (e.g., FailedMount)
+                                    try:
+                                        desc = _kubectl(["describe", "pod", last_pod_name], expect_success=False)
+                                        try:
+                                            with open(self.stderr_path, "a") as f:
+                                                f.write("\n\n=== kubectl describe pod (startup timeout) ===\n")
+                                                f.write(desc.stdout or desc.stderr or "")
+                                        except Exception:
+                                            pass
+                                        self._log_error_summary(
+                                            f"K8s pod startup timeout after {pod_start_timeout_sec}s: pod={last_pod_name} phase={phase} reason={waiting_reason or 'NA'}",
+                                            type_text="K8sStartup"
+                                        )
+                                    except Exception:
+                                        pass
+                                    exit_code_int = 1
+                                    break
+
+                            # --- Existing: periodic log append while running (best-effort) ---
                             if (
                                 last_pod_name
                                 and phase not in {"Succeeded", "Failed"}
@@ -414,8 +509,10 @@ def _execute_kubernetes(self):
                             ):
                                 last_log_pull_ts = now
                                 try:
-                                    # Use --since to only fetch recent logs
-                                    lres = _kubectl(["logs", last_pod_name, f"--since={since_window_sec}s"], expect_success=False)
+                                    lres = _kubectl(
+                                        ["logs", last_pod_name, f"--since={since_window_sec}s"],
+                                        expect_success=False
+                                    )
                                     if lres.stdout:
                                         with open(self.stdout_path, "a") as f:
                                             f.write(lres.stdout)
@@ -423,8 +520,8 @@ def _execute_kubernetes(self):
                                 except Exception:
                                     pass
 
+                            # Terminal handling (Succeeded/Failed) ---
                             if phase in {"Succeeded", "Failed"}:
-                                # Decide logs command (single container => no -c needed)
                                 logs_args = ["logs", last_pod_name]
                                 try:
                                     containers = pod.get("spec", {}).get("containers", []) or []
@@ -432,7 +529,7 @@ def _execute_kubernetes(self):
                                         if any(c.get("name") == selected_container for c in containers):
                                             logs_args += ["-c", selected_container]
                                         elif len(containers) == 1:
-                                            pass  # omit -c for single container
+                                            pass
                                         else:
                                             logs_args += ["-c", containers[0].get("name")]
                                     else:
@@ -445,7 +542,6 @@ def _execute_kubernetes(self):
 
                                 out = _kubectl(logs_args)
 
-                                # Write container logs (stdout). kubectl client errors (if any) go to stderr.
                                 try:
                                     with open(self.stdout_path, "w") as f:
                                         f.write(out.stdout or "")
@@ -458,7 +554,6 @@ def _execute_kubernetes(self):
                                     except Exception:
                                         pass
 
-                                # Exit code from container status
                                 sts = pod.get("status", {}).get("containerStatuses", []) or []
                                 chosen = None
                                 if selected_container:
@@ -479,7 +574,6 @@ def _execute_kubernetes(self):
                                     f"[K8s] Job {job_id} {state_txt} (pod={last_pod_name}, exit={exit_code_int})"
                                 )
 
-                                # Pod describe in failure
                                 if exit_code_int != 0 and last_pod_name:
                                     try:
                                         desc = _kubectl(["describe", "pod", last_pod_name])
@@ -489,7 +583,6 @@ def _execute_kubernetes(self):
                                     except Exception:
                                         pass
 
-                                # Record the failure summary
                                 if exit_code_int != 0:
                                     try:
                                         term = ((chosen or {}).get("state", {}) or {}).get("terminated", {}) or {}
