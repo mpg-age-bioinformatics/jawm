@@ -389,9 +389,14 @@ def _execute_kubernetes(self):
 
             # Startup watchdog to avoid hanging forever in Pending/ContainerCreating ---
             try:
-                pod_start_timeout_sec = int(os.environ.get("JAWM_K8S_POD_START_TIMEOUT", "600"))  # 10 min default
+                pod_create_timeout_sec = int(os.environ.get("JAWM_K8S_POD_CREATE_TIMEOUT", "300"))  # 5 min default
             except Exception:
-                pod_start_timeout_sec = 600
+                pod_create_timeout_sec = 300
+            
+            try:
+                pod_start_timeout_sec = int(os.environ.get("JAWM_K8S_POD_START_TIMEOUT", "1200"))  # 20 min default
+            except Exception:
+                pod_start_timeout_sec = 1200
 
             first_seen_pod_ts = None
             pending_since_ts = None
@@ -424,8 +429,8 @@ def _execute_kubernetes(self):
                         # If job never creates a pod, don't hang forever ---
                         now = time.time()
                         if not items:
-                            if (now - start_watchdog_ts) >= pod_start_timeout_sec:
-                                msg = f"K8s pod was not created within {pod_start_timeout_sec}s for job={job_id}"
+                            if start_watchdog_ts is not None and (now - start_watchdog_ts) >= pod_create_timeout_sec:
+                                msg = f"K8s pod was not created within {pod_create_timeout_sec}s for job={job_id}"
                                 self.logger.error(f"{msg}{self._elog_path()}")
                                 self._log_error_summary(msg, type_text="K8sStartup")
 
@@ -453,6 +458,7 @@ def _execute_kubernetes(self):
 
                         if items:
                             # pick the newest pod if multiple (e.g., retries)
+                            start_watchdog_ts = None
                             items.sort(
                                 key=lambda i: i.get("metadata", {}).get("creationTimestamp", ""),
                                 reverse=True
