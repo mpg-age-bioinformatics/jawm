@@ -324,15 +324,13 @@ def _execute_kubernetes(self):
             cmd = ["kubectl", "apply", "-f", manifest_path]
             if getattr(self, "_k8s_namespace", None):
                 cmd.extend(["-n", self._k8s_namespace])
-            with open(command_path, "w") as cf:
-                cf.write(" ".join(shlex.quote(c) for c in cmd))
+            self._safe_write_file(command_path, " ".join(shlex.quote(c) for c in cmd))
             self.logger.info(f"Submitting process {self.name} with K8s command: {' '.join(cmd)}")
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
             # log apply output
             apply_log = os.path.join(self.log_path, f"{self.name}.kubectl_apply.log")
-            with open(apply_log, "w") as f:
-                f.write((res.stdout or "") + (("\n" + res.stderr) if res.stderr else ""))
+            self._safe_write_file(apply_log, (res.stdout or "") + (("\n" + res.stderr) if res.stderr else ""))
             if res.returncode != 0:
                 self._log_error_summary(self._tail_text(res.stderr), type_text="K8sKubectl")
                 self.logger.error(f"kubectl apply failed: {res.stderr.strip()}{self._elog_path()}")
@@ -341,8 +339,7 @@ def _execute_kubernetes(self):
             # Record job "id" as job name
             job_id = getattr(self, "_k8s_job_name", None)
             self.runtime_id = job_id
-            with open(id_path, "w") as f:
-                f.write(job_id or "")
+            self._safe_write_file(id_path, job_id or "")
             self._monitoring_running_file(job_id, manifest_path)
 
             # Poll job status; once finished, fetch pod exit code + logs
@@ -439,7 +436,6 @@ def _execute_kubernetes(self):
                                     # job describe often shows admission/quota/forbidden reasons
                                     jdesc = _kubectl(["describe", "job", job_id], expect_success=False)
                                     try:
-                                        os.makedirs(os.path.dirname(self.stderr_path), exist_ok=True)
                                         with open(self.stderr_path, "a") as f:
                                             f.write("\n\n=== kubectl describe job (no pod created) ===\n")
                                             f.write(jdesc.stdout or jdesc.stderr or "")
@@ -504,7 +500,6 @@ def _execute_kubernetes(self):
                                     try:
                                         desc = _kubectl(["describe", "pod", last_pod_name], expect_success=False)
                                         try:
-                                            os.makedirs(os.path.dirname(self.stderr_path), exist_ok=True)
                                             with open(self.stderr_path, "a") as f:
                                                 f.write("\n\n=== kubectl describe pod (startup failure) ===\n")
                                                 f.write(desc.stdout or desc.stderr or "")
@@ -525,7 +520,6 @@ def _execute_kubernetes(self):
                                     try:
                                         desc = _kubectl(["describe", "pod", last_pod_name], expect_success=False)
                                         try:
-                                            os.makedirs(os.path.dirname(self.stderr_path), exist_ok=True)
                                             with open(self.stderr_path, "a") as f:
                                                 f.write("\n\n=== kubectl describe pod (startup timeout) ===\n")
                                                 f.write(desc.stdout or desc.stderr or "")
@@ -582,14 +576,12 @@ def _execute_kubernetes(self):
                                 out = _kubectl(logs_args)
 
                                 try:
-                                    with open(self.stdout_path, "w") as f:
-                                        f.write(out.stdout or "")
+                                    self._safe_write_file(self.stdout_path, out.stdout or "")
                                 except Exception:
                                     pass
                                 if out.returncode != 0 or (out.stderr and out.stderr.strip()):
                                     try:
-                                        with open(self.stderr_path, "w") as f:
-                                            f.write(out.stderr or "")
+                                        self._safe_write_file(self.stderr_path, out.stderr or "")
                                     except Exception:
                                         pass
 
@@ -616,7 +608,6 @@ def _execute_kubernetes(self):
                                 if exit_code_int != 0 and last_pod_name:
                                     try:
                                         desc = _kubectl(["describe", "pod", last_pod_name])
-                                        os.makedirs(os.path.dirname(self.stderr_path), exist_ok=True)
                                         with open(self.stderr_path, "a") as f:
                                             f.write("\n\n=== kubectl describe pod ===\n")
                                             f.write(desc.stdout or desc.stderr or "")
@@ -662,8 +653,7 @@ def _execute_kubernetes(self):
 
             # Write exit code files and monitoring move
             try:
-                with open(exitcode_path, "w") as f:
-                    f.write(str(exit_code_int))
+                self._safe_write_file(exitcode_path, str(exit_code_int))
             except Exception:
                 pass
 
