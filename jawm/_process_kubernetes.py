@@ -396,6 +396,7 @@ def _execute_kubernetes(self):
             first_seen_pod_ts = None
             pending_since_ts = None
             last_seen_pod_uid = None
+            start_watchdog_ts = time.time()
 
             # Reasons that are almost always "won't recover without intervention"
             TERMINAL_WAITING_REASONS = {
@@ -419,6 +420,36 @@ def _execute_kubernetes(self):
                         if getattr(self, "_k8s_killed", False):
                             exit_code_int = 130  # synthetic "killed"
                             break
+
+                        # If job never creates a pod, don't hang forever ---
+                        now = time.time()
+                        if not items:
+                            if (now - start_watchdog_ts) >= pod_start_timeout_sec:
+                                msg = f"K8s pod was not created within {pod_start_timeout_sec}s for job={job_id}"
+                                self.logger.error(f"{msg}{self._elog_path()}")
+                                self._log_error_summary(msg, type_text="K8sStartup")
+
+                                # Optional: capture a bit more context (best-effort, cheap)
+                                try:
+                                    # job describe often shows admission/quota/forbidden reasons
+                                    jdesc = _kubectl(["describe", "job", job_id], expect_success=False)
+                                    try:
+                                        os.makedirs(os.path.dirname(self.stderr_path), exist_ok=True)
+                                        with open(self.stderr_path, "a") as f:
+                                            f.write("\n\n=== kubectl describe job (no pod created) ===\n")
+                                            f.write(jdesc.stdout or jdesc.stderr or "")
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
+
+                                exit_code_int = 1
+                                break
+
+                            # keep waiting
+                            time.sleep(10)
+                            elapsed_time += 10
+                            continue
 
                         if items:
                             # pick the newest pod if multiple (e.g., retries)
@@ -467,6 +498,7 @@ def _execute_kubernetes(self):
                                     try:
                                         desc = _kubectl(["describe", "pod", last_pod_name], expect_success=False)
                                         try:
+                                            os.makedirs(os.path.dirname(self.stderr_path), exist_ok=True)
                                             with open(self.stderr_path, "a") as f:
                                                 f.write("\n\n=== kubectl describe pod (startup failure) ===\n")
                                                 f.write(desc.stdout or desc.stderr or "")
@@ -487,6 +519,7 @@ def _execute_kubernetes(self):
                                     try:
                                         desc = _kubectl(["describe", "pod", last_pod_name], expect_success=False)
                                         try:
+                                            os.makedirs(os.path.dirname(self.stderr_path), exist_ok=True)
                                             with open(self.stderr_path, "a") as f:
                                                 f.write("\n\n=== kubectl describe pod (startup timeout) ===\n")
                                                 f.write(desc.stdout or desc.stderr or "")
@@ -577,6 +610,7 @@ def _execute_kubernetes(self):
                                 if exit_code_int != 0 and last_pod_name:
                                     try:
                                         desc = _kubectl(["describe", "pod", last_pod_name])
+                                        os.makedirs(os.path.dirname(self.stderr_path), exist_ok=True)
                                         with open(self.stderr_path, "a") as f:
                                             f.write("\n\n=== kubectl describe pod ===\n")
                                             f.write(desc.stdout or desc.stderr or "")
