@@ -714,6 +714,13 @@ def _execute_kubernetes(self):
                         return
             except Exception as e:
                 self._proc_exception_handler(e, location="monitoring", type_text="K8sError")
+                return
+            finally:
+                try:
+                    if not self.finished_event.is_set():
+                        self.finished_event.set()
+                except Exception:
+                    pass
 
         self._monitor_thread = threading.Thread(target=monitor_process, daemon=False)
         self._monitor_thread.start()
