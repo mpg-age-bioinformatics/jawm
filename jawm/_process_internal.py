@@ -654,6 +654,10 @@ def _monitoring_completed_file(self, job_id, script_path, exit_code):
             running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
             completed_file_path = os.path.join(self.completed_directory, f"{self.manager}.{job_id}.{exit_code}.txt")
 
+            # If already completed, do nothing (idempotent)
+            if os.path.exists(completed_file_path):
+                return
+
             # Remove the running file if it exists
             if os.path.exists(running_file_path):
                 os.remove(running_file_path)
