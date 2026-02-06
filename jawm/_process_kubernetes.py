@@ -34,7 +34,7 @@ def _k8s_sanitize_label(self, s, max_len=60, fallback_suffix="jawm-process"):
 
 
 @register
-def _generate_k8s_manifest(self):
+def _generate_k8s_manifest(self, attempt_i=None):
     """
     Build a K8s Job manifest for this Process and write it to <log_path>/<name>.k8s.json.
     Returns the manifest path.
@@ -147,6 +147,9 @@ def _generate_k8s_manifest(self):
         "jawm-hash": lbl_hash,
         **labels_extra
     }
+
+    if attempt_i is not None:
+        labels_block["jawm-attempt"] = str(attempt_i)
 
     # ConfigMap-backed script
     script_cm_name = self._k8s_sanitize_label(
@@ -293,32 +296,25 @@ def _execute_kubernetes(self):
         command_path = os.path.join(self.log_path, f"{self.name}.command")
 
         def run_once(attempt_i, total_attempts):
-            manifest_path = self._generate_k8s_manifest()
-
-            # Ensure a fresh Job for this attempt (applicable for retry)
+            # Delete previous attempt artifacts first (applicable for retry)
             if attempt_i != 1:
-                self.logger.info(
-                    f"Launching K8s attempt {attempt_i}/{total_attempts}: clearing previous job {getattr(self, '_k8s_job_name', '')}"
-                )
-                del_cmd = [
-                    "kubectl",
-                    "delete",
-                    "job",
-                    (getattr(self, "_k8s_job_name", "") or ""),
-                    "--ignore-not-found=true",
-                    "--wait=true",
-                ]
-                if getattr(self, "_k8s_namespace", None):
-                    del_cmd.extend(["-n", self._k8s_namespace])
-                subprocess.run(del_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                prev_job = getattr(self, "_k8s_job_name", None)
+                prev_cm  = getattr(self, "_k8s_script_cm_name", None)
+                prev_ns  = getattr(self, "_k8s_namespace", None)
 
-                # Also clean up previous script ConfigMap (best-effort)
-                cm = getattr(self, "_k8s_script_cm_name", None)
-                if cm:
-                    del_cm_cmd = ["kubectl", "delete", "configmap", cm, "--ignore-not-found=true"]
-                    if getattr(self, "_k8s_namespace", None):
-                        del_cm_cmd.extend(["-n", self._k8s_namespace])
+                if prev_job:
+                    del_cmd = ["kubectl", "delete", "job", prev_job, "--ignore-not-found=true", "--wait=true"]
+                    if prev_ns:
+                        del_cmd += ["-n", prev_ns]
+                    subprocess.run(del_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+                if prev_cm:
+                    del_cm_cmd = ["kubectl", "delete", "configmap", prev_cm, "--ignore-not-found=true"]
+                    if prev_ns:
+                        del_cm_cmd += ["-n", prev_ns]
                     subprocess.run(del_cm_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            
+            manifest_path = self._generate_k8s_manifest(attempt_i=attempt_i)
 
             # kubectl apply
             cmd = ["kubectl", "apply", "-f", manifest_path]
@@ -412,7 +408,10 @@ def _execute_kubernetes(self):
             }
 
             while True:
-                pods = _kubectl(["get", "pods", "-l", f"job-name={job_id}", "-o", "json"])
+                sel = f"job-name={job_id}"
+                if attempt_i is not None:
+                    sel += f",jawm-attempt={attempt_i}"
+                pods = _kubectl(["get", "pods", "-l", sel, "-o", "json"])
                 if pods.returncode == 0:
                     try:
                         data = json.loads(pods.stdout)
