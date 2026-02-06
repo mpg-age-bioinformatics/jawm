@@ -860,7 +860,7 @@ class Process:
             return False
 
         runtime_id = proc.runtime_id
-        if not runtime_id:
+        if not runtime_id and proc.manager != "kubernetes":
             cls.logger_kill.info(f"{proc.name}|{proc.hash} :: Process has no recorded PID or job ID.")
             return False
 
@@ -902,20 +902,41 @@ class Process:
         elif proc.manager == "kubernetes":
             proc._k8s_killed = True
             ns = getattr(proc, "_k8s_namespace", None)
-            job = str(runtime_id)
-            killed, error_message = False, None
-            k = lambda *a: subprocess.run(["kubectl"] + (["-n", ns] if ns else []) + list(a),
-                                        capture_output=True, text=True)
-            k("delete", "job", job, "--force", "--grace-period=0", "--ignore-not-found=true", "--wait=false")
-            k("delete", "pod", "-l", f"job-name={job}", "--force", "--grace-period=0", "--ignore-not-found=true")
-            deadline = time.time() + 30
-            while time.time() < deadline:
-                r = k("get", "pods", "-l", f"job-name={job}", "-o", "json")
-                items = (json.loads(r.stdout or "{}").get("items", []) if r.returncode == 0 else [])
-                if not items: killed = True; break
-                time.sleep(2)
-            if not killed:
-                error_message = f"Timed out waiting for Kubernetes pods of job {job} to terminate."
+
+            # Fallback if runtime_id not set yet: delete by labels
+            if not runtime_id:
+                try:
+                    k = lambda *a: subprocess.run(["kubectl"] + (["-n", ns] if ns else []) + list(a), capture_output=True, text=True)
+                    sel = (
+                        f"jawm-hash={proc._k8s_sanitize_label(proc.hash)},"
+                        f"jawm-name={proc._k8s_sanitize_label(proc.name)}"
+                    )
+                    k("delete", "job", "-l", sel, "--ignore-not-found=true", "--wait=false")
+                    k("delete", "configmap", "-l", sel, "--ignore-not-found=true")
+                    k("delete", "pod", "-l", sel, "--ignore-not-found=true", "--wait=false", "--force", "--grace-period=0")
+                    # We can’t reliably confirm pod deletion without a job-name, but this is best-effort.
+                    killed = True
+                    error_message = None
+                except Exception as e:
+                    error_message = f"Kubernetes fallback kill failed: {e}"
+
+            else:
+                job = str(runtime_id)
+                killed, error_message = False, None
+                k = lambda *a: subprocess.run(["kubectl"] + (["-n", ns] if ns else []) + list(a),
+                                              capture_output=True, text=True)
+                k("delete", "job", job, "--force", "--grace-period=0", "--ignore-not-found=true", "--wait=false")
+                k("delete", "pod", "-l", f"job-name={job}", "--force", "--grace-period=0", "--ignore-not-found=true")
+                deadline = time.time() + 30
+                while time.time() < deadline:
+                    r = k("get", "pods", "-l", f"job-name={job}", "-o", "json")
+                    items = (json.loads(r.stdout or "{}").get("items", []) if r.returncode == 0 else [])
+                    if not items:
+                        killed = True
+                        break
+                    time.sleep(2)
+                if not killed:
+                    error_message = f"Timed out waiting for Kubernetes pods of job {job} to terminate."
 
         else:
             error_message = f"Unsupported manager '{proc.manager}' for killing."
