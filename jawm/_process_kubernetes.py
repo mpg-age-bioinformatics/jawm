@@ -719,4 +719,14 @@ def _execute_kubernetes(self):
         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.finished_event.set()
         self.stop_future_event.set()
+        # Best-effort: move Running -> Completed only if a running marker exists
+        try:
+            job_id = getattr(self, "_k8s_job_name", None)
+            if job_id and getattr(self, "running_directory", None) and getattr(self, "completed_directory", None):
+                running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
+                if os.path.exists(running_file_path):
+                    script_path = os.path.join(self.log_path, f"{self.name}.k8s.json")
+                    self._monitoring_completed_file(job_id, script_path, 1)
+        except Exception:
+            pass
         return
