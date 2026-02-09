@@ -59,6 +59,14 @@ def execute(self, depends_on=None):
         # Startup throttling delay for parallel execution by default
         self._throttle_delay()
 
+        # Warning on overlapping rerun
+        try:
+            m = getattr(self, "_monitor_thread", None)
+            if m and m.is_alive() and not self.finished_event.is_set():
+                self.logger.warning(f"Process execute() called while an excution of the same Process is already running. If unintended, this may start a concurrent run and mix logs/outputs.")
+        except Exception:
+            pass
+
         # Make the process active by clearing finished_event in case of instance re-use
         self.finished_event.clear()
 
