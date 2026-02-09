@@ -43,6 +43,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
 
     os.makedirs(self.log_path, exist_ok=True)
     manifest_path = os.path.join(self.log_path, f"{self.name}.k8s.json")
+    self._manifest_path = manifest_path
 
     # 1) Read the base script content
     base_script_path = self._generate_base_script()
@@ -721,11 +722,11 @@ def _execute_kubernetes(self):
         self.stop_future_event.set()
         # Best-effort: move Running -> Completed only if a running marker exists
         try:
-            job_id = getattr(self, "_k8s_job_name", None)
+            job_id = getattr(self, "runtime_id", None)
             if job_id and getattr(self, "running_directory", None) and getattr(self, "completed_directory", None):
                 running_file_path = os.path.join(self.running_directory, f"{self.manager}.{job_id}.txt")
                 if os.path.exists(running_file_path):
-                    script_path = os.path.join(self.log_path, f"{self.name}.k8s.json")
+                    script_path = getattr(self, "_manifest_path", None) or "NA"
                     self._monitoring_completed_file(job_id, script_path, 1)
         except Exception:
             pass

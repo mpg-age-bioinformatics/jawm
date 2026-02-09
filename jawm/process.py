@@ -121,7 +121,7 @@ class Process:
         "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
         "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed", "_mk_dirs_created",
-        "_init_done", "_touched_params", "_script_type"
+        "_init_done", "_touched_params", "_script_type", "_manifest_path"
     }
     # Supported managers by the jawm
     supported_managers = {"local", "slurm", "kubernetes"}
@@ -964,6 +964,19 @@ class Process:
             # Mark finished so Process.wait() unblocks
             proc.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
             proc.finished_event.set()
+
+            # Best-effort: move Running -> Completed (fast, non-blocking)
+            try:
+                rd = getattr(proc, "running_directory", None)
+                cd = getattr(proc, "completed_directory", None)
+                job_id = getattr(proc, "runtime_id", None)
+                if rd and cd and job_id:
+                    running_file = os.path.join(rd, f"{proc.manager}.{job_id}.txt")
+                    if os.path.exists(running_file):
+                        script_path = getattr(proc, "_manifest_path", None) or getattr(proc, "base_script_path", None) or "NA"
+                        proc._monitoring_completed_file(job_id, script_path, 130)
+            except Exception:
+                pass
 
             cls.logger_kill.info(f"{proc.name}|{proc.hash} :: Process (ID: {runtime_id}) killed successfully.")
             return True
