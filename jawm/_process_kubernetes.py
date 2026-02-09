@@ -303,8 +303,8 @@ def _execute_kubernetes(self):
 
         def run_once(attempt_i, total_attempts):
             # Delete previous attempt artifacts first (applicable for retry)
-            if attempt_i != 1:
-                prev_job = getattr(self, "_k8s_job_name", None)
+            if attempt_i != 1 or getattr(self, "runtime_id", None):
+                prev_job = getattr(self, "_k8s_job_name", None) or getattr(self, "runtime_id", None)
                 prev_cm  = getattr(self, "_k8s_script_cm_name", None)
                 prev_ns  = getattr(self, "_k8s_namespace", None)
 
