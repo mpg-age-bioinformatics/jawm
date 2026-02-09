@@ -99,7 +99,27 @@ def _generate_k8s_manifest(self, attempt_i=None):
     volumeMounts = mk.pop("volumeMounts", None)
 
     # --- Auto-add hostPath volumes/mounts for mk./map. (RW default) ---
-    auto = self._auto_mounts_from_vars() if getattr(self, "automated_mount", True) else []
+    # K8s automount: default OFF unless explicitly enabled.
+    # Enable via manager_kubernetes={"automated_mount": True} or env JAWM_K8S_AUTOMOUNT=1
+    automount_enabled = mk.pop(
+        "automated_mount",
+        os.environ.get("JAWM_K8S_AUTOMOUNT", "0").strip().lower() in ("1", "true", "yes", "on")
+    )
+
+    auto = []
+    if automount_enabled:
+        auto = self._auto_mounts_from_vars()
+    else:
+        # Best-effort warning only if mk./map. variables exist that would require mounts
+        try:
+            would_mount = self._auto_mounts_from_vars()
+            if would_mount:
+                self.logger.warning(
+                    "Kubernetes automount is disabled . `mk./map.` paths will NOT be mounted into the pod. "
+                    "Can enable with manager_kubernetes={'automated_mount': True} or setting JAWM_K8S_AUTOMOUNT=1"
+                )
+        except Exception:
+            pass
 
     def _vol_name(path):
         base = os.path.basename(path) or "root"
