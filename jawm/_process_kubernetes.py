@@ -15,21 +15,26 @@ register = register_method(__methods__)
 
 
 @register
-def _k8s_sanitize_label(self, s, max_len=60, fallback_suffix="jawm-process"):
+def _k8s_sanitize_label(self, s, max_len=60, fallback_suffix="jawm-process", tail=10):
     """
     Simple RFC1123-style sanitizer for K8s names/labels:
     - lowercase
     - keep only [a-z0-9-]  (strict; underscores/dots become '-')
     - collapse consecutive '-'
     - trim leading/trailing '-'
-    - truncate to max_len (default 50)
+    - truncate to max_len with keeping the tail
     - never return empty
     """
     s = (s or "").lower()
     s = re.sub(r"[^a-z0-9-]+", "-", s)   # replace illegal chars with '-'
     s = re.sub(r"-{2,}", "-", s)         # collapse multiple dashes
     s = s.strip("-")                     # must start/end alnum
-    s = s[:max_len]
+    if len(s) > max_len:
+        if max_len <= tail:
+            s = s[-max_len:]
+        else:
+            # keep tail (hash) and truncate head to fit, with a '-' separator
+            s = (s[: max_len - (tail + 1)].rstrip("-") + "-" + s[-tail:]).strip("-")
     return s or f"{fallback_suffix}-{self.hash}"
 
 
