@@ -1156,9 +1156,9 @@ cat {{map.infile}}
             assert pA.get_exitcode().startswith("0"), "❌ Apptainer auto-mount failed"
             ran = True
 
-    if utils.kubernetes_available():
+    if utils.kubernetes_available() and p_local_true.manager=="kubernetes":
         print("   [kubernetes] generating manifest...")
-        pK = Process(**{**common, "manager": "kubernetes", "container": "ubuntu:22.04"})
+        pK = Process(**{**common, "manager": "kubernetes", "manager_kubernetes": {"automated_mount": True}, "container": "ubuntu:22.04"})
         manifest_path = pK._generate_k8s_manifest()
         assert os.path.exists(manifest_path), "❌ K8s manifest not created"
         with open(manifest_path) as f:
