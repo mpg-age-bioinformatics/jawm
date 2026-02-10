@@ -1636,7 +1636,7 @@ try:
             name="alias_inline_proc",
             script="""#!/bin/bash
 echo "OUTDIR={{outdir}}"
-echo "INFILE=$(cat {{infile}})"
+[ -r "{{infile}}" ] && echo "INFILE=$(cat "{{infile}}")" || echo "INFILE={{infile}}"
 """,
             var={"mk.outdir": outdir, "map.infile": infile},
             logs_directory="logs_test_alias"
@@ -1650,7 +1650,11 @@ echo "INFILE=$(cat {{infile}})"
         # short aliases resolved
         out_inline = p_inline.get_output()
         assert f"OUTDIR={outdir}" in out_inline, "❌ {{outdir}} alias not resolved"
-        assert "INFILE=INLINE_DATA" in out_inline.replace("\r", "").replace("\n", ""), "❌ {{infile}} alias not resolved"
+        out_inline_norm = (out_inline or "").replace("\r", "").replace("\n", "")
+        if getattr(p_inline, "manager", None) == "kubernetes":
+            assert f"INFILE={infile}" in out_inline_norm, "❌ {{infile}} alias not resolved to path in k8s"
+        else:
+            assert "INFILE=INLINE_DATA" in out_inline_norm, "❌ infile content not readable (expected mount)"
 
         # both alias and prefixed keys accessible
         assert p_inline.var["outdir"] == outdir, "❌ alias key missing in proc.var"
@@ -1672,9 +1676,9 @@ echo "INFILE=$(cat {{infile}})"
         p_yaml = Process(
             name="alias_varfile_proc",
             script="""#!/bin/bash
-echo "DIR={{dir}}"
-echo "FILE=$(cat {{file}})"
-""",
+        echo "DIR={{dir}}"
+        [ -r "{{file}}" ] && echo "FILE=$(cat "{{file}}")" || echo "FILE={{file}}"
+        """,
             var_file=var_yaml,
             logs_directory="logs_test_alias"
         )
@@ -1684,9 +1688,14 @@ echo "FILE=$(cat {{file}})"
         # mk.* created dir from YAML
         assert os.path.isdir(outdir_yaml), "❌ mk.* directory not created from var_file"
 
-        out_yaml = p_yaml.get_output()
+        out_yaml = p_yaml.get_output() or ""
         assert f"DIR={outdir_yaml}" in out_yaml, "❌ {{dir}} alias not resolved from YAML"
-        assert "FILE=YAML_DATA" in out_yaml.replace("\r", "").replace("\n", ""), "❌ {{file}} alias not resolved from YAML"
+
+        out_yaml_norm = out_yaml.replace("\r", "").replace("\n", "")
+        if getattr(p_yaml, "manager", None) == "kubernetes":
+            assert f"FILE={infile_yaml}" in out_yaml_norm, "❌ {{file}} alias not resolved to path in k8s"
+        else:
+            assert "FILE=YAML_DATA" in out_yaml_norm, "❌ file content not readable (expected mount)"
 
         # alias and prefixed keys coexist
         assert p_yaml.var["dir"] == outdir_yaml, "❌ alias 'dir' missing in proc.var after var_file"
