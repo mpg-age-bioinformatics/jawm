@@ -1902,35 +1902,74 @@ try:
         script=f"""#!/bin/bash
 echo "MAP_START $(date +%s)"
 sleep 1
-echo "done" > {tmpdir}/marker.txt
+echo "done" > "{tmpdir}/marker.txt"
 echo "MAP_END $(date +%s)"
 """,
         logs_directory="logs_pfalse"
     )
     m.execute()
 
-    f = Process(
-        name="pfalse_flag",
-        script=f"""#!/bin/bash
+    # If kubernetes: marker file won't be visible across pods without shared storage,
+    # so don't fail on missing marker; validate ordering via timestamps instead.
+    if getattr(m, "manager", None) == "kubernetes":
+        flag_script = f"""#!/bin/bash
+set -euo pipefail
 echo "FLAG_START $(date +%s)"
 sleep 1
-if [ ! -f {tmpdir}/marker.txt ]; then
+if [ -f "{tmpdir}/marker.txt" ]; then
+  echo "MARKER_OK"
+else
+  echo "MARKER_MISSING"
+fi
+echo "FLAG_END $(date +%s)"
+exit 0
+"""
+    else:
+        # local/slurm: strict shared-FS requirement
+        flag_script = f"""#!/bin/bash
+set -euo pipefail
+echo "FLAG_START $(date +%s)"
+sleep 1
+if [ ! -f "{tmpdir}/marker.txt" ]; then
   echo "MARKER_MISSING"
   exit 2
 fi
+echo "MARKER_OK"
 echo "FLAG_END $(date +%s)"
-""",
+"""
+
+    f = Process(
+        name="pfalse_flag",
+        script=flag_script,
         logs_directory="logs_pfalse",
         parallel=False
     )
 
     t0 = time.time()
     f.execute(depends_on=m.hash)
-    t1 = time.time()
-    elapsed = t1 - t0
+    elapsed = time.time() - t0
 
+    # parallel=False should block caller until completion
     assert elapsed >= 0.8, f"❌ parallel=False did not block (elapsed={elapsed:.2f}s)"
+
+    # Ensure flag completed successfully
     assert f.get_exitcode().startswith("0"), "❌ flagstat failed"
+
+    # Validate dependency ordering (portable across all managers)
+    mout = (m.get_output() or "").replace("\r", "")
+    fout = (f.get_output() or "").replace("\r", "")
+
+    m_end = int([l.split()[-1] for l in mout.splitlines() if l.startswith("MAP_END")][0])
+    f_start = int([l.split()[-1] for l in fout.splitlines() if l.startswith("FLAG_START")][0])
+    assert f_start >= m_end, "❌ flag started before map ended"
+
+    # Strict shared-FS check only where it should work
+    if getattr(m, "manager", None) != "kubernetes":
+        assert "MARKER_OK" in fout, "❌ marker not readable (expected shared FS)"
+    else:
+        # In k8s without shared FS, missing is expected; we just ensure the check ran.
+        assert ("MARKER_OK" in fout) or ("MARKER_MISSING" in fout), "❌ marker check did not run"
+
     print(f"✅ Passed: parallel=False blocks caller (elapsed={elapsed:.2f}s)")
     passed += 1
 
