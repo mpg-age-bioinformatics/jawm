@@ -1812,20 +1812,23 @@ try:
 
     def mapping_script(i, root):
         return f"""#!/bin/bash
+set -euo pipefail
 echo "M_START {i} $(date +%s)"
 sleep {mapping_sleep}
-echo "done" > "{root}/done_{i}.txt"
+echo "done" > "{root}/done_{i}.txt" || true
 echo "M_END {i} $(date +%s)"
 """
 
     def flagstat_script(i, root):
+        # NOTE: On k8s, root is not shared across pods unless a shared volume is mounted.
         return f"""#!/bin/bash
+set -euo pipefail
 echo "F_START {i} $(date +%s)"
-if [ ! -f "{root}/done_{i}.txt" ]; then
+if [ -f "{root}/done_{i}.txt" ]; then
+  cat "{root}/done_{i}.txt"
+else
   echo "MARKER_MISSING {i}"
-  exit 2
 fi
-cat "{root}/done_{i}.txt"
 echo "F_END {i} $(date +%s)"
 """
 
@@ -1854,11 +1857,31 @@ echo "F_END {i} $(date +%s)"
 
     Process.wait([p.hash for p in (mappings + flagstats)])
 
-    # Validate all succeeded and marker files were read
+    def _ts(lines, prefix):
+        for l in lines:
+            if l.startswith(prefix):
+                return int(l.split()[-1])
+        raise AssertionError(f"missing timestamp line: {prefix}")
+
     for i, (m, f) in enumerate(zip(mappings, flagstats), start=1):
         assert m.get_exitcode().startswith("0"), f"❌ mapping_{i} failed"
         assert f.get_exitcode().startswith("0"), f"❌ flagstat_{i} failed"
-        assert "done" in (f.get_output() or ""), f"❌ flagstat_{i} missing marker"
+
+        mout = (m.get_output() or "").replace("\r", "").splitlines()
+        fout = (f.get_output() or "").replace("\r", "").splitlines()
+
+        m_end = _ts(mout, f"M_END {i}")
+        f_start = _ts(fout, f"F_START {i}")
+        assert f_start >= m_end, f"❌ flagstat_{i} started before mapping_{i} ended"
+
+        if getattr(m, "manager", None) == "kubernetes":
+            # No shared FS expected (unless you mount one). Marker may be missing.
+            assert any(l.startswith(f"MARKER_MISSING {i}") or l.strip() == "done" for l in fout), (
+                f"❌ expected MARKER_MISSING {i} (or done) in k8s output"
+            )
+        else:
+            # local/slurm expect shared FS => marker must be readable
+            assert any(l.strip() == "done" for l in fout), f"❌ flagstat_{i} missing marker content"
 
     print(f"✅ Passed: Non-blocking deps (parallel=True). Schedule time={schedule_elapsed:.2f}s")
     passed += 1
