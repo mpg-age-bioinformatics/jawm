@@ -98,6 +98,76 @@ def _generate_k8s_manifest(self, attempt_i=None):
     volumes = mk.pop("volumes", None)
     volumeMounts = mk.pop("volumeMounts", None)
 
+    # ---------------------------
+    # Helpers: merge + env + naming
+    # ---------------------------
+    def _merge_env(env_list, name, value):
+        if value is None:
+            return env_list
+        for e in env_list:
+            if e.get("name") == name:
+                e["value"] = str(value)
+                return env_list
+        env_list.append({"name": name, "value": str(value)})
+        return env_list
+
+    def _safe_vol_name(prefix, raw):
+        # <=60 chars, k8s-safe
+        return self._k8s_sanitize_label(f"{prefix}-{raw}", max_len=60, fallback_suffix=prefix)
+
+    def _merge_vols(existing, extras):
+        existing = existing or []
+        # Uniqueness key includes PVC claimName if present; hostPath path if present
+        def _key(v):
+            return (
+                v.get("name"),
+                (v.get("persistentVolumeClaim") or {}).get("claimName"),
+                (v.get("hostPath") or {}).get("path"),
+                (v.get("configMap") or {}).get("name"),
+            )
+        seen = {_key(v) for v in existing}
+        for v in extras:
+            k = _key(v)
+            if k not in seen:
+                existing.append(v)
+                seen.add(k)
+        return existing
+
+    def _merge_mounts(existing, extras):
+        existing = existing or []
+        def _key(m):
+            return (m.get("name"), m.get("mountPath"), m.get("subPath"))
+        seen = {_key(m) for m in existing}
+        for m in extras:
+            k = _key(m)
+            if k not in seen:
+                existing.append(m)
+                seen.add(k)
+        return existing
+
+    def _add_pvc_mount(*, vol_name, claim_name, mount_path, read_only=False, sub_path=None):
+        nonlocal volumes, volumeMounts
+        if not claim_name or not mount_path:
+            return
+
+        v = {
+            "name": vol_name,
+            "persistentVolumeClaim": {
+                "claimName": claim_name,
+                "readOnly": bool(read_only),
+            }
+        }
+        m = {
+            "name": vol_name,
+            "mountPath": mount_path,
+            "readOnly": bool(read_only),
+        }
+        if sub_path:
+            m["subPath"] = sub_path
+
+        volumes = _merge_vols(volumes, [v])
+        volumeMounts = _merge_mounts(volumeMounts, [m])
+
     # --- Auto-add hostPath volumes/mounts for mk./map. (RW default) ---
     # K8s automount: default OFF unless explicitly enabled.
     # Enable via manager_kubernetes={"automated_mount": True} or env JAWM_K8S_AUTOMOUNT=1
@@ -132,24 +202,6 @@ def _generate_k8s_manifest(self, attempt_i=None):
         vtype = "DirectoryOrCreate" if m["kind"] == "mk" else "Directory"
         auto_vols.append({"name": name, "hostPath": {"path": m["src"], "type": vtype}})
         auto_mounts.append({"name": name, "mountPath": m["dst"]})  # RW default
-
-    def _merge_vols(existing, extras):
-        existing = existing or []
-        seen = {(v.get("name"), (v.get("hostPath") or {}).get("path")) for v in existing}
-        for v in extras:
-            key = (v.get("name"), (v.get("hostPath") or {}).get("path"))
-            if key not in seen:
-                existing.append(v); seen.add(key)
-        return existing
-
-    def _merge_mounts(existing, extras):
-        existing = existing or []
-        seen = {(m.get("name"), m.get("mountPath")) for m in existing}
-        for mm in extras:
-            key = (mm.get("name"), mm.get("mountPath"))
-            if key not in seen:
-                existing.append(mm); seen.add(key)
-        return existing
 
     volumeMounts = _merge_mounts(volumeMounts, auto_mounts)
     volumes = _merge_vols(volumes, auto_vols)
@@ -248,6 +300,82 @@ def _generate_k8s_manifest(self, attempt_i=None):
         f'|| exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
     ]
 
+    # ---------------------------
+    # Phase 1: workspace + mounts (PVC)
+    # ---------------------------
+    init_containers = []
+
+    workspace = mk.pop("workspace", None)
+    mounts = mk.pop("mounts", None) or []
+
+    # Workspace: primary mount, exported as JAWM_WORKSPACE
+    if workspace:
+        if isinstance(workspace, str):
+            workspace = {"claimName": workspace}
+
+        if isinstance(workspace, dict):
+            ws_claim = workspace.get("claimName")
+            ws_mount = workspace.get("mountPath", "/work")
+            ws_sub   = workspace.get("subPath")
+            ws_ro    = bool(workspace.get("readOnly", False))
+            ws_mkdir = bool(workspace.get("mkdir", False))
+
+            ws_vol_name = _safe_vol_name("jawm-ws", ws_claim or "workspace")
+            _add_pvc_mount(
+                vol_name=ws_vol_name,
+                claim_name=ws_claim,
+                mount_path=ws_mount,
+                read_only=ws_ro,
+                sub_path=ws_sub
+            )
+
+            # Env for user scripts
+            env_list = _merge_env(env_list, "JAWM_WORKSPACE", ws_mount)
+
+            # Optional mkdir via initContainer (works for most RW PVCs)
+            if ws_mkdir and ws_ro:
+                self.logger.warning("workspace.mkdir=True ignored because workspace.readOnly=True")
+                ws_mkdir = False
+            if ws_mkdir:
+                # mkdir target: mountPath or mountPath/subPath
+                target = ws_mount.rstrip("/")
+                if ws_sub:
+                    target = f"{target}/{ws_sub.strip('/')}"
+                init_containers.append({
+                    "name": _safe_vol_name("jawm-mkdir", "workspace"),
+                    "image": "busybox:1.36",
+                    "command": ["sh", "-c", f"mkdir -p {shlex.quote(target)}"],
+                    "volumeMounts": [{
+                        "name": ws_vol_name,
+                        "mountPath": ws_mount,
+                        "readOnly": False,   # must be writable to mkdir
+                    }]
+                })
+
+    # Additional mounts list (currently only mode=pvc in Phase 1)
+    if mounts and isinstance(mounts, list):
+        for mm in mounts:
+            if not isinstance(mm, dict):
+                continue
+            mode = (mm.get("mode") or "pvc").lower()
+            if mode != "pvc":
+                continue  # Phase 1: only PVC mounts
+
+            name = mm.get("name") or "mount"
+            claim = mm.get("claimName")
+            mpath = mm.get("mountPath")
+            ro    = bool(mm.get("readOnly", False))
+            subp  = mm.get("subPath")
+
+            vol_name = _safe_vol_name("jawm-mnt", name)
+            _add_pvc_mount(
+                vol_name=vol_name,
+                claim_name=claim,
+                mount_path=mpath,
+                read_only=ro,
+                sub_path=subp
+            )
+
     # 5) Build the Job manifest (unchanged structure; only command/volumes/mounts changed)
     job = {
         "apiVersion": "batch/v1",
@@ -270,6 +398,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
                 },
                 "spec": {
                     "restartPolicy": restartPolicy,
+                    **({"initContainers": init_containers} if init_containers else {}),
                     **({"serviceAccountName": serviceAccountName} if serviceAccountName else {}),
                     "containers": [{
                         "name": container_name,
