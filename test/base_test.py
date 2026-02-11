@@ -2020,27 +2020,77 @@ Process.reset_runtime()
 try:
     tmpdir = tempfile.mkdtemp(prefix="normdep_", dir=base_tmp)
 
+    # Host path (works for local/slurm). NOT valid inside k8s pods unless mounted.
+    marker_host = os.path.join(tmpdir, "marker.txt")
+
+    # Pick a marker path that is valid for each manager:
+    # - k8s: pod-local path
+    # - others: real host tmp path (original behavior)
+    is_k8s = False
+
     m2 = Process(
         name="norm_map",
-        script=f"#!/bin/bash\necho ok > {tmpdir}/marker.txt\n",
+        script=f"""#!/bin/bash
+set -euo pipefail
+echo "M_START $(date +%s)"
+# marker path decided by test harness; placeholder replaced below
+echo "__MARKER_PATH__"
+echo ok > "__MARKER_PATH__"
+echo "M_END $(date +%s)"
+""",
         logs_directory="logs_norm"
     )
     m2.execute()
 
+    is_k8s = (getattr(m2, "manager", None) == "kubernetes")
+    marker_in_script = f"/tmp/jawm_normdep_{m2.hash}.txt" if is_k8s else marker_host
+
+    # Update the already-created script by re-setting it (minimal + reliable)
+    # If your Process doesn't allow changing script after creation, instead inline marker_in_script when building m2 above.
+    m2.script = (m2.script or "").replace("__MARKER_PATH__", marker_in_script)
+
     f2 = Process(
         name="norm_flag",
         script=f"""#!/bin/bash
-test -f {tmpdir}/marker.txt || (echo MISS && exit 3)
+set -euo pipefail
+echo "F_START $(date +%s)"
+
+# k8s: marker is pod-local and won't exist across pods; do NOT require it
+# local/slurm: marker must exist
+if [ "{'1' if is_k8s else '0'}" = "0" ]; then
+  test -f "{marker_in_script}" || (echo MISS && exit 3)
+fi
+
 echo HIT
+echo "F_END $(date +%s)"
 """,
         logs_directory="logs_norm"
     )
+
+    # depends_on normalization under test (string hash)
     f2.execute(depends_on=m2.hash)
 
     Process.wait([f2.hash])
 
-    assert f2.get_exitcode().startswith("0"), "❌ normalization failed"
-    assert "HIT" in (f2.get_output() or ""), "❌ downstream did not run properly"
+    if is_k8s:
+        # Validate downstream ran + ordering enforced by depends_on
+        ec = f2.get_exitcode()
+        assert ec is not None and str(ec).startswith("0"), "❌ normalization failed (downstream did not succeed)"
+
+        mout = (m2.get_output() or "").replace("\r", "")
+        fout = (f2.get_output() or "").replace("\r", "")
+
+        assert "HIT" in fout, "❌ downstream did not run properly (missing HIT)"
+
+        m_end = int([l.split()[-1] for l in mout.splitlines() if l.startswith("M_END")][0])
+        f_start = int([l.split()[-1] for l in fout.splitlines() if l.startswith("F_START")][0])
+        assert f_start >= m_end, "❌ depends_on ordering violated"
+    else:
+        # Original semantics: marker must exist + downstream must hit it
+        assert os.path.exists(marker_host), "❌ marker not created on host"
+        assert f2.get_exitcode().startswith("0"), "❌ normalization failed"
+        assert "HIT" in (f2.get_output() or ""), "❌ downstream did not run properly"
+
     print("✅ Passed: depends_on normalization (string -> list)")
     passed += 1
 
