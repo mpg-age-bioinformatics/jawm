@@ -319,6 +319,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
             ws_sub   = workspace.get("subPath")
             ws_ro    = bool(workspace.get("readOnly", False))
             ws_mkdir = bool(workspace.get("mkdir", False))
+            ws_logs  = bool(workspace.get("storeLogs", True))
 
             ws_vol_name = _safe_vol_name("jawm-ws", ws_claim or "workspace")
             _add_pvc_mount(
