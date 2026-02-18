@@ -168,6 +168,13 @@ def _generate_k8s_manifest(self, attempt_i=None):
         volumes = _merge_vols(volumes, [v])
         volumeMounts = _merge_mounts(volumeMounts, [m])
 
+    def _add_emptydir_mount(*, vol_name, mount_path):
+        nonlocal volumes, volumeMounts
+        v = {"name": vol_name, "emptyDir": {}}
+        m = {"name": vol_name, "mountPath": mount_path}
+        volumes = _merge_vols(volumes, [v])
+        volumeMounts = _merge_mounts(volumeMounts, [m])
+
     # --- Auto-add hostPath volumes/mounts for mk./map. (RW default) ---
     # K8s automount: default OFF unless explicitly enabled.
     # Enable via manager_kubernetes={"automated_mount": True} or env JAWM_K8S_AUTOMOUNT=1
@@ -233,7 +240,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
     script_cm_name = self._k8s_sanitize_label(
         f"{self.name}-{self.hash}-script",
         max_len=63,
-        fallback_suffix="jawm-script"
+        fallback_suffix="jawm-internal-script"
     )
 
     configmap = {
@@ -251,22 +258,22 @@ def _generate_k8s_manifest(self, attempt_i=None):
 
     # Add ConfigMap volume + mount
     script_volume = {
-        "name": "jawm-script",
+        "name": "jawm-internal-script",
         "configMap": {
             "name": script_cm_name,
             "defaultMode": 0o755
         }
     }
     script_mount = {
-        "name": "jawm-script",
-        "mountPath": "/jawm",
+        "name": "jawm-internal-script",
+        "mountPath": "/.jawm",
         "readOnly": True
     }
 
     volumeMounts = _merge_mounts(volumeMounts, [script_mount])
     volumes = _merge_vols(volumes, [script_volume])
 
-    # 1) Prepare the in-container command (now executes /jawm/script)
+    # 1) Prepare the in-container command (now executes /.jawm/script)
     cmd_parts = []
 
     # Optional host-level pre-hook (executed inside container in current design)
@@ -278,7 +285,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
         cmd_parts.append(self.container_before_script.strip())
 
     # Execute the mounted script (shebang respected)
-    cmd_parts.append("/jawm/script")
+    cmd_parts.append("/.jawm/script")
 
     # Container-level post-hook
     if self.container_after_script:
@@ -289,7 +296,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
         cmd_parts.append(self.after_script.strip())
 
     # Compose final strings for each shell
-    cmd_core = " && ".join(cmd_parts) if cmd_parts else "/jawm/script"
+    cmd_core = " && ".join(cmd_parts) if cmd_parts else "/.jawm/script"
     cmd_str_bash = f"set -euo pipefail && {cmd_core}"  # bash supports pipefail
     cmd_str_sh   = f"set -eu && {cmd_core}"            # sh does not; no -l here
 
@@ -308,6 +315,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
 
     workspace = mk.pop("workspace", None)
     mounts = mk.pop("mounts", None) or []
+    workspace_mounted = False
 
     # Workspace: primary mount, exported as JAWM_WORKSPACE
     if workspace:
@@ -323,37 +331,46 @@ def _generate_k8s_manifest(self, attempt_i=None):
             ws_logs = bool(workspace.get("storeLogs", True))
             ws_mount_for_workdir = ws_mount
 
-            ws_vol_name = _safe_vol_name("jawm-ws", ws_claim or "workspace")
-            _add_pvc_mount(
-                vol_name=ws_vol_name,
-                claim_name=ws_claim,
-                mount_path=ws_mount,
-                read_only=ws_ro,
-                sub_path=ws_sub
-            )
+            if ws_claim:
+                ws_vol_name = _safe_vol_name("jawm-ws", ws_claim or "workspace")
+                _add_pvc_mount(
+                    vol_name=ws_vol_name,
+                    claim_name=ws_claim,
+                    mount_path=ws_mount,
+                    read_only=ws_ro,
+                    sub_path=ws_sub
+                )
+                workspace_mounted = True
 
-            # Env for user scripts
-            env_list = _merge_env(env_list, "JAWM_WORKSPACE", ws_mount)
+                # Env for user scripts
+                env_list = _merge_env(env_list, "JAWM_WORKSPACE", ws_mount)
 
-            # Optional mkdir via initContainer (works for most RW PVCs)
-            if ws_mkdir and ws_ro:
-                self.logger.warning("workspace.mkdir=True ignored because workspace.readOnly=True")
-                ws_mkdir = False
-            if ws_mkdir:
-                # mkdir target: mountPath or mountPath/subPath
-                target = ws_mount.rstrip("/")
-                if ws_sub:
-                    target = f"{target}/{ws_sub.strip('/')}"
-                init_containers.append({
-                    "name": _safe_vol_name("jawm-mkdir", "workspace"),
-                    "image": "busybox:1.36",
-                    "command": ["sh", "-c", f"mkdir -p {shlex.quote(target)}"],
-                    "volumeMounts": [{
-                        "name": ws_vol_name,
-                        "mountPath": ws_mount,
-                        "readOnly": False,   # must be writable to mkdir
-                    }]
-                })
+                # Optional mkdir via initContainer (works for most RW PVCs)
+                if ws_mkdir and ws_ro:
+                    self.logger.warning("workspace.mkdir=True ignored because workspace.readOnly=True")
+                    ws_mkdir = False
+                if ws_mkdir:
+                    # mkdir target: mountPath or mountPath/subPath
+                    target = ws_mount.rstrip("/")
+                    if ws_sub:
+                        target = f"{target}/{ws_sub.strip('/')}"
+                    init_containers.append({
+                        "name": _safe_vol_name("jawm-mkdir", "workspace"),
+                        "image": "busybox:1.36",
+                        "command": ["sh", "-c", f"mkdir -p {shlex.quote(target)}"],
+                        "volumeMounts": [{
+                            "name": ws_vol_name,
+                            "mountPath": ws_mount,
+                            "readOnly": False,   # must be writable to mkdir
+                        }]
+                    })
+    
+    if not workspace_mounted:
+        # Default ephemeral workspace
+        ws_mount_for_workdir = "/work"
+        ed_vol_name = _safe_vol_name("jawm-ed", "workspace")
+        _add_emptydir_mount(vol_name=ed_vol_name, mount_path="/work")
+        env_list = _merge_env(env_list, "JAWM_WORKSPACE", "/work")
 
     # Additional mounts list (currently only mode=pvc in Phase 1)
     if mounts and isinstance(mounts, list):
