@@ -304,6 +304,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
     # Phase 1: workspace + mounts (PVC)
     # ---------------------------
     init_containers = []
+    ws_mount_for_workdir = None
 
     workspace = mk.pop("workspace", None)
     mounts = mk.pop("mounts", None) or []
@@ -316,10 +317,11 @@ def _generate_k8s_manifest(self, attempt_i=None):
         if isinstance(workspace, dict):
             ws_claim = workspace.get("claimName")
             ws_mount = workspace.get("mountPath", "/work")
-            ws_sub   = workspace.get("subPath")
-            ws_ro    = bool(workspace.get("readOnly", False))
+            ws_sub = workspace.get("subPath")
+            ws_ro = bool(workspace.get("readOnly", False))
             ws_mkdir = bool(workspace.get("mkdir", False))
-            ws_logs  = bool(workspace.get("storeLogs", True))
+            ws_logs = bool(workspace.get("storeLogs", True))
+            ws_mount_for_workdir = ws_mount
 
             ws_vol_name = _safe_vol_name("jawm-ws", ws_claim or "workspace")
             _add_pvc_mount(
@@ -406,6 +408,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
                         "image": image,
                         "env": env_list,
                         "command": container_command,
+                        **({"workingDir": ws_mount_for_workdir} if ws_mount_for_workdir else {}),
                         **({"resources": resources} if resources else {}),
                         **({"volumeMounts": volumeMounts} if volumeMounts else {})
                     }],
