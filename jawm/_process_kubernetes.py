@@ -289,7 +289,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
     cmd_parts.append(
         'd="${JAWM_RUN_LOG_DIR:-}";'
         's="/.jawm/script";'
-        f'n="{self.name}";'
+        f'n={shlex.quote(self.name)};'
         'if [ -n "$d" ]; then '
         'mkdir -p "$d" 2>/dev/null||true;'
         'cp "$s" "$d/$n.script" 2>/dev/null||true;'
