@@ -351,7 +351,7 @@ def _execute_slurm(self):
                     line = output.splitlines()[0]
                     _, state, exit_code = line.split()[:3]
                     state = state.strip().rstrip("+")
-                    final_states = {"COMPLETED", "FAILED", "CANCELLED", "BOOT_FAIL", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED", "DEADLINE", "SPECIAL_EXIT", "REVOKED"}
+                    final_states = {"COMPLETED", "FAILED", "CANCELLED", "BOOT_FAIL", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED", "DEADLINE", "SPECIAL_EXIT", "REVOKED", "LAUNCH_FAILED", "RECONFIG_FAIL"}
                     if elapsed_time % 600 == 0:
                         self.logger.info(f"Slurm job {job_id} state={state}, exit_code={exit_code}")
                     if any(state.startswith(s) for s in final_states):
