@@ -284,6 +284,14 @@ def _generate_k8s_manifest(self, attempt_i=None):
     if self.container_before_script:
         cmd_parts.append(self.container_before_script.strip())
 
+    # Best-effort: copy the executed script into the run log folder inside workspace
+    # Never fail the job if copy/mkdir fails (read-only PVC, permissions, etc.)
+    cmd_parts.append(
+        '(d="${JAWM_RUN_LOG_DIR:-}"; '
+        '[ -n "$d" ] && mkdir -p "$d" 2>/dev/null && '
+        f'cp "/.jawm/script" "$d/{self.name}.script" 2>/dev/null) || true'
+    )
+
     # Execute the mounted script (shebang respected)
     cmd_parts.append("/.jawm/script")
 
@@ -371,6 +379,13 @@ def _generate_k8s_manifest(self, attempt_i=None):
         ed_vol_name = _safe_vol_name("jawm-ed", "workspace")
         _add_emptydir_mount(vol_name=ed_vol_name, mount_path="/work")
         env_list = _merge_env(env_list, "JAWM_WORKSPACE", "/work")
+
+    # Get run log folder inside container workspace
+    logs_dir_base = os.path.basename(self.logs_directory or "logs")
+    run_dir_name = os.path.basename(self.log_path or f"{self.name}_{self.date_time}_{self.hash}")
+    # In-container run log directory
+    run_log_dir = f"{ws_mount_for_workdir.rstrip('/')}/{logs_dir_base}/{run_dir_name}"
+    env_list = _merge_env(env_list, "JAWM_RUN_LOG_DIR", run_log_dir)
 
     # Additional mounts list (currently only mode=pvc in Phase 1)
     if mounts and isinstance(mounts, list):
