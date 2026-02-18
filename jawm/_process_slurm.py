@@ -328,7 +328,7 @@ def _execute_slurm(self):
             while True:
                 # Query the job's status and exit code using sacct
                 job_info = subprocess.run(
-                    ["sacct", "-j", job_id, "--format=JobID,State,ExitCode", "-n"],
+                    ["sacct", "-j", job_id, "--format=JobID,State%30,ExitCode", "-n"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True
@@ -348,8 +348,10 @@ def _execute_slurm(self):
                 # Parse the job state and exit code
                 output = job_info.stdout.strip()
                 if output:
-                    _, state, exit_code = output.split()[:3]
-                    final_states = {"COMPLETED", "FAILED", "CANCELLED", "BOOT_FAIL", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED", "DEADLINE"}
+                    line = output.splitlines()[0]
+                    _, state, exit_code = line.split()[:3]
+                    state = state.strip().rstrip("+")
+                    final_states = {"COMPLETED", "FAILED", "CANCELLED", "BOOT_FAIL", "TIMEOUT", "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED", "DEADLINE", "SPECIAL_EXIT", "REVOKED"}
                     if elapsed_time % 600 == 0:
                         self.logger.info(f"Slurm job {job_id} state={state}, exit_code={exit_code}")
                     if any(state.startswith(s) for s in final_states):
