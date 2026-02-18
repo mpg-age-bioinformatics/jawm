@@ -287,13 +287,20 @@ def _generate_k8s_manifest(self, attempt_i=None):
     # Best-effort: copy the executed script into the run log folder inside workspace
     # Never fail the job if copy/mkdir fails (read-only PVC, permissions, etc.)
     cmd_parts.append(
-        '(d="${JAWM_RUN_LOG_DIR:-}"; '
-        '[ -n "$d" ] && mkdir -p "$d" 2>/dev/null && '
-        f'cp "/.jawm/script" "$d/{self.name}.script" 2>/dev/null) || true'
+        'd="${JAWM_RUN_LOG_DIR:-}";'
+        's="/.jawm/script";'
+        f'n="{self.name}";'
+        'if [ -n "$d" ]; then '
+        'mkdir -p "$d" 2>/dev/null||true;'
+        'cp "$s" "$d/$n.script" 2>/dev/null||true;'
+        '"$s" >"$d/$n.output" 2>"$d/$n.error";'
+        'rc=$?;'
+        'echo "$rc" >"$d/$n.exitcode" 2>/dev/null||true;'
+        'exit "$rc";'
+        'else '
+        'exec "$s";'
+        'fi'
     )
-
-    # Execute the mounted script (shebang respected)
-    cmd_parts.append("/.jawm/script")
 
     # Container-level post-hook
     if self.container_after_script:
