@@ -302,14 +302,15 @@ def _generate_k8s_manifest(self, attempt_i=None):
             'set +e;'
             'if command -v tee >/dev/null 2>&1;then '
                 '"$s" > >(tee "$d/$n.output") 2> >(tee "$d/$n.error" >&2);'
+                'rc=$?;'
             'else '
                 '"$s" >"$d/$n.output" 2>"$d/$n.error";'
+                'rc=$?;'
+                'cat "$d/$n.output" 2>/dev/null||true;'
+                'cat "$d/$n.error" 2>/dev/null 1>&2||true;'
             'fi;'
-            'rc=$?;'
             'set -e;'
             'echo "$rc" >"$d/$n.exitcode" 2>/dev/null||true;'
-            'cat "$d/$n.output" 2>/dev/null||true;'
-            'cat "$d/$n.error" 2>/dev/null 1>&2||true;'
             '[ "$rc" -eq 0 ]||exit "$rc";'
         'else '
             'set +e;"$s";rc=$?;set -e;'
@@ -828,10 +829,21 @@ def _execute_kubernetes(self):
 
                                 if exit_code_int != 0 and last_pod_name:
                                     try:
-                                        desc = _kubectl(["describe", "pod", last_pod_name])
+                                        desc = _kubectl(["describe", "pod", last_pod_name], expect_success=False)
                                         with open(self.stderr_path, "a") as f:
                                             f.write("\n\n=== kubectl describe pod ===\n")
                                             f.write(desc.stdout or desc.stderr or "")
+                                    except Exception:
+                                        pass
+
+                                    try:
+                                        tail_n = int(os.environ.get("JAWM_K8S_LOG_TAIL_LINES", "50"))
+                                        logs_res = _kubectl(list(logs_args) + [f"--tail={tail_n}"], expect_success=False)
+                                        txt = (logs_res.stdout or logs_res.stderr or "").strip()
+                                        if txt:
+                                            with open(self.stderr_path, "a") as f:
+                                                f.write(f"\n=== Container logs tail (stdout+stderr up to last {tail_n} lines) ===\n")
+                                                f.write(txt + "\n")
                                     except Exception:
                                         pass
 
