@@ -291,7 +291,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
     # Notes:
     # - always writes: $d/$n.script, $d/$n.output, $d/$n.error, $d/$n.exitcode (best-effort)
     # - preserves real exit code (exits with rc on failure)
-    # - allows post_parts to run on success (rc==0)
+    # - post_parts run only if the wrapped script exits 0 (because we chain with "&&")
     n_quoted = shlex.quote(self.name)
 
     wrap_bash = (
