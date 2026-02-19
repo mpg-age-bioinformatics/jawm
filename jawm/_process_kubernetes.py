@@ -273,53 +273,75 @@ def _generate_k8s_manifest(self, attempt_i=None):
     volumeMounts = _merge_mounts(volumeMounts, [script_mount])
     volumes = _merge_vols(volumes, [script_volume])
 
-    # 1) Prepare the in-container command (now executes /.jawm/script)
-    cmd_parts = []
+    # 1) Prepare the in-container command
+    pre_parts = []
+    post_parts = []
 
-    # Optional host-level pre-hook (executed inside container in current design)
     if self.before_script:
-        cmd_parts.append(self.before_script.strip())
-
-    # Container-level pre-hook
+        pre_parts.append(self.before_script.strip())
     if self.container_before_script:
-        cmd_parts.append(self.container_before_script.strip())
+        pre_parts.append(self.container_before_script.strip())
 
-    # Best-effort: copy the executed script into the run log folder inside workspace
-    # Never fail the job if copy/mkdir fails (read-only PVC, permissions, etc.)
-    cmd_parts.append(
-        'd="${JAWM_RUN_LOG_DIR:-}";'
-        's="/.jawm/script";'
-        f'n={shlex.quote(self.name)};'
-        'if [ -n "$d" ]; then '
-        'mkdir -p "$d" 2>/dev/null||true;'
-        'cp "$s" "$d/$n.script" 2>/dev/null||true;'
-        '"$s" >"$d/$n.output" 2>"$d/$n.error";'
-        'rc=$?;'
-        'echo "$rc" >"$d/$n.exitcode" 2>/dev/null||true;'
-        'exit "$rc";'
+    if self.container_after_script:
+        post_parts.append(self.container_after_script.strip())
+    if self.after_script:
+        post_parts.append(self.after_script.strip())
+
+    # ---- logging wrapper (bash streams; sh prints at end) ----
+    # Notes:
+    # - always writes: $d/$n.script, $d/$n.output, $d/$n.error, $d/$n.exitcode (best-effort)
+    # - preserves real exit code (exits with rc on failure)
+    # - allows post_parts to run on success (rc==0)
+    n_quoted = shlex.quote(self.name)
+
+    wrap_bash = (
+        'd="${JAWM_RUN_LOG_DIR:-}";s="/.jawm/script";n=' + n_quoted + ';'
+        'if [ -n "$d" ];then '
+            'mkdir -p "$d" 2>/dev/null||true;'
+            'cp "$s" "$d/$n.script" 2>/dev/null||true;'
+            'if command -v tee >/dev/null 2>&1;then '
+            '"$s" > >(tee "$d/$n.output") 2> >(tee "$d/$n.error" >&2) || '
+            '"$s" >"$d/$n.output" 2>"$d/$n.error";'
+            'else '
+            '"$s" >"$d/$n.output" 2>"$d/$n.error";'
+            'fi;'
+            'rc=$?;'
+            'echo "$rc" >"$d/$n.exitcode" 2>/dev/null||true;'
+            'cat "$d/$n.output" 2>/dev/null||true;'
+            'cat "$d/$n.error" 2>/dev/null 1>&2||true;'
+            '[ "$rc" -eq 0 ]||exit "$rc";'
         'else '
-        'exec "$s";'
+            '"$s";rc=$?;[ "$rc" -eq 0 ]||exit "$rc";'
         'fi'
     )
 
-    # Container-level post-hook
-    if self.container_after_script:
-        cmd_parts.append(self.container_after_script.strip())
+    wrap_sh = (
+        'd="${JAWM_RUN_LOG_DIR:-}";s="/.jawm/script";n=' + n_quoted + ';'
+        'if [ -n "$d" ];then '
+          'mkdir -p "$d" 2>/dev/null||true;'
+          'cp "$s" "$d/$n.script" 2>/dev/null||true;'
+          '"$s" >"$d/$n.output" 2>"$d/$n.error";'
+          'rc=$?;'
+          'echo "$rc" >"$d/$n.exitcode" 2>/dev/null||true;'
+          'cat "$d/$n.output" 2>/dev/null||true;'
+          'cat "$d/$n.error" 2>/dev/null 1>&2||true;'
+          '[ "$rc" -eq 0 ]||exit "$rc";'
+        'else '
+          '"$s";rc=$?;[ "$rc" -eq 0 ]||exit "$rc";'
+        'fi'
+    )
 
-    # Optional host-level post-hook (executed inside container in current design)
-    if self.after_script:
-        cmd_parts.append(self.after_script.strip())
+    # Compose final strings for each shell (compact)
+    cmd_core_bash = " && ".join(pre_parts + [wrap_bash] + post_parts) if (pre_parts or post_parts) else wrap_bash
+    cmd_core_sh   = " && ".join(pre_parts + [wrap_sh]   + post_parts) if (pre_parts or post_parts) else wrap_sh
 
-    # Compose final strings for each shell
-    cmd_core = " && ".join(cmd_parts) if cmd_parts else "/.jawm/script"
-    cmd_str_bash = f"set -euo pipefail && {cmd_core}"  # bash supports pipefail
-    cmd_str_sh   = f"set -eu && {cmd_core}"            # sh does not; no -l here
+    cmd_str_bash = f"set -euo pipefail;{cmd_core_bash}"
+    cmd_str_sh   = f"set -eu;{cmd_core_sh}"
 
-    # Prefer bash if present; otherwise fallback to sh
     container_command = [
         "/bin/sh", "-c",
-        f'[ -x /bin/bash ] && exec /bin/bash -lc {shlex.quote(cmd_str_bash)} '
-        f'|| exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
+        f'[ -x /bin/bash ]&&exec /bin/bash -lc {shlex.quote(cmd_str_bash)}'
+        f'||exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
     ]
 
     # ---------------------------
