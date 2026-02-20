@@ -433,6 +433,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
             mpath = mm.get("mountPath")
             ro    = bool(mm.get("readOnly", False))
             subp  = mm.get("subPath")
+            mm_mkdir = bool(mm.get("mkdir", False))
 
             vol_name = _safe_vol_name("jawm-mnt", name)
             _add_pvc_mount(
@@ -442,6 +443,28 @@ def _generate_k8s_manifest(self, attempt_i=None):
                 read_only=ro,
                 sub_path=subp
             )
+
+            # Optional mkdir via initContainer (needed when using subPath and the dir may not exist)
+            if mm_mkdir and ro:
+                self.logger.warning(f"mount '{name}': mkdir=True ignored because readOnly=True")
+                mm_mkdir = False
+
+            if mm_mkdir and claim and mpath and subp:
+                target = mpath.rstrip("/")
+                if subp:
+                    target = f"{target}/{str(subp).strip('/')}"
+
+                init_containers.append({
+                    "name": _safe_vol_name("jawm-mkdir", name),
+                    "image": "busybox:1.36",
+                    "command": ["sh", "-c", f"mkdir -p {shlex.quote(target)}"],
+                    # mount the full PVC (no subPath) so we can create the subdir
+                    "volumeMounts": [{
+                        "name": vol_name,
+                        "mountPath": mpath,
+                        "readOnly": False,
+                    }]
+                })
 
     # 5) Build the Job manifest (unchanged structure; only command/volumes/mounts changed)
     job = {
