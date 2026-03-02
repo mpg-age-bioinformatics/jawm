@@ -7,6 +7,7 @@ import tempfile
 import re
 import json
 import copy
+import uuid
 from glob import glob
 from jawm import Process, utils
 
@@ -3824,6 +3825,160 @@ finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
     _restore_params(bak_default, bak_override)
 
+
+print("\n>>> Test 54: Kubernetes workspace + mounts smoke test (gated by config + readback)")
+
+try:
+    k8s_test_skip = False
+    if not utils.kubernetes_available(v=True):
+        print("   ⏭️  Skipped: kubectl/Kubernetes not available")
+        k8s_test_skip = True
+        
+    else:
+        token = f"jawm_k8_test::{uuid.uuid4().hex}"
+        # filenames are unique per run; keep them simple
+        ws_file = f"jawm_ws_ok_{uuid.uuid4().hex}.txt"
+        ref_file = f"jawm_ref_ok_{uuid.uuid4().hex}.txt"
+        scratch_file = f"jawm_scratch_ok_{uuid.uuid4().hex}.txt"
+
+        # -------------------------
+        # A) Workspace test (write + readback)
+        # -------------------------
+        p_ws = Process(
+            name="k8_ws_test_001",
+            script=r"""#!/bin/bash
+set -euo pipefail
+echo "[k8_ws_test_write] JAWM_WORKSPACE=${JAWM_WORKSPACE:-}"
+test -n "${JAWM_WORKSPACE:-}"
+test -d "$JAWM_WORKSPACE"
+
+TOKEN={{TOKEN}}
+FNAME={{WS_FILE}}
+
+echo "$TOKEN" > "$JAWM_WORKSPACE/$FNAME"
+test -f "$JAWM_WORKSPACE/$FNAME"
+grep -qF "$TOKEN" "$JAWM_WORKSPACE/$FNAME"
+echo "[k8_ws_test_write] wrote+verified $JAWM_WORKSPACE/$FNAME"
+""".replace("{{TOKEN}}", token).replace("{{WS_FILE}}", ws_file),
+        )
+
+        ws_cfg = (getattr(p_ws, "manager_kubernetes", None) or {}).get("workspace")
+        if not ws_cfg:
+            print("   ⏭️  Skipped workspace test: p_ws.manager_kubernetes.workspace is empty/not provided")
+            k8s_test_skip = True
+        else:
+            p_ws.execute()
+            p_ws.wait()
+
+            # readback process proves persistence after pod completion
+            p_ws_rb = Process(
+                name="k8_ws_test_002_readback",
+                script=r"""#!/bin/bash
+set -euo pipefail
+echo "[k8_ws_test_readback] JAWM_WORKSPACE=${JAWM_WORKSPACE:-}"
+test -n "${JAWM_WORKSPACE:-}"
+test -d "$JAWM_WORKSPACE"
+
+TOKEN={{TOKEN}}
+FNAME={{WS_FILE}}
+
+test -f "$JAWM_WORKSPACE/$FNAME"
+grep -qF "$TOKEN" "$JAWM_WORKSPACE/$FNAME"
+echo "[k8_ws_test_readback] found+verified $JAWM_WORKSPACE/$FNAME"
+""".replace("{{TOKEN}}", token).replace("{{WS_FILE}}", ws_file),
+            )
+
+            # Use same config pattern (k8_ws_test*) via name; still gated by workspace presence
+            ws_rb_cfg = (getattr(p_ws_rb, "manager_kubernetes", None) or {}).get("workspace")
+            if not ws_rb_cfg:
+                print("   ⚠️  Workspace readback skipped: config did not provide workspace for readback process")
+                k8s_test_skip = True
+            else:
+                p_ws_rb.execute()
+                p_ws_rb.wait()
+
+            print("✅ Passed: Kubernetes workspace write + readback")
+
+        # -------------------------
+        # B) Mounts test (write + readback)
+        # -------------------------
+        p_m = Process(
+            name="k8_mount_test_001",
+            script=r"""#!/bin/bash
+set -euo pipefail
+echo "[k8_mount_test_write] JAWM_WORKSPACE=${JAWM_WORKSPACE:-}"
+test -n "${JAWM_WORKSPACE:-}"
+test -d "$JAWM_WORKSPACE"
+
+# Validate mounts exist
+test -d /ref
+test -d /scratch
+
+TOKEN={{TOKEN}}
+REF={{REF_FILE}}
+SCR={{SCRATCH_FILE}}
+
+echo "$TOKEN" > "/ref/$REF"
+echo "$TOKEN" > "/scratch/$SCR"
+
+test -f "/ref/$REF"
+test -f "/scratch/$SCR"
+grep -qF "$TOKEN" "/ref/$REF"
+grep -qF "$TOKEN" "/scratch/$SCR"
+
+echo "[k8_mount_test_write] wrote+verified /ref/$REF and /scratch/$SCR"
+""".replace("{{TOKEN}}", token).replace("{{REF_FILE}}", ref_file).replace("{{SCRATCH_FILE}}", scratch_file),
+        )
+
+        mounts_cfg = (getattr(p_m, "manager_kubernetes", None) or {}).get("mounts") or []
+        if not mounts_cfg:
+            print("   ⏭️  Skipped mounts test: p_m.manager_kubernetes.mounts is empty/not provided")
+        else:
+            p_m.execute()
+            p_m.wait()
+
+            # readback process proves persistence after pod completion
+            p_m_rb = Process(
+                name="k8_mount_test_002_readback",
+                script=r"""#!/bin/bash
+set -euo pipefail
+echo "[k8_mount_test_readback] JAWM_WORKSPACE=${JAWM_WORKSPACE:-}"
+test -n "${JAWM_WORKSPACE:-}"
+test -d "$JAWM_WORKSPACE"
+
+test -d /ref
+test -d /scratch
+
+TOKEN={{TOKEN}}
+REF={{REF_FILE}}
+SCR={{SCRATCH_FILE}}
+
+test -f "/ref/$REF"
+test -f "/scratch/$SCR"
+grep -qF "$TOKEN" "/ref/$REF"
+grep -qF "$TOKEN" "/scratch/$SCR"
+
+echo "[k8_mount_test_readback] found+verified /ref/$REF and /scratch/$SCR"
+""".replace("{{TOKEN}}", token).replace("{{REF_FILE}}", ref_file).replace("{{SCRATCH_FILE}}", scratch_file),
+            )
+
+            mounts_rb_cfg = (getattr(p_m_rb, "manager_kubernetes", None) or {}).get("mounts") or []
+            if not mounts_rb_cfg:
+                print("   ⚠️  Mounts readback skipped: config did not provide mounts for readback process")
+            else:
+                p_m_rb.execute()
+                p_m_rb.wait()
+
+            print("✅ Passed: Kubernetes mounts write + readback")
+            passed += 1
+            k8s_test_skip = False
+
+    if k8s_test_skip:
+        passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
 
 
 

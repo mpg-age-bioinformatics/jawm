@@ -6,3 +6,48 @@
     ttlSecondsAfterFinished: 120
     resources:
       requests: { cpu: "100m", memory: "128Mi" }
+
+# ------------------------------------------------------------
+# K8s tests: workspace + PVC mounts smoke tests
+# These only affect processes whose name matches the patterns.
+# IMPORTANT: set claimName values to PVCs that exist in cluster.
+# ------------------------------------------------------------
+
+- scope: process
+  name: "k8_ws_test*"
+  manager: kubernetes
+  logs_directory: "logs_k8s"
+  manager_kubernetes:
+    namespace: "jawm"
+    workspace:
+      claimName: "jawm-work"     # <-- adjust to PVC
+      mountPath: "/work"
+      subPath: "jawm_tests"      # optional
+      readOnly: false
+      mkdir: true
+
+- scope: process
+  name: "k8_mount_test*"
+  manager: kubernetes
+  logs_directory: "logs_k8s"
+  manager_kubernetes:
+    namespace: "jawm"
+    workspace:
+      claimName: "jawm-work"     # <-- adjust to PVC
+      mountPath: "/work"
+      subPath: "jawm_tests"      # optional
+      readOnly: false
+      mkdir: true
+    mounts:
+      - name: "ref"
+        mode: "pvc"
+        claimName: "ref-data"    # <-- adjust to PVC
+        mountPath: "/ref"
+        subPath: "data"          # optional
+        readOnly: false
+        mkdir: true
+      - name: "scratch"
+        mode: "pvc"
+        claimName: "scratch"     # <-- adjust to PVC
+        mountPath: "/scratch"
+        readOnly: false
