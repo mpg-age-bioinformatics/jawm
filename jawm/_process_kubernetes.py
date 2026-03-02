@@ -179,6 +179,15 @@ def _generate_k8s_manifest(self, attempt_i=None):
         if not secret_name:
             return None
         return [{"secretRef": {"name": str(secret_name)}}]
+    
+    def _add_secret_envfrom(envfrom_list, secret_name):
+        # add secretRef to envFrom list if not already present
+        if not secret_name:
+            return envfrom_list
+        ref = {"secretRef": {"name": str(secret_name)}}
+        if ref not in envfrom_list:
+            envfrom_list.append(ref)
+        return envfrom_list
 
     # --- Auto-add hostPath volumes/mounts for mk./map. (RW default) ---
     # K8s automount: default OFF unless explicitly enabled.
@@ -356,6 +365,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
     # Phase 1: workspace + mounts (PVC)
     # ---------------------------
     init_containers = []
+    container_envFrom = []
     ws_mount_for_workdir = None
 
     workspace = mk.pop("workspace", None)
@@ -513,7 +523,9 @@ def _generate_k8s_manifest(self, attempt_i=None):
                     + " ".join(shlex.quote(x) for x in (aws + ["s3", "sync"] + list(extra_args) + [str(uri), str(mpath)]))
                 )
 
-                s3_envfrom = _env_from_secret(mm.get("envFromSecret"))
+                sec = mm.get("envFromSecret")
+                s3_envfrom = _env_from_secret(sec)
+                container_envFrom = _add_secret_envfrom(container_envFrom, sec)
 
                 init_containers.append({
                     "name": _safe_vol_name("jawm-s3sync", name),
@@ -530,7 +542,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
                 # upload back ONLY on success (post_parts are chained with &&)
                 if upload_uri:
                     if not str(upload_uri).startswith("s3://"):
-                        self.logger.error(f"mount '{name}': uploadUri must be s3://... got: {upload_uri}")
+                        self.logger.warning(f"mount '{name}': uploadUri must be s3://... got: {upload_uri}. Skipping s3_sync upload.")
                     else:
                         sync_up = " ".join(
                             shlex.quote(x) for x in (aws + ["s3", "sync"] + list(upload_args) + [str(mpath), str(upload_uri)])
@@ -569,6 +581,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
                         "name": container_name,
                         "image": image,
                         "env": env_list,
+                        **({"envFrom": container_envFrom} if container_envFrom else {}),
                         "command": container_command,
                         **({"workingDir": ws_mount_for_workdir} if ws_mount_for_workdir else {}),
                         **({"resources": resources} if resources else {}),
