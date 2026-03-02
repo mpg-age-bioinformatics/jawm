@@ -368,7 +368,73 @@ def _generate_k8s_manifest(self, attempt_i=None):
     container_envFrom = []
     ws_mount_for_workdir = None
 
+    # ---------------------------
+    # Workspace (primary mount)
+    # ---------------------------
+    # manager_kubernetes["workspace"] sets the primary working directory and exports:
+    #   - JAWM_WORKSPACE=<mountPath>
+    #
+    # Accepted forms:
+    #   workspace: "pvc-claim-name"
+    #     -> treated as {"claimName": "pvc-claim-name"}
+    #
+    #   workspace: { ... }  (dict form)
+    #     {
+    #       "claimName": "jawm-work",     # PVC claim name (required for PVC workspace)
+    #       "mountPath": "/work",         # inside-container path (default: "/work")
+    #       "subPath": "run123",          # optional: mount only this subdir of the PVC
+    #       "readOnly": false,            # default false
+    #       "mkdir": true,                # optional: create mountPath/subPath via initContainer
+    #       "storeLogs": true             # (reserved/optional) keep logs under workspace
+    #     }
+    #
+    # If workspace is not provided or has no claimName, jawm uses an ephemeral emptyDir at /work.
+
     workspace = mk.pop("workspace", None)
+
+    # ---------------------------
+    # Additional mounts (optional)
+    # ---------------------------
+    # manager_kubernetes["mounts"] is a list of extra mounts exposed into the pod.
+    # Each mount is a dict with at minimum:
+    #   - name:      logical name (used in generated volume names)
+    #   - mode:      "pvc" (default) or "s3sync"
+    #   - mountPath: absolute path inside container (e.g. "/ref")
+    #
+    # Supported modes:
+    #   1) mode: "pvc"
+    #      {
+    #        "name": "ref",
+    #        "mode": "pvc",
+    #        "claimName": "ref-data",   # PVC claim name
+    #        "mountPath": "/ref",       # where it appears in the container
+    #        "subPath": "data",         # optional: mount only PVC subdirectory
+    #        "readOnly": false,         # optional
+    #        "mkdir": true              # optional: create mountPath/subPath if missing (only meaningful with subPath)
+    #      }
+    #
+    #   2) mode: "s3sync"   (portable "S3-as-folder" via emptyDir + initContainer)
+    #      {
+    #        "name": "s3data",
+    #        "mode": "s3sync",
+    #        "uri": "s3://bucket/prefix/",   # required: source to download
+    #        "mountPath": "/s3",             # required: destination folder inside container
+    #        "uploadUri": "s3://bucket/out/",# optional: sync back on success (runs in MAIN container)
+    #        "envFromSecret": "aws-creds",   # optional: Secret name with AWS_* env vars (or rely on IRSA)
+    #        "region": "eu-central-1",       # optional
+    #        "endpoint": "https://minio...", # optional (S3-compatible endpoints)
+    #        "args": ["--no-progress"],      # optional extra args for download sync
+    #        "uploadArgs": ["--no-progress"] # optional extra args for upload sync
+    #      }
+    #
+    # Notes:
+    # - mountPath must be absolute ("/...") or the mount is skipped.
+    # - s3sync download runs in an aws-cli initContainer image.
+    # - s3sync upload (uploadUri) is appended to post_parts and therefore runs in the MAIN container;
+    # Ensure aws-cli exists in the main image or upload will fail.
+    # s3sync is "sync to emptyDir at start" (+ optional "sync back on success").
+    # It is NOT a live filesystem mount like a CSI driver.
+
     mounts = mk.pop("mounts", None) or []
     workspace_mounted = False
 
@@ -547,8 +613,8 @@ def _generate_k8s_manifest(self, attempt_i=None):
                         sync_up = " ".join(
                             shlex.quote(x) for x in (aws + ["s3", "sync"] + list(upload_args) + [str(mpath), str(upload_uri)])
                         )
+                        self.logger.warning(f"mount '{name}': uploadUri will run in the main container. Ensure aws-cli is available in the container image, or upload will fail even if download succeeded.")
                         post_parts.append(sync_up)
-
                 continue
 
             self.logger.warning(f"mount '{name}': unknown mode '{mode}'. Skipping.")
