@@ -124,6 +124,87 @@ jobs:
           kubectl create namespace jawm >/dev/null 2>&1 || true
           kubectl get namespace jawm
 
+      - name: Create PVCs for jawm tests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Create three PVCs in namespace jawm.
+          # kind usually has a default StorageClass; if not, you can set storageClassName explicitly.
+          cat <<'YAML' | kubectl apply -f -
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: jawm-work
+            namespace: jawm
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 1Gi
+          ---
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: ref-data
+            namespace: jawm
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 1Gi
+          ---
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: scratch
+            namespace: jawm
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 1Gi
+          YAML
+
+          # Wait for PVCs to be bound
+          kubectl -n jawm wait --for=jsonpath='{.status.phase}'=Bound pvc/jawm-work --timeout=120s
+          kubectl -n jawm wait --for=jsonpath='{.status.phase}'=Bound pvc/ref-data --timeout=120s
+          kubectl -n jawm wait --for=jsonpath='{.status.phase}'=Bound pvc/scratch --timeout=120s
+
+          # Ensure subPath directories exist:
+          # - workspace uses subPath: jawm_tests
+          # - ref-data uses subPath: data
+          cat <<'YAML' | kubectl apply -f -
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: jawm-pvc-init
+            namespace: jawm
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: init
+                image: busybox:1.36
+                command: ["sh","-c","set -e; mkdir -p /work/jawm_tests /ref/data; echo ok > /ref/data/.init_ok; echo ok > /work/jawm_tests/.init_ok"]
+                volumeMounts:
+                  - name: ws
+                    mountPath: /work
+                  - name: ref
+                    mountPath: /ref
+            volumes:
+              - name: ws
+                persistentVolumeClaim:
+                  claimName: jawm-work
+              - name: ref
+                persistentVolumeClaim:
+                  claimName: ref-data
+          YAML
+
+          kubectl -n jawm wait --for=condition=Ready pod/jawm-pvc-init --timeout=120s || true
+          kubectl -n jawm logs pod/jawm-pvc-init || true
+          kubectl -n jawm wait --for=jsonpath='{.status.phase}'=Succeeded pod/jawm-pvc-init --timeout=120s
+          kubectl -n jawm delete pod/jawm-pvc-init --ignore-not-found=true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
