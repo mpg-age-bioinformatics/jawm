@@ -175,6 +175,11 @@ def _generate_k8s_manifest(self, attempt_i=None):
         volumes = _merge_vols(volumes, [v])
         volumeMounts = _merge_mounts(volumeMounts, [m])
 
+    def _env_from_secret(secret_name):
+        if not secret_name:
+            return None
+        return [{"secretRef": {"name": str(secret_name)}}]
+
     # --- Auto-add hostPath volumes/mounts for mk./map. (RW default) ---
     # K8s automount: default OFF unless explicitly enabled.
     # Enable via manager_kubernetes={"automated_mount": True} or env JAWM_K8S_AUTOMOUNT=1
@@ -419,52 +424,122 @@ def _generate_k8s_manifest(self, attempt_i=None):
     run_log_dir = f"{ws_mount_for_workdir.rstrip('/')}/{logs_dir_base}/{run_dir_name}"
     env_list = _merge_env(env_list, "JAWM_RUN_LOG_DIR", run_log_dir)
 
-    # Additional mounts list (currently only mode=pvc in Phase 1)
+    # Additional mounts list (PVC + s3sync best-effort)
     if mounts and isinstance(mounts, list):
         for mm in mounts:
             if not isinstance(mm, dict):
                 continue
+
             mode = (mm.get("mode") or "pvc").lower()
-            if mode != "pvc":
-                continue  # Phase 1: only PVC mounts
-
             name = mm.get("name") or "mount"
-            claim = mm.get("claimName")
             mpath = mm.get("mountPath")
-            ro    = bool(mm.get("readOnly", False))
-            subp  = mm.get("subPath")
-            mm_mkdir = bool(mm.get("mkdir", False))
 
-            vol_name = _safe_vol_name("jawm-mnt", name)
-            _add_pvc_mount(
-                vol_name=vol_name,
-                claim_name=claim,
-                mount_path=mpath,
-                read_only=ro,
-                sub_path=subp
-            )
+            # Prevent the common mistake: mountPath must be absolute
+            if mpath and not str(mpath).startswith("/"):
+                self.logger.error(f"mount '{name}': mountPath must be absolute, got: {mpath}. Skipping.")
+                continue
 
-            # Optional mkdir via initContainer (needed when using subPath and the dir may not exist)
-            if mm_mkdir and ro:
-                self.logger.warning(f"mount '{name}': mkdir=True ignored because readOnly=True")
-                mm_mkdir = False
+            # Mode: pvc
+            if mode == "pvc":
+                claim = mm.get("claimName")
+                ro    = bool(mm.get("readOnly", False))
+                subp  = mm.get("subPath")
+                mm_mkdir = bool(mm.get("mkdir", False))
 
-            if mm_mkdir and claim and mpath and subp:
-                target = mpath.rstrip("/")
-                if subp:
-                    target = f"{target}/{str(subp).strip('/')}"
+                vol_name = _safe_vol_name("jawm-mnt", name)
+                _add_pvc_mount(
+                    vol_name=vol_name,
+                    claim_name=claim,
+                    mount_path=mpath,
+                    read_only=ro,
+                    sub_path=subp
+                )
+
+                # Optional mkdir via initContainer (only needed when using subPath)
+                if mm_mkdir and ro:
+                    self.logger.warning(f"mount '{name}': mkdir=True ignored because readOnly=True")
+                    mm_mkdir = False
+
+                if mm_mkdir and claim and mpath and subp:
+                    target = f"{mpath.rstrip('/')}/{str(subp).strip('/')}"
+
+                    init_containers.append({
+                        "name": _safe_vol_name("jawm-mkdir", name),
+                        "image": "busybox:1.36",
+                        "command": ["sh", "-c", f"mkdir -p {shlex.quote(target)}"],
+                        # mount full PVC (no subPath) so we can create the subdir
+                        "volumeMounts": [{
+                            "name": vol_name,
+                            "mountPath": mpath,
+                            "readOnly": False,
+                        }]
+                    })
+
+                continue
+
+            # Mode: s3sync (best effort)
+            # Sync to container, and at the end re-sync to s3 bucket: can be heavy (not recommended as the first choicee
+            if mode == "s3sync":
+                uri = mm.get("uri") or mm.get("s3") or mm.get("source")
+                if not uri or not str(uri).startswith("s3://"):
+                    self.logger.warning(f"mount '{name}': mode=s3sync requires uri='s3://bucket/prefix'. Skipping.")
+                    continue
+                if not mpath:
+                    self.logger.warning(f"mount '{name}': mode=s3sync requires mountPath. Skipping.")
+                    continue
+
+                s3_image = mm.get("image") or "amazon/aws-cli:2.15.0"
+                region = mm.get("region")
+                endpoint = mm.get("endpoint")
+                extra_args = mm.get("args") or []
+
+                upload_uri = mm.get("uploadUri") or mm.get("upload_uri")
+                upload_args = mm.get("uploadArgs") or mm.get("upload_args") or []
+
+                # emptyDir is the shared “mounted” directory
+                s3_vol_name = _safe_vol_name("jawm-s3", name)
+                _add_emptydir_mount(vol_name=s3_vol_name, mount_path=mpath)
+
+                # aws base
+                aws = ["aws"]
+                if region:
+                    aws += ["--region", str(region)]
+                if endpoint:
+                    aws += ["--endpoint-url", str(endpoint)]
+
+                # download at start
+                sync_down = (
+                    f"mkdir -p {shlex.quote(str(mpath))} && "
+                    + " ".join(shlex.quote(x) for x in (aws + ["s3", "sync"] + list(extra_args) + [str(uri), str(mpath)]))
+                )
+
+                s3_envfrom = _env_from_secret(mm.get("envFromSecret"))
 
                 init_containers.append({
-                    "name": _safe_vol_name("jawm-mkdir", name),
-                    "image": "busybox:1.36",
-                    "command": ["sh", "-c", f"mkdir -p {shlex.quote(target)}"],
-                    # mount the full PVC (no subPath) so we can create the subdir
+                    "name": _safe_vol_name("jawm-s3sync", name),
+                    "image": s3_image,
+                    "command": ["sh", "-c", sync_down],
+                    **({"envFrom": s3_envfrom} if s3_envfrom else {}),
                     "volumeMounts": [{
-                        "name": vol_name,
+                        "name": s3_vol_name,
                         "mountPath": mpath,
                         "readOnly": False,
                     }]
                 })
+
+                # upload back ONLY on success (post_parts are chained with &&)
+                if upload_uri:
+                    if not str(upload_uri).startswith("s3://"):
+                        self.logger.error(f"mount '{name}': uploadUri must be s3://... got: {upload_uri}")
+                    else:
+                        sync_up = " ".join(
+                            shlex.quote(x) for x in (aws + ["s3", "sync"] + list(upload_args) + [str(mpath), str(upload_uri)])
+                        )
+                        post_parts.append(sync_up)
+
+                continue
+
+            self.logger.warning(f"mount '{name}': unknown mode '{mode}'. Skipping.")
 
     # 5) Build the Job manifest (unchanged structure; only command/volumes/mounts changed)
     job = {
