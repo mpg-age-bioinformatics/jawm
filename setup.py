@@ -1,3 +1,3 @@
 # Bridge to pyproject.toml for old tools
 from setuptools import setup
-setup()
+setup(name="jawm")
