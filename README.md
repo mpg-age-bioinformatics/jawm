@@ -20,7 +20,7 @@ Or install with optional dependencies (e.g. `pandas`, `openpyxl`):
 pip install --upgrade-strategy only-if-needed "jawm[full] @ git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git"
 ```
 
-Note: Installing with jawm[full] may fail on some systems because it pulls in `pandas`, which can require native compilation if no prebuilt wheel is available.
+Note: Installing with jawm[full] may fail on some systems because it pulls in `pandas`, which can require native compilation if no prebuilt wheel is available. Additionally, you can add `--upgrade-strategy only-if-needed` to avoid unnecessary dependency upgrades, and `--user` if you don’t have permission to write to site-packages.
 
 ## Running jawm
 
