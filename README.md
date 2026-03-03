@@ -13,12 +13,14 @@ just another workflow manager
 
 ## Installation
 ```
-pip install git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git
+pip install "git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git"
 ```
 Or install with optional dependencies (e.g. `pandas`, `openpyxl`):
 ```
-pip install jawm[full]@git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git
+pip install --upgrade-strategy only-if-needed "jawm[full] @ git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git"
 ```
+
+Note: Installing with jawm[full] may fail on some systems because it pulls in `pandas`, which can require native compilation if no prebuilt wheel is available.
 
 ## Running jawm
 
