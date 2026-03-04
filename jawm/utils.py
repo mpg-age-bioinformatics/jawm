@@ -303,9 +303,9 @@ def script_to_yaml(
 
 def docker_available(v=False):
     """
-    Check whether Docker is available on the system.
+    Check whether Docker is available and ready to run containers on the system.
 
-    This function attempts to run `docker --version` to verify that the Docker
+    This function attempts to run `docker info` to verify that the Docker
     command-line tool is installed and accessible.
 
     Args:
@@ -314,37 +314,43 @@ def docker_available(v=False):
 
     Returns:
         bool: True if Docker is installed and responds successfully to
-        `docker --version`, otherwise False.
+        `docker info`, otherwise False.
 
     Example:
         >>> docker_available()
         True
         >>> docker_available(v=True)
-        Docker found: Docker version 24.0.2, build cb74dfc
+        Docker found and daemon reachable.
         True
     """
     logger = logging.getLogger("jawm.utils|docker_available")
     try:
-        # Run "docker --version" to check availability
+        # Run "docker info" to check availability
         result = subprocess.run(
-            ["docker", "--version"],
+            ["docker", "info"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True
+            check=True,
+            timeout=3,
         )
         if v:
-            logger.info(f"Docker found: {result.stdout.strip()}")
+            logger.info(f"Docker found and daemon reachable.")
         return True
     except FileNotFoundError:
         # "docker" command not found
         if v:
             logger.error("Docker is not installed or not in PATH.")
         return False
+    except subprocess.TimeoutExpired:
+        if v:
+            logger.error("Docker check timed out.")
+        return False
     except subprocess.CalledProcessError as e:
         # Docker exists but returned an error
         if v:
-            logger.error(f"Docker command failed: {e.stderr.strip()}")
+            msg = (e.stderr or e.stdout or "").strip()
+            logger.error(f"Docker not ready: {msg}")
         return False
 
 
