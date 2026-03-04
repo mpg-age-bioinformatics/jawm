@@ -403,14 +403,14 @@ def apptainer_available(v=False):
 
 def kubernetes_available(v=False):
     """
-    Check whether Kubernetes (kubectl) is available on the system.
+    Check whether Kubernetes (kubectl) is available and cluster ready on the system.
 
-    This function attempts to run `kubectl version --client` to verify that
+    This function attempts to run `kubectl cluster-info` to verify that
     the kubectl CLI tool is installed and accessible.
 
     Args:
         v (bool, optional): If True, prints diagnostic messages about
-            kubectl's availability and version.
+            kubectl's and cluster availability.
 
     Returns:
         bool: True if kubectl is installed and responds successfully,
@@ -419,14 +419,15 @@ def kubernetes_available(v=False):
     logger = logging.getLogger("jawm.utils|kubernetes_available")
     try:
         result = subprocess.run(
-            ["kubectl", "version"],
+            ["kubectl", "cluster-info"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True
+            check=True,
+            timeout=3,
         )
         if v:
-            logger.info(f"Kubernetes available: {result.stdout.strip()}")
+            logger.info(f"Kubernetes available and cluster reachable.")
         return True
     except FileNotFoundError:
         if v:
@@ -434,7 +435,11 @@ def kubernetes_available(v=False):
         return False
     except subprocess.CalledProcessError as e:
         if v:
-            logger.error(f"kubectl command failed: {(e.stderr or e.stdout).strip()}")
+            logger.error(f"Kubernetes not ready: {(e.stderr or e.stdout or '').strip()}")
+        return False
+    except subprocess.TimeoutExpired:
+        if v:
+            logger.error("Kubernetes check timed out.")
         return False
     except Exception as e:
         if v:
