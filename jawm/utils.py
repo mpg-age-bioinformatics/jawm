@@ -384,7 +384,8 @@ def apptainer_available(v=False):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True
+            check=True,
+            timeout=3,
         )
         if v:
             logger.info(f"Apptainer found: {result.stdout.strip()}")
@@ -394,10 +395,15 @@ def apptainer_available(v=False):
         if v:
             logger.error("Apptainer is not installed or not in PATH.")
         return False
+    except subprocess.TimeoutExpired:
+        if v:
+            logger.error("Apptainer check timed out.")
+        return False
     except subprocess.CalledProcessError as e:
         # apptainer exists but returned an error
         if v:
-            logger.error(f"Apptainer command failed: {e.stderr.strip()}")
+            msg = (e.stderr or e.stdout or "").strip()
+            logger.error(f"Apptainer command failed: {msg}")
         return False
     
 
