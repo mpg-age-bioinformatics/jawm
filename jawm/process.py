@@ -1216,9 +1216,9 @@ class Process:
                         if log: cls.logger_wait.warning(f"No registered process for: {item}")
                         continue
                     else:
-                        if p.execution_start_at is None and not p.depends_on:
+                        if p.execution_start_at is None and not p.depends_on and not p.finished_event.is_set():
                             time.sleep(0.3)
-                            if p.execution_start_at is None:
+                            if p.execution_start_at is None and not p.finished_event.is_set():
                                 if log: cls.logger_wait.warning(f"Process.wait → Process '{item}' has not started; skipping.")
                                 continue
                         procs.append(p)
