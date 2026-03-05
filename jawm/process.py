@@ -1121,14 +1121,14 @@ class Process:
 
 
     @classmethod
-    def wait(cls, process_list="all", allowed_exit="all", tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False, abort=False, exitcode=1):
+    def wait(cls, process_list="all", allowed_exit=0, tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False, abort=False, exitcode=1):
         """
         Wait until the given processes are finished, optionally checking their exit codes.
 
         Parameters:
         -----------
         process_list ("all" (default) | list[str] | str) : Which process(es) to wait for.
-        allowed_exit ("all" (default) | int | str | list[int | str]) : Allowed exit codes. If not matched, give warning and return False; True otherwise.
+        allowed_exit (0 (default) | int | str | list[int | str]) : Allowed exit codes (use 'all' to accept any exit code). If not matched, give warning and return False; True otherwise.
         tail (None | True | "stdout" | "stderr" | "both"): If set, stream live output while waiting.
             - True / "stdout": tail the process stdout file
             - "stderr": tail the process stderr file
@@ -1175,7 +1175,7 @@ class Process:
                     procs = list({
                         id(p): p
                         for p in cls.registry.values()
-                        if isinstance(p, cls) and p.execution_start_at is not None
+                        if isinstance(p, cls) and (p.execution_start_at is not None or p.finished_event.is_set())
                     }.values())
                     active = [p for p in procs if not p.finished_event.is_set()]
                     reg_count = len(procs)
@@ -1197,13 +1197,13 @@ class Process:
                 procs = list({
                     id(p): p
                     for p in cls.registry.values()
-                    if isinstance(p, cls) and p.execution_start_at is not None
+                    if isinstance(p, cls) and (p.execution_start_at is not None or p.finished_event.is_set())
                 }.values())
             else:
                 procs = list({
                     id(p): p
                     for p in cls.registry.values()
-                    if isinstance(p, cls) and p.execution_start_at is not None
+                    if isinstance(p, cls) and (p.execution_start_at is not None or p.finished_event.is_set())
                 }.values())
         else:
             procs = []
@@ -1265,10 +1265,10 @@ class Process:
                 stop_evt = threading.Event()
                 threads = []
 
-                def _add_tail(path, label):
+                def _add_tail(path, label, _proc=proc):
                     t = threading.Thread(
                         target=_follow_file,
-                        args=(path, stop_evt, f"{proc.name}|{proc.hash} {label}", tail_poll),
+                        args=(path, stop_evt, f"{_proc.name}|{_proc.hash} {label}", tail_poll),
                         daemon=True
                     )
                     t.start()
@@ -1320,15 +1320,19 @@ class Process:
 
                 if allowed_exit != "all":
                     exit_code = proc.get_exitcode()
-                    try:
-                        code = int(exit_code.split(":")[0]) if (exit_code and ":" in exit_code) else int(exit_code)
-                    except Exception:
-                        code = None
-                    if str(code) not in allowed_exit:
-                        if log: proc.logger.warning(f"Process {proc.name} ({proc.hash}) has completed with disallowed exit code: {exit_code}")
-                        if hasattr(proc, "_log_error_summary"):
-                            if log: proc._log_error_summary(f"Process has completed with disallowed exit code: {exit_code}", type_text="ErrorWait")
+                    if not exit_code:
+                        if log: proc.logger.warning(f"Process {proc.name} ({proc.hash}) finished but has no exit code recorded.")
                         success = False
+                    else:
+                        try:
+                            code = int(exit_code.split(":")[0]) if (exit_code and ":" in exit_code) else int(exit_code)
+                        except Exception:
+                            code = None
+                        if str(code) not in allowed_exit:
+                            if log: proc.logger.warning(f"Process {proc.name} ({proc.hash}) has completed with disallowed exit code: {exit_code}")
+                            if hasattr(proc, "_log_error_summary"):
+                                if log: proc._log_error_summary(f"Process has completed with disallowed exit code: {exit_code}", type_text="ErrorWait")
+                            success = False
             except Exception as e:
                 if hasattr(proc, "_log_error_summary"):
                     proc._log_error_summary(f"Error during Process Wait: {str(e)}", type_text="ErrorWait")
@@ -1345,7 +1349,7 @@ class Process:
         if log: cls.logger_wait.info(f"Wait completed for {len(procs)} process(es).")
 
         if abort and not success:
-            cls.logger_wait.error(f"Process.wait → Exiting with code {exitcode} due to failure in wait.")
+            cls.logger_wait.error(f"Process.wait → Exiting with code {exitcode} due to failure.")
             sys.exit(exitcode)
 
         return success
