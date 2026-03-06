@@ -1121,7 +1121,7 @@ class Process:
 
 
     @classmethod
-    def wait(cls, process_list="all", allowed_exit=0, tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False, abort=False, exitcode=1):
+    def wait(cls, process_list="all", allowed_exit=0, tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False, abort="auto", exitcode=1, graceful=True):
         """
         Wait until the given processes are finished, optionally checking their exit codes.
 
@@ -1137,8 +1137,9 @@ class Process:
         log (bool): Whether to log the wait info or not
         timeout (int | None): Maximum time (in seconds) to wait for each process. If None (default), wait indefinitely or comply with os env JAWM_WAIT_TIMEOUT
         dynamic (bool): Consider dynamic stabilization mode on process registry, so it doesn't only count snapshot (default False)
-        abort (bool): Trigger a system exit on any failure in wait (default False)
+        abort (bool | str): Trigger a raise/system exit on any failure in Process or wait itself  (default: "auto": False for process_list="all", raise error otherwise)
         exitcode (int): exitcode on wait failure when abort is true (default 1)
+        graceful (bool): Whether abort should be graceful and wait for all regitered Process(es) to finish first before triggering abort (default: True)
 
         Returns:
             bool: True if all waited processes completed with allowed exit codes, False otherwise.
@@ -1160,6 +1161,30 @@ class Process:
         # Normalize single process to list
         if process_list != "all" and not isinstance(process_list, list):
             process_list = [process_list]
+
+        # Normalize abort mode
+        abort_mode = abort
+        if isinstance(abort_mode, str) and abort_mode.strip().lower() == "auto":
+            abort_mode = False if process_list == "all" else "raise"
+        if abort_mode is True:
+            abort_mode = "raise"   # backward compatible
+        elif abort_mode is False or abort_mode is None:
+            abort_mode = False
+        elif isinstance(abort_mode, str):
+            abort_mode = abort_mode.strip().lower()
+            if abort_mode not in ("raise", "exit"):
+                abort_mode = False
+        else:
+            abort_mode = False
+
+        def _active_processes():
+            """Return running processes (started or finished-known) that have not finished yet."""
+            procs_all = list({
+                id(p): p
+                for p in cls.registry.values()
+                if isinstance(p, cls) and (p.execution_start_at is not None or p.finished_event.is_set())
+            }.values())
+            return [p for p in procs_all if not p.finished_event.is_set()]
 
         # Resolve processes to wait on
         if process_list == "all":
@@ -1348,9 +1373,23 @@ class Process:
 
         if log: cls.logger_wait.info(f"Wait completed for {len(procs)} process(es).")
 
-        if abort and not success:
-            cls.logger_wait.error(f"Process.wait → Exiting with code {exitcode} due to failure.")
-            sys.exit(exitcode)
+        if abort_mode and not success:
+            cls.stop_future_event.set()
+
+            if graceful:
+                active = _active_processes()
+                if log: cls.logger_wait.error(f"Process.wait → Failure detected; waiting for {len(active)} active process(es) to finish (graceful={graceful}).")
+                for p in active:
+                    try:
+                        p.finished_event.wait()
+                    except Exception:
+                        pass
+
+            if abort_mode == "raise":
+                raise RuntimeError(f"Process.wait failed due to non-alowed exit (allowed_exit={allowed_exit}).")
+            else:
+                if log: cls.logger_wait.error(f"Process.wait → Exiting with code {exitcode} due to failure.")
+                sys.exit(exitcode)
 
         return success
 
