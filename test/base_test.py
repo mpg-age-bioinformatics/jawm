@@ -1079,7 +1079,7 @@ try:
         logs_directory="logs_allow_skip"
     )
     dnB.execute()
-    Process.wait(dnB.hash)
+    Process.wait(dnB.hash, abort=False)
     assert dnB.finished_event.is_set(), "❌ Strict mode: downstream should be marked finished (skipped)"
     assert dnB.get_exitcode() is None, "❌ Strict mode: downstream should not have an exit code"
     print("✅ Subtest B passed: strict blocks when upstream is skipped")
@@ -2002,7 +2002,7 @@ try:
         logs_directory=tmpdir
     )
     dn.execute()
-    Process.wait([dn.hash])
+    Process.wait([dn.hash], abort=False)
 
     assert dn.finished_event.is_set(), "❌ downstream not marked finished"
     assert dn.get_exitcode() is None, "❌ downstream should be skipped (no exit code)"
@@ -2123,7 +2123,7 @@ try:
     p2 = Process(name="p2_timeout", script="#!/bin/bash\nsleep 3", logs_directory=logs)
     p2.execute()
     t0 = time.time()
-    Process.wait(p2.hash, log=False, timeout=2)
+    Process.wait(p2.hash, log=False, timeout=2, abort=False)
     dt = time.time() - t0
     assert dt < 2.5, f"❌ Timeout not respected (elapsed={dt:.2f}s)"
     print(f" ✓ Timeout respected (waited {dt:.1f}s, process still running)")
@@ -2140,7 +2140,7 @@ try:
 
     t0 = time.time()
     p3.execute()
-    Process.wait(p3.hash, log=False)   # should return after ~3s because of env timeout
+    Process.wait(p3.hash, log=False, abort=False)   # should return after ~3s because of env timeout
     dt = time.time() - t0
 
     del os.environ["JAWM_WAIT_TIMEOUT"]
