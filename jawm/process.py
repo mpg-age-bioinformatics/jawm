@@ -1121,14 +1121,15 @@ class Process:
 
 
     @classmethod
-    def wait(cls, process_list="all", allowed_exit=0, tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False, abort="auto", exitcode=1, graceful=True):
+    def wait(cls, process_list="all", allowed_exit="auto", tail=None, tail_poll=0.5, log=True, timeout=None, dynamic=False, abort="auto", exitcode=1, graceful=True):
         """
         Wait until the given processes are finished, optionally checking their exit codes.
 
         Parameters:
         -----------
         process_list ("all" (default) | list[str] | str) : Which process(es) to wait for.
-        allowed_exit (0 (default) | int | str | list[int | str]) : Allowed exit codes (use 'all' to accept any exit code). If not matched, give warning and return False; True otherwise.
+        allowed_exit ("auto" (default) | int | str | list[int | str]) : Allowed exit codes (use "all" to accept any exit code). If not matched, give warning and return False; True otherwise.
+            "auto": Process finished with no exitcode (e.g. skipped) would not be considered as non-success in the case of `process_list="all"`, opposite behaviour for specified process(es).
         tail (None | True | "stdout" | "stderr" | "both"): If set, stream live output while waiting.
             - True / "stdout": tail the process stdout file
             - "stderr": tail the process stderr file
@@ -1146,6 +1147,16 @@ class Process:
         """
         success = True
 
+        # Normalize single process to list
+        if process_list != "all" and not isinstance(process_list, list):
+            process_list = [process_list]
+
+        # Resolve allowed_exit "auto"
+        auto_missing_ok = False
+        if isinstance(allowed_exit, str) and allowed_exit.strip().lower() == "auto":
+            allowed_exit = 0
+            auto_missing_ok = (process_list == "all")
+
         # Normalize allowed_exit
         if allowed_exit != "all":
             if isinstance(allowed_exit, int):
@@ -1157,10 +1168,6 @@ class Process:
             else:
                 if log: cls.logger_wait.warning("Unsupported format for allowed_exit, skipping check.")
                 allowed_exit = "all"
-
-        # Normalize single process to list
-        if process_list != "all" and not isinstance(process_list, list):
-            process_list = [process_list]
 
         # Normalize abort mode
         abort_mode = abort
@@ -1346,8 +1353,11 @@ class Process:
                 if allowed_exit != "all":
                     exit_code = proc.get_exitcode()
                     if not exit_code:
-                        if log: proc.logger.warning(f"Process {proc.name} ({proc.hash}) finished but has no exit code recorded.")
-                        success = False
+                        if auto_missing_ok:
+                            if log: proc.logger.info(f"Process {proc.name} ({proc.hash}) finished/skipped but has no exit code recorded.")
+                        else:
+                            if log: proc.logger.warning(f"Process {proc.name} ({proc.hash}) finished/skipped but has no exit code recorded.")
+                            success = False
                     else:
                         try:
                             code = int(exit_code.split(":")[0]) if (exit_code and ":" in exit_code) else int(exit_code)
@@ -1382,6 +1392,8 @@ class Process:
                 for p in active:
                     try:
                         p.finished_event.wait()
+                    except KeyboardInterrupt:
+                        raise
                     except Exception:
                         pass
 
