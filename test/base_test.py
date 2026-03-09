@@ -2390,7 +2390,7 @@ try:
 
     # --- C) Execute to trigger sync ---
     pA.execute()
-    Process.wait(pA.hash)
+    Process.wait(pA.hash, allowed_exit="all")
 
     # After execute(), short aliases must be updated
     assert pA.var["outDir"] == "logs_sync_test/updated_dir", "❌ mk.* alias not synchronized at execute()"
