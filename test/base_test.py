@@ -2482,6 +2482,7 @@ finally:
 print("\n>>> Test 42: retry_overrides update base script per retry")
 try:
     _clear_params()
+    Process.reset_stop()
     tmp_logs = tempfile.mkdtemp(prefix="retry_override_test_", dir=base_tmp)
 
     p = Process(
