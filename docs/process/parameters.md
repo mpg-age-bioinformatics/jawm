@@ -237,7 +237,7 @@ print("Count:", 3)
 
 _**Note**_: If a placeholder such as `{{fruit}}` is not found in `var`, jawm keeps it unchanged in the generated script. This can lead to script failures if the placeholder is required by the interpreter or shell.
 
-### Merge and override behavior
+**Merge and override behavior**
 
 `var` is a dict-like parameter, so it is **merged** across configuration layers instead of being replaced as a whole. If the same key appears multiple times, the value from the higher-precedence source overrides the lower-precedence one, while other keys are preserved.
 
@@ -257,7 +257,7 @@ The effective merged value becomes:
 {"fruit": "Banana", "color": "red"}
 ```
 
-### Special `mk.*` and `map.*` keys
+**Special `mk.*` and `map.*` keys**
 
 Keys starting with `mk.` or `map.` are treated specially. jawm also adds a short alias without the prefix.
 
@@ -289,3 +289,58 @@ So both forms can be used in scripts if needed:
 ```
 
 ---
+
+## `var_file`
+
+- **Category**: `parameter`
+- **Type**: `str` or `list[str]`
+
+Path to a file, multiple files, or a directory containing variable definitions that will be loaded into the process variable dictionary.
+
+`var_file` allows variables to be defined outside the workflow code and reused across processes. The loaded variables are merged into `var` and can be referenced in `script` or `script_file` using the `{{KEY}}` placeholder syntax.
+
+Supported formats typically include:
+
+- YAML files
+- `.rc` style key–value files
+- directories containing multiple variable files
+
+If multiple files are provided, they are loaded in order and merged.
+
+_**Note**_: If both `var_file` and `var` are provided, variables loaded from `var_file` are applied first and values defined in `var` override any matching keys.
+
+**Example:**
+```python
+var_file="variables.yaml"
+```
+
+**Multiple files Example:**
+```python
+var_file=["variables/base.yaml", "variables/override.yaml"]
+```
+
+**Directory Example:**
+```python
+var_file="variables/"
+```
+
+**YAML Example:**
+```yaml
+var_file: "variables.yaml"
+```
+
+Example `variables.yaml`:
+
+```yaml
+fruit: Apple
+count: 3
+```
+
+These variables can then be used inside scripts:
+
+```python
+script="""#!/usr/bin/env python3
+print("Fruit: {{fruit}}")
+print("Count:", {{count}})
+"""
+```
