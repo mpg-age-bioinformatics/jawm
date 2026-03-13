@@ -167,3 +167,125 @@ script: |
 The shebang defines which interpreter should execute the script. Using `/usr/bin/env` is generally preferred because it resolves the interpreter from the system `PATH`, making scripts more portable across environments.
 
 ---
+
+## `script_file`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Path to an external script file to be executed by the `Process`.
+
+Instead of embedding the script inline with `script`, you can provide a path to a script file using `script_file`. jawm reads the file content, applies placeholder substitution, and writes the processed version to the generated `<name>.script` file inside the process log directory before execution.
+
+The referenced script file must exist and must start with a valid shebang line such as `#!/bin/bash`, `#!/usr/bin/env python3`, or `#!/usr/bin/env Rscript`.
+
+_**Note**_: If both `script` and `script_file` are provided, the inline `script` takes precedence.
+
+**Example:**
+```python
+script_file="scripts/my_script.sh"
+```
+
+**YAML Example:**
+```yaml
+script_file: "scripts/my_script.sh"
+```
+
+---
+
+## `var`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Dictionary of variables used for placeholder substitution inside the executable `script` or `script_file`.
+
+Values from `var` can be referenced in scripts using the `{{KEY}}` syntax. During script generation, jawm replaces matching placeholders with the corresponding values from `var`.
+
+**Example:**
+```python
+var={
+    "fruit": "Apple",
+    "count": 3
+}
+```
+
+**YAML Example:**
+```yaml
+var:
+  fruit: "Apple"
+  count: 3
+```
+
+Variables can then be used in the script like:
+
+**Example of var usage:**
+```python
+script="""#!/usr/bin/env python3
+print("Fruit: {{fruit}}")
+print("Count:", {{count}})
+"""
+```
+
+This would generate a script equivalent to:
+
+```python
+#!/usr/bin/env python3
+print("Fruit: Apple")
+print("Count:", 3)
+```
+
+_**Note**_: If a placeholder such as `{{fruit}}` is not found in `var`, jawm keeps it unchanged in the generated script. This can lead to script failures if the placeholder is required by the interpreter or shell.
+
+### Merge and override behavior
+
+`var` is a dict-like parameter, so it is **merged** across configuration layers instead of being replaced as a whole. If the same key appears multiple times, the value from the higher-precedence source overrides the lower-precedence one, while other keys are preserved.
+
+For example:
+
+```python
+# lower-precedence values
+var={"fruit": "Apple", "color": "red"}
+
+# higher-precedence override
+var={"fruit": "Banana"}
+```
+
+The effective merged value becomes:
+
+```python
+{"fruit": "Banana", "color": "red"}
+```
+
+### Special `mk.*` and `map.*` keys
+
+Keys starting with `mk.` or `map.` are treated specially. jawm also adds a short alias without the prefix.
+
+**mk.\*** variables are treated as paths that jawm can automatically create and possibly mount.
+
+**map.\*** variables are treated as paths that jawm can automatically mount into containerized execution environments.
+
+Example:
+
+```python
+var={
+    "mk.output": "results/output",
+    "map.reference": "ref/genome.fa"
+}
+```
+
+This also makes the following aliases available:
+
+- `output`
+- `reference`
+
+So both forms can be used in scripts if needed:
+
+```bash
+{{output}}
+{{mk.output}}
+{{reference}}
+{{map.reference}}
+```
+
+---
