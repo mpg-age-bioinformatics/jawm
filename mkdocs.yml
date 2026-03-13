@@ -65,6 +65,7 @@ nav:
   - Process: 
     - Overview: process/overview.md
     - Configuration & Precedence: process/conf_precedence.md
+    - Parameters: process/parameters.md 
   - Module: module.md
   - CLI Tools: cli-tools.md
   - Testing: testing.md
