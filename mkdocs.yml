@@ -62,7 +62,9 @@ extra_css:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - Process: process/process.md
+  - Process: 
+    - Overview: process/overview.md
+    - Configuration & Precedence: process/conf_precedence.md
   - Module: module.md
   - CLI Tools: cli-tools.md
   - Testing: testing.md

@@ -22,7 +22,7 @@ A minimal workflow may consist of a single process, while complex workflows can 
 
 Example:
 
-\`\`\`python
+```python
 import jawm
 
 p = jawm.Process(
@@ -33,7 +33,7 @@ echo "Hello from jawm"
 )
 
 p.execute()
-\`\`\`
+```
 
 When executed, jawm will:
 
@@ -48,7 +48,7 @@ When executed, jawm will:
 
 A simple workflow with two dependent processes:
 
-\`\`\`python
+```python
 import jawm
 
 step1 = jawm.Process(
@@ -63,12 +63,12 @@ step2 = jawm.Process(
     script="""#!/bin/bash
 echo "Processing data"
 """,
-    depends_on=[step1]
+    depends_on=[step1.hash]
 )
 
 step1.execute()
-step2.execute()
-\`\`\`
+step2.execute() # alternatively `step2.execute([step1.hash])`
+```
 
 Here:
 
@@ -96,9 +96,9 @@ These configuration layers are merged with a defined **precedence order**.
 jawm supports flexible configuration through multiple layers.  
 When parameters are defined in multiple places, **higher-precedence values override lower-precedence ones**.
 
-### Standard precedence (low \u2192 high)
+### Standard precedence (low to high)
 
-\`\`\`text
+```text
 default_parameters
 < YAML global
 < YAML process
@@ -109,7 +109,7 @@ default_parameters
 < cli injected override (--global)
 < cli injected override (--process)
 < override_parameters
-\`\`\`
+```
 
 This allows workflows to be configured in a structured way while still supporting runtime overrides.
 
@@ -123,7 +123,7 @@ The parameter precedence changes slightly depending on whether a YAML parameter 
 
 When no CLI parameter file override is used:
 
-\`\`\`text
+```text
 default_parameters
 < YAML global
 < YAML process
@@ -132,24 +132,11 @@ default_parameters
 < cli injected override (--global)
 < cli injected override (--process)
 < override_parameters
-\`\`\`
+```
 
 In this mode, **Python arguments override YAML parameters**.
 
 Internally, the precedence layers are applied as:
-
-\`\`\`python
-_precedence_layers = [
-    self.__class__.default_parameters,
-    global_params,
-    process_params,
-    kwargs,
-    explicit_args,
-    cli_global,
-    cli_proc_block,
-    self.__class__.override_parameters
-]
-\`\`\`
 
 ---
 
@@ -157,7 +144,7 @@ _precedence_layers = [
 
 When a parameter file is supplied through the CLI with `-p`, jawm assumes the workflow is **configuration-driven**, so **YAML overrides Python arguments**.
 
-\`\`\`text
+```text
 default_parameters
 < kwargs
 < explicit_args
@@ -166,28 +153,7 @@ default_parameters
 < cli injected override (--global)
 < cli injected override (--process)
 < override_parameters
-\`\`\`
-
-Internally, the precedence layers become:
-
-\`\`\`python
-_precedence_layers = [
-    self.__class__.default_parameters,
-    kwargs,
-    explicit_args,
-    global_params,
-    process_params,
-    cli_global,
-    cli_proc_block,
-    self.__class__.override_parameters
-]
-\`\`\`
-
-Detection is done automatically:
-
-\`\`\`python
-_cli_paramfile = bool(self.__class__.override_parameters.get("param_file"))
-\`\`\`
+```
 
 ---
 
@@ -197,7 +163,7 @@ _cli_paramfile = bool(self.__class__.override_parameters.get("param_file"))
 
 The most common method is to provide parameters directly:
 
-\`\`\`python
+```python
 import jawm
 
 p = jawm.Process(
@@ -208,7 +174,7 @@ echo "Hello"
     manager="local",
     retry=2
 )
-\`\`\`
+```
 
 ---
 
@@ -218,12 +184,12 @@ Processes can also read configuration from YAML files.
 
 Example of a global YAML block:
 
-\`\`\`yaml
+```yaml
 scope: global
 
 manager: slurm
 retry: 2
-\`\`\`
+```
 
 Example of a process-specific YAML block:
 
