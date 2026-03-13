@@ -288,6 +288,18 @@ So both forms can be used in scripts if needed:
 {{map.reference}}
 ```
 
+**CLI Example:**
+
+Variables can also be injected or overridden from the CLI using `--global.var.<key>=<value>` or `--process.<process_name>.var.<key>=<value>`.
+
+```bash
+jawm module.py --global.var.fruit="Apple"
+```
+
+```bash
+jawm module.py --process.my_process.var.fruit="Apple"
+```
+
 ---
 
 ## `var_file`
@@ -344,3 +356,80 @@ print("Fruit: {{fruit}}")
 print("Count:", {{count}})
 """
 ```
+
+---
+
+## `project_directory`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: current working directory (`"."`)
+
+Base working directory for the `Process`.
+
+`project_directory` is used as the main base path for process-related files and directories. If not explicitly set, jawm uses the current working directory. By default, `logs_directory` is created under `project_directory` as `<project_directory>/logs`.
+
+jawm resolves `project_directory` to an absolute path and creates it automatically during process execution if it does not already exist.
+
+_**Note**_: This parameter is especially useful for keeping workflow outputs, logs, and related files organized under a single project location.
+
+**Example:**
+```python
+project_directory="/data/my_project"
+```
+
+**YAML Example:**
+```yaml
+project_directory: "/data/my_project"
+```
+
+---
+
+## `logs_directory`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `<project_directory>/logs`
+
+Directory where jawm stores logs and execution artifacts for all processes.
+
+If not explicitly defined, jawm automatically sets `logs_directory` to a `logs` folder inside the `project_directory` (current directory by default). Each process execution then creates its own subdirectory inside this location.
+
+Process log/run directories follow the pattern:
+
+```text
+<logs_directory>/<process.name>_<YYYYMMDD>_<HHMMSS>_<process.hash>
+```
+
+Inside each process run directory, jawm stores files such as (in additon to backed specific artifact files):
+
+```text
+<name>.script
+<name>.command
+<name>.output
+<name>.error
+<name>.id
+<name>.exitcode
+```
+
+A workflow-level `error.log` file is also written inside `logs_directory` to summarize process failures.
+
+**Example:**
+```python
+logs_directory="/data/my_project/logs"
+```
+
+**YAML Example:**
+```yaml
+logs_directory: "/data/my_project/logs"
+```
+
+**CLI Example:**
+
+The `logs_directory` can also be set from the CLI using the `-l` option.
+
+```bash
+jawm module.py -l /data/my_project/logs
+```
+
+---
