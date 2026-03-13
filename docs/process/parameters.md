@@ -73,3 +73,97 @@ p2.execute()
 ```
 
 ---
+
+## `param_file`
+
+- **Category**: `parameter`
+- **Type**: `str` or `list[str]`
+
+Path to a YAML parameter file, multiple YAML parameter files, or a directory containing YAML files.
+
+`param_file` is used to load process configuration from YAML. These files can define both global parameters and process-specific parameters using `scope: global` and `scope: process`.
+
+When multiple files are provided, they are loaded and merged in order. A directory can also be provided, in which case jawm loads YAML files from that directory.
+
+_**Note**_: `param_file` can be set in Python, but it is especially important when passed through the CLI using `-p`, because that changes precedence behavior and gives YAML higher priority than normal Python instance arguments.
+
+**Example:**
+```python
+param_file="parameters/params.yaml"
+```
+
+**Multiple files Example:**
+```python
+param_file=["parameters/base.yaml", "parameters/override.yaml"]
+```
+
+**Directory Example:**
+```python
+param_file="parameters"
+```
+
+**CLI Example:**
+```bash
+jawm module.py -p parameters/params.yaml
+```
+
+**CLI Example with multiple files:**
+```bash
+jawm module.py -p parameters/base.yaml parameters/override.yaml
+```
+
+---
+
+## `script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `#!/bin/bash`
+
+Inline script content to be executed by the `Process`.
+
+If `script` is provided, jawm uses it as the main script content for the process. The script requires start with a valid shebang line such as `#!/bin/bash` or `#!/usr/bin/env python3`.
+
+_**Note**_: The **script requires to start with a valid shebang line** such as `#!/bin/bash` or `#!/usr/bin/env python3`.
+
+**Example:**
+```python
+script="""#!/usr/bin/env python3
+for fruit in ["Apple", "Banana", "Ananas"]:
+    print(f"Fruit: {fruit}")
+"""
+```
+
+**YAML Example:**
+```yaml
+script: |
+  #!/usr/bin/env python3
+  for fruit in ["Apple", "Banana", "Ananas"]:
+      print(f"Fruit: {fruit}")
+```
+
+**Common shebang examples:**
+
+```bash
+#!/bin/bash
+```
+
+```bash
+#!/usr/bin/env bash
+```
+
+```python
+#!/usr/bin/env python3
+```
+
+```r
+#!/usr/bin/env Rscript
+```
+
+```bash
+#!/usr/bin/env sh
+```
+
+The shebang defines which interpreter should execute the script. Using `/usr/bin/env` is generally preferred because it resolves the interpreter from the system `PATH`, making scripts more portable across environments.
+
+---
