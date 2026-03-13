@@ -93,7 +93,7 @@ p = jawm.Process(
 echo "Hello"
 """,
     manager="local",
-    retry=2
+    logs_directory="custom_path"
 )
 ```
 
@@ -106,20 +106,24 @@ Processes can also read configuration from YAML files.
 Example of a global YAML block:
 
 ```yaml
-scope: global
-
-manager: slurm
-retry: 2
+- scope: global
+  manager: local
+  logs_directory: custom_path
 ```
+
+Global scoped parameters would be applied to all the Processes.
 
 Example of a process-specific YAML block:
 
-\`\`\`yaml
-scope: process
+```yaml
+- scope: process
+  name: "example*"
+  manager: local
+  logs_directory: custom_path
+```
 
-process: example
-retry: 5
-\`\`\`
+While defining `- scope: process`, `name` is required as it chooses Process by name. `name` accepts wildcard and list values, so the parameters can be applied in specific Processes.
+Process specific paramters would overwrite global parameters.
 
 ---
 
@@ -129,14 +133,14 @@ Parameters can also be overridden directly from the CLI.
 
 Example:
 
-\`\`\`bash
-jawm run workflow.py --process.example.retry=5
-\`\`\`
+```bash
+jawm run workflow.py --process.example.manager=local
+```
 
 Global override example:
 
-\`\`\`bash
+```bash
 jawm run workflow.py --global.retry=3
-\`\`\`
+```
 
 ---

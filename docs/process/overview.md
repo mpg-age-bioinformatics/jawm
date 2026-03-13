@@ -43,7 +43,7 @@ When executed, jawm will:
 4. Store logs and metadata  
       
 With the default log level `INFO`, this `hello_world` Process would generate logs similar to followings:  
-```text
+```console
 [2026-03-13 09:52:44] - INFO - hello_world|cb6bc9hopa :: Launching process hello_world using Local executor.
 [2026-03-13 09:52:44] - INFO - hello_world|cb6bc9hopa :: Log folder for process hello_world: /jawm/example/logs/hello_world_20260313_095244_cb6bc9hopa
 [2026-03-13 09:52:44] - INFO - hello_world|cb6bc9hopa :: Preparing base script for process hello_world

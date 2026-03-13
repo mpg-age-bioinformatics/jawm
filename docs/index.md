@@ -13,7 +13,7 @@ of Python without committing to heavyweight workflow frameworks or external runt
 - Python-first  
   Workflows are plain Python modules. No DSL, no separate compiler, no runtime service.
 
-- Local → HPC without rewrites  
+- Local → Different Backends without rewrites  
   The same Process definition can run locally, on Slurm, or on Kubernetes by switching
   the execution manager.
 
