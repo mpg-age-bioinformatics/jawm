@@ -506,3 +506,157 @@ monitoring_directory: "/jawm/monitoring"
 ```
 
 ---
+
+## `depends_on`
+
+- **Category**: `parameter`
+- **Type**: `str` or `list[str]`
+
+Name or hash of one or more upstream processes that must finish before this process starts.
+
+`depends_on` is used to define execution order in a workflow. Before running the current process, jawm waits for all listed dependencies to finish. Dependencies can be provided using either the process `name` or the generated process `hash` (recommended for better uniqeness).
+
+_**Note**_: By default, jawm waits for dependencies to finish. If `allow_skipped_deps=False`, jawm also requires those dependencies to have completed successfully; otherwise the current process is skipped.
+
+**Single dependency by name:**
+```python
+depends_on="dependant_proc_name"
+```
+
+**Single dependency by hash:**
+```python
+depends_on="cb6bc9hopa"
+```
+
+**Better with not hardcoded instance hash**
+```python
+depends_on=process_instance.hash
+```
+
+**Multiple dependencies:**
+```python
+depends_on=[proc_instance_1.hash, proc_instance_1.hash]
+```
+
+**YAML Example:**
+```yaml
+depends_on:
+  - "prepare_data"
+  - "run_qc"
+```
+
+**Example with process objects using `hash`:**
+```python
+import jawm
+
+p1 = jawm.Process(
+    name="prepare_data",
+    script="""#!/bin/bash
+echo "Preparing data"
+"""
+)
+
+p2 = jawm.Process(
+    name="run_qc",
+    script="""#!/bin/bash
+echo "Running QC"
+""",
+    depends_on=[p1.hash]
+)
+```
+
+**Example with `execute(depends_on=...)`:**
+```python
+import jawm
+
+p1 = jawm.Process(
+    name="prepare_data",
+    script="""#!/bin/bash
+echo "Preparing data"
+"""
+)
+
+p2 = jawm.Process(
+    name="run_qc",
+    script="""#!/bin/bash
+echo "Running QC"
+"""
+)
+
+p1.execute()
+p2.execute(depends_on=[p1.hash])
+```
+
+In the `execute(depends_on=...)` form, the provided dependency list overrides the current `depends_on` value for that execution.
+
+_**Note**_: If a dependency is not found in the registry, jawm logs a warning and skips waiting for it. If a process lists itself in `depends_on` using its own name or hash, that self-dependency is ignored.
+
+---
+
+## `allow_skipped_deps`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `True`
+
+Whether to treat skipped dependencies as acceptable; if False, process only runs when all dependencies succeeded.
+
+If `allow_skipped_deps=True`, jawm allows the current process to continue when a dependency was skipped.
+
+_**Note**_: This parameter is mainly relevant when using `depends_on`.
+
+**Example:**
+```python
+allow_skipped_deps=False
+```
+
+**YAML Example:**
+```yaml
+allow_skipped_deps: false
+```
+
+---
+
+## `manager`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `local`
+- **Allowed**: `local`, `slurm`, `kubernetes`
+
+Execution backend used to launch the `Process`.
+
+The `manager` parameter controls **where and how** the process is executed:
+
+- **`local`** — runs the process on the local machine
+- **`slurm`** — submits the process as a Slurm job
+- **`kubernetes`** — creates and runs the process as a Kubernetes job
+
+jawm validates the selected manager and dispatches execution to the corresponding backend implementation. Manager-specific options can then be provided through parameters such as `manager_slurm` or `manager_kubernetes`. 
+
+_**Note**_: `manager` controls the execution backend, while container-related parameters such as `environment` and `container` control the runtime environment inside that backend. For example, a process may use `manager="local"` together with a containerized environment, or `manager="slurm"` to submit through a scheduler.
+
+**Example:**
+```python
+manager="slurm"
+```
+
+**YAML Example:**
+```yaml
+manager: "slurm"
+```
+
+**CLI Example:**
+
+**Global manager for all processes:**
+```bash
+jawm module.py --global.manager=kubernetes
+```
+
+**Process-specific manager:**
+```bash
+jawm module.py --process.p1.manager=slurm
+```
+
+---
+
