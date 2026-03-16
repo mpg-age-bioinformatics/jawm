@@ -1749,6 +1749,30 @@ If evaluation of `when` fails, jawm logs the error and skips the process.
 
 ---
 
+## `always_run`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `False`
+
+Whether the `Process` should still run even if a previous process has failed.
+
+This is useful for steps such as cleanup, reporting, or notifications that should run regardless of earlier failures in the workflow.
+
+_**Note**_: `always_run=True` does **not** override `when=False`. If the process is explicitly skipped by `when`, it will still not run.
+
+**Example:**
+```python
+always_run=True
+```
+
+**YAML Example:**
+```yaml
+always_run: true
+```
+
+---
+
 ## `error_strategy`
 
 - **Category**: `parameter`
@@ -1965,3 +1989,47 @@ In this example:
 - second retry sets memory and time explicitly
 
 _**Note**_: `retry_overrides` is most useful with parameters that already have values, especially nested dicts like `manager_slurm`. If a nested key does not already exist, jawm adds it as-is.
+
+---
+
+## `resume`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `False`
+
+Whether to skip execution if a matching previous run has already completed successfully.
+
+When `resume=True`, jawm checks the current `logs_directory` for an earlier run of the same process `name` with a matching parameter-hash prefix. If a matching run is found and its `<name>.exitcode` indicates success, jawm skips re-execution and reuses that existing run directory as the process `log_path`.
+
+This is useful when re-running a workflow after interruption or after partial completion, since already successful steps do not need to be executed again.
+
+_**Note**_: Resume matching is based on the process `name` and the first 6 characters of the generated process hash. The hash is derived from the effective process parameters and also includes referenced content such as `script_file`, `param_file`, and `var_file`.
+
+_**Note**_: Resume only skips runs that completed successfully. Failed or incomplete runs are not reused.
+
+**Example:**
+```python
+resume=True
+```
+
+**YAML Example:**
+```yaml
+resume: true
+```
+
+**CLI Example:**
+
+Resume mode can also be enabled from the CLI using `-r` or `--resume` (this is more of a real life use case rather than per Process `resume=True`).
+
+```bash
+jawm module.py -r
+```
+
+```bash
+jawm module.py --resume
+```
+
+When used from the CLI, jawm injects `resume=True` as an override for all the Processes in workflow run.
+
+---
