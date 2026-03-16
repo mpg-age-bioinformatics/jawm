@@ -1147,3 +1147,179 @@ Supported keys for `mode: s3sync`:
 _**Note**_: For `uploadUri`, the upload step runs in the **main container**, so the main container image must have the required AWS CLI tooling available or the upload will fail.
 
 ---
+
+## `environment`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `local`
+- **Allowed**: `local`, `docker`, `apptainer`
+
+Runtime environment used to execute the `Process`.
+
+The `environment` parameter controls whether the process runs:
+
+- directly on the host using **`local`**
+- inside a **Docker** container using **`docker`**
+- inside an **Apptainer** container using **`apptainer`** (or **`singularity`** as an accepted alias)
+
+This parameter is separate from `manager`.
+
+- `manager` controls **where the job is launched** such as `local`, `slurm`, or `kubernetes`
+- `environment` controls **how the script is executed** within that manager, especially for local and Slurm execution
+
+For containerized execution, a valid `container` must also be provided.
+
+_**Note**_: If `environment` is set to `docker`, `apptainer`, or `singularity` but no `container` is provided, jawm falls back to `local`.
+
+**Example:**
+```python
+environment="docker"
+```
+
+**YAML Example:**
+```yaml
+environment: "docker"
+```
+
+**Typical Python Example:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="python_in_docker",
+    script="""#!/usr/bin/env python3
+print("Hello from container")
+""",
+    environment="docker",
+    container="python:3.12"
+)
+```
+
+**Typical YAML Example:**
+```yaml
+environment: "apptainer"
+container: "/data/containers/tools.sif"
+```
+
+**Or with hosted image:**
+```yaml
+environment: "apptainer"
+container: "docker://ubuntu:22.04"
+```
+`ubuntu:22.04` would result the same as the default prefix is `docker://`
+
+**CLI Example:**
+```bash
+jawm module.py --global.environment="docker"
+```
+
+**Process-specific CLI Example:**
+```bash
+jawm module.py --process.my_process.environment="apptainer"
+```
+
+_**Related parameters**_:
+
+- `container` — container image or `.sif` path
+- `environment_docker` — extra Docker runtime options
+- `environment_apptainer` — extra Apptainer runtime options
+- `container_before_script` — command to run inside the container before the main script
+- `container_after_script` — command to run inside the container after the main script
+- `docker_run_as_user` — run Docker container with the current user UID/GID
+
+---
+
+## `container`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Container image or container file used for containerized execution.
+
+The meaning of `container` depends on the selected runtime:
+
+- with `environment="docker"` → Docker image, for example `python:3.12`
+- with `environment="apptainer"` or `environment="singularity"` → Apptainer/Singularity image or `.sif` file
+- with `manager="kubernetes"` → container image used in the Kubernetes Job
+
+**Common examples:**
+
+- Docker image:
+```python
+container="python:3.12"
+```
+
+- Apptainer image file:
+```python
+container="/containers/tools.sif"
+```
+
+- Apptainer image from Docker registry:
+```python
+container="python:3.12"     # or "docker://python:3.12"
+```
+
+**YAML Example:**
+```yaml
+container: "python:3.12"
+```
+
+_**Note**_: For local or Slurm execution with `environment="docker"` or `environment="apptainer"`, `container` should be set. If `environment` is non-local but `container` is missing, jawm falls back to `local` execution.
+
+**Example with Docker:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="run_python",
+    script="""#!/usr/bin/env python3
+print("Hello from Docker")
+""",
+    environment="docker",
+    container="python:3.12"
+)
+```
+
+**Example with Slurm + Apptainer:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="cluster_job",
+    manager="slurm",
+    environment="apptainer",
+    container="/containers/tools.sif",
+    script="""#!/bin/bash
+python3 /work/run.py
+"""
+)
+```
+
+**Example with Kubernetes:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="k8s_python",
+    manager="kubernetes",
+    script="""#!/usr/bin/env python3
+print("Hello from Kubernetes")
+""",
+    container="python:3.12"
+)
+```
+
+_**Note**_: For Kubernetes, if `container` is not provided, jawm tries to infer an image from the script shebang. For example, Python scripts map to a Python image, R scripts to an R image, and shell scripts to a default Ubuntu image.
+
+**CLI Example:**
+```bash
+jawm module.py --global.container="python:3.12"
+```
+
+**Process-specific CLI Example:**
+```bash
+jawm module.py --process.my_process.container="python:3.12"
+```
+
+---
