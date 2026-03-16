@@ -1747,3 +1747,221 @@ _**Note**_: If `when` is a callable, it must accept either:
 
 If evaluation of `when` fails, jawm logs the error and skips the process.
 
+---
+
+## `error_strategy`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `retry`
+- **Allowed**: `retry`, `fail`
+
+Controls how jawm handles a failed process execution.
+
+- **`retry`** — jawm follows the configured `retries` behavior
+- **`fail`** — jawm stops retrying immediately for that process
+
+If `error_strategy="fail"`, jawm forces `retries=0`, even if a higher value was provided elsewhere. This parameter can be skipped entirely by just using `retries`.
+
+_**Note**_: This parameter affects per-process failure handling, not the overall workflow structure.
+
+**Example:**
+```python
+error_strategy="retry"
+```
+
+**YAML Example:**
+```yaml
+error_strategy: "fail"
+```
+
+In this case, jawm can retry the process according to the configured retry count.
+
+---
+
+## `retries`
+
+- **Category**: `parameter`
+- **Type**: `int`
+- **Default**: `0`
+
+Number of retry attempts if the `Process` fails.
+
+If `retries=0`, jawm performs only the initial execution attempt.  
+If `retries=2`, jawm can try up to **3 total attempts**:
+
+- 1 initial attempt
+- 2 retry attempts
+
+Retries are handled by jawm for supported backends such as local, Slurm, and Kubernetes.
+
+_**Note**_: `retries` works together with `error_strategy`. If `error_strategy="fail"`, jawm forces `retries=0`.
+
+**Example:**
+```python
+retries=2
+```
+
+**YAML Example:**
+```yaml
+retries: 2
+```
+
+**CLI Example:**
+```bash
+jawm module.py --global.retries=2
+```
+
+**Process-specific CLI Example:**
+```bash
+jawm module.py --process.my_process.retries=2
+```
+
+---
+
+## `retry_overrides`
+
+- **Category**: `parameter`
+- **Type**: `dict[int -> dict]`
+
+Retry-specific parameter overrides applied on retry attempts.
+
+`retry_overrides` lets you change selected process parameters for later attempts if the initial execution fails. The dictionary keys are **retry attempt numbers**.
+
+For example:
+
+- key `1` → applied before the **first retry**
+- key `2` → applied before the **second retry**
+- key `3` → applied before the **third retry**
+
+This is especially useful for gradually increasing resources on retries, such as more memory, more time, or a different Slurm partition.
+
+_**Note**_: `retry_overrides` only affects retry attempts. It does not change the initial attempt.
+
+_**Note**_: Overrides are applied to the current process parameters for that retry. For dict-like parameters such as `manager_slurm`, matching nested keys are updated instead of replacing the whole dict.
+
+**Example:**
+```python
+retry_overrides={
+    1: {
+        "manager_slurm": {
+            "--partition": "debug",
+            "--mem": "+100%"
+        }
+    },
+    2: {
+        "manager_slurm": {
+            "--mem": "3.2G",
+            "--time": "00:05:00"
+        }
+    },
+    3: {
+        "manager_slurm": {
+            "--mem": "+1",
+            "--time": "+50%"
+        }
+    }
+}
+```
+
+**YAML Example:**
+```yaml
+retry_overrides:
+  1:
+    manager_slurm:
+      --partition: "debug"
+      --mem: "+100%"
+  2:
+    manager_slurm:
+      --mem: "3.2G"
+      --time: "00:05:00"
+  3:
+    manager_slurm:
+      --mem: "+1"
+      --time: "+50%"
+```
+
+**Supported override behavior**
+
+For existing numeric-like values, jawm supports:
+
+- **direct replacement**  
+  Example: `"3.2G"` or `"00:05:00"`
+
+- **absolute increment/decrement**  
+  Example: `"+1"` or `"-2"`
+
+- **percentage change**  
+  Example: `"+50%"` or `"-25%"`
+
+For time values already written as `HH:MM:SS`, values like `"+60"` are treated as seconds.
+
+**Example with Slurm memory and time scaling**
+
+```python
+retry_overrides={
+    1: {
+        "manager_slurm": {
+            "--mem": "+50%",
+            "--time": "+300"
+        }
+    }
+}
+```
+
+If the initial values were:
+
+```python
+manager_slurm={
+    "--mem": "4G",
+    "--time": "01:00:00"
+}
+```
+
+then on the first retry, jawm would apply:
+
+- `--mem`: `4G` → `6G`
+- `--time`: `01:00:00` → `01:05:00`
+
+**Example in a full Process**
+
+```python
+import jawm
+
+p = jawm.Process(
+    name="slurm_retry_job",
+    manager="slurm",
+    script="""#!/bin/bash
+exit 1
+""",
+    retries=3,
+    manager_slurm={
+        "--partition": "short",
+        "--mem": "4G",
+        "--time": "01:00:00"
+    },
+    retry_overrides={
+        1: {
+            "manager_slurm": {
+                "--partition": "debug",
+                "--mem": "+100%",
+                "--time": "+60"
+            }
+        },
+        2: {
+            "manager_slurm": {
+                "--mem": "12G",
+                "--time": "02:00:00"
+            }
+        }
+    }
+)
+```
+
+In this example:
+
+- initial attempt uses `4G` and `01:00:00`
+- first retry switches to partition `debug`, doubles memory, and adds 60 seconds
+- second retry sets memory and time explicitly
+
+_**Note**_: `retry_overrides` is most useful with parameters that already have values, especially nested dicts like `manager_slurm`. If a nested key does not already exist, jawm adds it as-is.
