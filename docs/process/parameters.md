@@ -433,3 +433,76 @@ jawm module.py -l /data/my_project/logs
 ```
 
 ---
+
+## `error_summary_file`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `<logs_directory>/error.log`
+
+Path to the central error summary file.
+
+When a `Process` fails, jawm appends a short summary to this file so that errors can be found quickly without checking each individual process logs/run directory. This makes `error_summary_file` the main file to inspect for a quick overview of workflow failures.
+
+Each entry typically includes:
+
+- timestamp
+- process name
+- process hash
+- log folder path
+- error type and message
+
+_**Note**_: If not explicitly set, jawm uses `error.log` inside `logs_directory` (dafault to `logs`). If there's no error, there wouldn't be an error summary file.
+
+**Example:**
+```python
+error_summary_file="logs/error.log"
+```
+
+**YAML Example:**
+```yaml
+error_summary_file: "logs/error.log"
+```
+
+---
+
+## `monitoring_directory`
+
+- **Category**: `parameter`
+- **Type**: `str`
+- **Default**: `~/.jawm/monitoring` or environment variable `JAWM_MONITORING_DIRECTORY`
+
+Directory used by jawm to track process execution state outside the main `logs_directory`.
+
+When enabled, jawm creates `Running/` and `Completed/` subdirectories inside `monitoring_directory` and writes lightweight state files there while a process is running and after it finishes. This is useful for quick external monitoring of active and completed jobs across managed executions. In general cases, user does not need to interact directly with this directory, and shouldnot change frequently.
+
+Typical structure:
+
+```text
+<monitoring_directory>/
+├── Running/
+└── Completed/
+```
+
+Typical files:
+
+```text
+Running/local.<job_id>.txt
+Completed/local.<job_id>.<exit_code>.txt
+```
+
+These files contain summary information such as process name, process hash, manager, script path, run start time, and exit code.
+
+_**Note**_: If not explicitly set, jawm uses `JAWM_MONITORING_DIRECTORY` when available, otherwise defaults to `~/.jawm/monitoring`.
+
+**Example:**
+```python
+monitoring_directory="/jawm/monitoring"
+```
+
+**YAML Example:**
+```yaml
+monitoring_directory: "/jawm/monitoring"
+```
+
+---
