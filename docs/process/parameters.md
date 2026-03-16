@@ -1563,3 +1563,187 @@ automated_mount=True
 automated_mount: true
 ```
 ---
+
+## `env`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Environment variables for the `Process`.
+
+`env` is merged into the process environment and made available during execution. It can be used to define variables needed by the script itself, or by the selected runtime environment such as local execution, Docker, Apptainer, Slurm, or Kubernetes.
+
+For `local` execution, jawm combines the current host environment with the values from `env`, where keys in `env` override existing environment variables with the same name.
+
+For containerized execution:
+
+- with `environment="docker"` → variables are passed using `docker run -e`
+- with `environment="apptainer"` / `environment="singularity"` → variables are passed using `apptainer exec --env`
+- with `manager="kubernetes"` → variables are added to the container `env` section of the generated Job manifest
+
+_**Note**_: `env` is a dict-like parameter, so it is **merged** across configuration layers. If the same key is defined more than once, the higher-precedence value overrides the lower-precedence one.
+
+**Example:**
+```python
+env={
+    "THREADS": "4",
+    "MODE": "test"
+}
+```
+
+**YAML Example:**
+```yaml
+env:
+  THREADS: "4"
+  MODE: "test"
+```
+
+**Example of `env` usage in script:**
+```python
+script="""#!/bin/bash
+echo "THREADS=${THREADS}"
+echo "MODE=${MODE}"
+"""
+```
+
+**Python Example:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="env_example",
+    script="""#!/bin/bash
+echo "THREADS=${THREADS}"
+echo "MODE=${MODE}"
+""",
+    env={
+        "THREADS": "4",
+        "MODE": "test"
+    }
+)
+```
+
+**Merge and override behavior**
+
+```python
+# lower-precedence values
+env={"THREADS": "4", "MODE": "test"}
+
+# higher-precedence override
+env={"THREADS": "8"}
+```
+
+Effective merged value:
+
+```python
+{"THREADS": "8", "MODE": "test"}
+```
+
+**CLI Example:**
+
+Environment variables can also be injected or overridden from the CLI using `--global.env.<key>=<value>` or `--process.<process_name>.env.<key>=<value>`.
+
+```bash
+jawm module.py --global.env.THREADS="4"
+```
+
+```bash
+jawm module.py --process.my_process.env.MODE="test"
+```
+
+---
+
+## `when`
+
+- **Category**: `parameter`
+- **Type**: `bool` or `callable`
+- **Default**: `True`
+
+Conditional control for whether the `Process` should execute.
+
+If `when` evaluates to `False`, jawm skips the process and marks it as finished without running the script.
+
+`when` can be:
+
+- a **boolean**
+- a **callable** returning a boolean
+- a **callable** that accepts the current `Process` instance as its only argument
+
+**Example with boolean:**
+```python
+when=False
+```
+
+**YAML Example:**
+```yaml
+when: false
+```
+
+**Example with a callable:**
+```python
+when=lambda: os.path.exists("input.txt")
+```
+
+**Example with a callable using the current process instance:**
+```python
+when=lambda p: p.manager == "slurm"
+```
+
+**Full Python Example:**
+```python
+import os
+import jawm
+
+p = jawm.Process(
+    name="run_if_input_exists",
+    script="""#!/bin/bash
+echo "Input exists, running process"
+""",
+    when=lambda: os.path.exists("input.txt")
+)
+```
+
+**Full Python Example with process instance:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="run_only_on_slurm",
+    script="""#!/bin/bash
+echo "Running on Slurm"
+""",
+    manager="slurm",
+    when=lambda p: p.manager == "slurm"
+)
+```
+
+**Example with a callable and no arguments:**
+```python
+when=lambda: os.path.exists("input.txt")
+```
+
+This runs the process only if `input.txt` exists in the current working directory.
+
+**Example using process `var`:**
+```python
+when=lambda p: p.var.get("run_step", "false") == "true"
+```
+
+This runs the process only if the process variable `run_step` is set to `"true"`.
+
+**Example using a Process instance parameter:**
+```python
+when=lambda p: os.path.exists(f"{p.project_directory}/inputs/sample.txt")
+```
+
+This runs the process only if `sample.txt` exists inside the process project directory.
+
+
+
+_**Note**_: If `when` is a callable, it must accept either:
+
+- no arguments, or
+- exactly one argument, which is the current `Process` instance
+
+If evaluation of `when` fails, jawm logs the error and skips the process.
+
