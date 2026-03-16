@@ -1323,3 +1323,243 @@ jawm module.py --process.my_process.container="python:3.12"
 ```
 
 ---
+
+## `environment_docker`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Docker-specific runtime options used when `environment="docker"`.
+
+`environment_docker` is passed directly to the generated `docker run` command. It is used to add Docker runtime flags such as volume mounts, port mappings, container names, network settings, or other supported Docker options.
+
+How values are handled:
+
+- **string / number values** are passed as `OPTION VALUE`
+- **list values** are passed multiple times
+- **boolean `True` values** are treated as flags and added without a value
+- **boolean `False` values** are ignored
+
+_**Note**_: `environment_docker` only affects Docker execution. To use it, `environment` must be set to `docker` and a valid `container` must also be provided.
+
+_**Note**_: When `automated_mount=True` (default), jawm also automatically mounts the process log directory and detected `mk.*` / `map.*` paths, unless those mounts are already provided manually.
+
+_**Note**_: If no `-w` or `--workdir` is provided and `automated_mount=True`, jawm automatically sets the container working directory to `project_directory`.
+
+**Example:**
+```python
+environment_docker={
+    "--volume": ["/data:/data", "/ref:/ref"],
+    "--network": "host"
+}
+```
+
+**YAML Example:**
+```yaml
+environment_docker:
+  --volume:
+    - "/data:/data"
+    - "/ref:/ref"
+  --network: "host"
+```
+
+**Example with a single volume mount:**
+```python
+environment_docker={
+    "--volume": "/project:/project"
+}
+```
+
+**Example with boolean flags:**
+```python
+environment_docker={
+    "--ipc": "host",
+    "--rm": True
+}
+```
+
+**Example with short options:**
+```python
+environment_docker={
+    "-v": ["/data:/data", "/work:/work"],
+    "-p": ["8080:8080", "8888:8888"]
+}
+```
+
+**Typical Python Example:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="run_in_docker",
+    script="""#!/usr/bin/env python3
+print("Hello from Docker")
+""",
+    environment="docker",
+    container="python:3.12",
+    environment_docker={
+        "--volume": ["/data:/data", "/work:/work"],
+        "--network": "host"
+    }
+)
+```
+
+**Typical YAML Example:**
+```yaml
+environment: "docker"
+container: "python:3.12"
+environment_docker:
+  --volume:
+    - "/data:/data"
+    - "/work:/work"
+  --network: "host"
+```
+
+---
+
+## `environment_apptainer`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+Apptainer-specific runtime options used when `environment="apptainer"` or `environment="singularity"`.
+
+`environment_apptainer` is passed directly to the generated `apptainer exec` command. It is mainly used to add Apptainer flags such as bind mounts, writable settings, home directory control, overlays, or other supported runtime options.
+
+How values are handled:
+
+- **string / number values** are passed as `OPTION VALUE`
+- **list values** are passed multiple times
+- **boolean `True` values** are treated as flags and added without a value
+- **boolean `False` values** are ignored
+
+_**Note**_: `environment_apptainer` only affects the Apptainer command. To use Apptainer execution, `environment` must be set to `apptainer` (or `singularity`) and a valid `container` must also be provided.
+
+_**Note**_: When `automated_mount=True` (default), jawm also automatically binds the process log directory and detected `mk.*` / `map.*` paths, unless those mounts are already provided manually.
+
+**Example:**
+```python
+environment_apptainer={
+    "--bind": ["/data:/data", "/ref:/ref"],
+    "--cleanenv": True
+}
+```
+
+**YAML Example:**
+```yaml
+environment_apptainer:
+  --bind:
+    - "/data:/data"
+    - "/ref:/ref"
+  --cleanenv: true
+```
+
+**Example with a single bind mount:**
+```python
+environment_apptainer={
+    "--bind": "/project:/project"
+}
+```
+
+**Example with multiple flags:**
+```python
+environment_apptainer={
+    "--bind": ["/data:/data", "/scratch:/scratch"],
+    "--cleanenv": True,
+    "--containall": True,
+    "--writable-tmpfs": True
+}
+```
+
+**Example with Singularity-compatible short option:**
+```python
+environment_apptainer={
+    "-B": ["/data:/data", "/ref:/ref"]
+}
+```
+
+**Typical Python Example:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="run_in_apptainer",
+    script="""#!/bin/bash
+python3 /work/run.py
+""",
+    environment="apptainer",
+    container="/containers/tools.sif",
+    environment_apptainer={
+        "--bind": ["/data:/data", "/work:/work"],
+        "--cleanenv": True
+    }
+)
+```
+
+**Typical YAML Example:**
+```yaml
+environment: "apptainer"
+container: "/containers/tools.sif"
+environment_apptainer:
+  --bind:
+    - "/data:/data"
+    - "/work:/work"
+  --cleanenv: true
+```
+
+---
+
+## `docker_run_as_user`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `False`
+
+Whether to run the Docker container as the current host user.
+
+If `docker_run_as_user=True`, jawm adds the current host `UID:GID` to the generated `docker run` command using `-u`, unless `-u` or `--user` is already explicitly set in `environment_docker`.
+
+This is useful to avoid permission issues on mounted files and directories.
+
+**Example:**
+```python
+docker_run_as_user=True
+```
+
+**YAML Example:**
+```yaml
+docker_run_as_user: true
+```
+
+_**Note**_: This parameter is only relevant when `environment="docker"`.
+
+---
+
+## `automated_mount`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `True`
+
+This is a special parameter that decides Whether jawm should automatically mount commonly needed paths into containerized execution environments.
+
+When `automated_mount=True` (default), jawm automatically mounts:
+
+- the process `logs_directory`
+- detected paths from `mk.*` variables
+- detected paths from `map.*` variables
+
+This is mainly useful when using `environment="docker"` or `environment="apptainer"` / `environment="singularity"`.
+
+_**Note**_: User-provided container options in `environment_docker` or `environment_apptainer` still apply. Automatic mounts are added in addition to those, unless the same mount is already provided manually. Not recommended to use `False`, if it is not necessary.
+
+**Example:**
+```python
+automated_mount=True
+```
+
+**YAML Example:**
+```yaml
+automated_mount: true
+```
+---
