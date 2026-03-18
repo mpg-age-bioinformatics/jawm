@@ -59,8 +59,8 @@ hello_world|cb6bc9hopa
 ```python
 p1 = jamw.Process(name="p1", ...)
 p2 = jawm.Process(name="p2", depends_on=[p1.hash], ...)
-# or use inside `execute` to have the same depends_on outcome
-# p2.execute(p1.hash)
+# or use as the parameter of `execute` method to have the same depends_on outcome
+# p2.execute([p1.hash])
 ```
 
 **Example `jawm.Process.wait()` usage:**
