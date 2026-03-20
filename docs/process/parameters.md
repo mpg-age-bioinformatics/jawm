@@ -2110,3 +2110,86 @@ p2.execute()
 In this case, `p2.execute()` would run only when `p1.execute()` process has complted.
 
 ---
+
+## `validation`
+
+- **Category**: `parameter`
+- **Type**: `bool` or `str`
+- **Default**: `False`
+- **Allowed string values**: `True` or `basic`, `strict`
+
+Whether jawm should validate the `Process` configuration during initialization.
+
+When validation is enabled, jawm checks the process for common configuration problems before execution, including:
+
+- missing or invalid `name`
+- missing `script` / `script_file`
+- unsupported `manager`
+- missing `script_file`
+- missing or invalid shebang line
+- parameter type mismatches
+- unresolved `{{variable}}` placeholders in the script
+- unrecognized extra parameters in `kwargs`
+
+Validation can be enabled in two modes:
+
+- **`True`** or **`"basic"`**  
+  Runs validation and logs **errors** and **warnings**, but does not automatically skip the process.
+
+- **`"strict"`**  
+  Runs the same validation, but if validation fails, jawm sets `when=False` for the process so it is skipped.
+
+_**Note**_: In `strict` mode, both validation **errors** and validation **warnings** are treated as failure.
+
+_**Note**_: Unresolved placeholders like `{{sample}}` would be reported as warnings unless the placeholder starts with `{{jawm.Process.`, even if the `validation` is off.
+
+**Example:**
+```python
+validation=True
+```
+
+**Strict mode Example:**
+```python
+validation="strict"
+```
+
+**YAML Example:**
+```yaml
+validation: true
+```
+
+**YAML strict Example:**
+```yaml
+validation: "strict"
+```
+
+**Example with unresolved placeholder warning:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="example",
+    script="""#!/bin/bash
+echo "{{sample}}"
+""",
+    validation=True
+)
+```
+
+In this example, jawm would report a validation warning because `sample` is not defined in `var` or `var_file`.
+
+**Example with strict validation:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="strict_example",
+    script="""echo "missing shebang"
+""",
+    validation="strict"
+)
+```
+
+In this example, strict validation would fail because the script does not start with a valid shebang line, and the process would be skipped by setting `when=False`.
+
+---
