@@ -2033,3 +2033,27 @@ jawm module.py --resume
 When used from the CLI, jawm injects `resume=True` as an override for all the Processes in workflow run.
 
 ---
+
+## `always_run`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `False`
+
+Whether the `Process` should still run even if one or more previous processes have failed.
+
+This is useful for steps such as cleanup, reporting, or notifications that should run regardless of earlier failures in the workflow.
+
+_**Note**_: `always_run=True` does not override `when=False`. If the process is explicitly skipped by `when`, it will still not run.
+
+**Example:**
+```python
+always_run=True
+```
+
+**YAML Example:**
+```yaml
+always_run: true
+```
+
+---
