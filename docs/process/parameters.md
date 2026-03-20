@@ -2034,26 +2034,79 @@ When used from the CLI, jawm injects `resume=True` as an override for all the Pr
 
 ---
 
-## `always_run`
+## `parallel`
 
 - **Category**: `parameter`
 - **Type**: `bool`
-- **Default**: `False`
+- **Default**: `True`
 
-Whether the `Process` should still run even if one or more previous processes have failed.
+Whether the `Process` should be launched in non-blocking mode or block until it finishes.
 
-This is useful for steps such as cleanup, reporting, or notifications that should run regardless of earlier failures in the workflow.
+When `parallel=True`, `execute()` starts the process in the background and immediately returns, allowing other processes to be launched without waiting for this one to finish.
 
-_**Note**_: `always_run=True` does not override `when=False`. If the process is explicitly skipped by `when`, it will still not run.
+When `parallel=False`, `execute()` runs in blocking mode and waits until the process has fully finished before returning. This is useful when later workflow logic should not continue until the current process is complete. Also can be fitting for backend with less resources where it doesn not have the capacity to run heavy processes parallelly.
+
+_**Note**_: `parallel=False` does not disable workflow dependencies. It only changes whether the current `execute()` call blocks or returns immediately.
+
+_**Note**_: Even with `parallel=True`, jawm may still delay process startup if global concurrency limits are configured through JAWM config variables such as:
+
+- `JAWM_MAX_PROCESS`
+- `JAWM_MAX_PROCESS_LOCAL`
+- `JAWM_MAX_PROCESS_SLURM`
+- `JAWM_MAX_PROCESS_KUBERNETES`
+- `JAWM_PROCESS_WAIT_POLL`
+
+If these limits are set, jawm waits for a free execution slot before launching the process.
+The polling interval for this wait is controlled by `JAWM_PROCESS_WAIT_POLL`
 
 **Example:**
 ```python
-always_run=True
+parallel=False
 ```
 
 **YAML Example:**
 ```yaml
-always_run: true
+parallel: false
 ```
+
+**YAML example with `global` scope:**
+```yaml
+- scope: global
+  parallel: false
+```
+
+**YAML example with `process` scope:**
+```yaml
+- scope: process
+  name: my_process
+  parallel: false
+```
+
+**Example with non-parallel execution:**
+```python
+import jawm
+
+p1 = jawm.Process(
+    name="step1",
+    script="""#!/bin/bash
+sleep 10
+echo "Step 1 finished"
+""",
+    parallel=False
+)
+
+p2 = jawm.Process(
+    name="step2",
+    script="""#!/bin/bash
+echo "Step 2 started after step 1 finished"
+""",
+    parallel=False
+)
+
+p1.execute()
+p2.execute()
+```
+
+In this case, `p2.execute()` would run only when `p1.execute()` process has complted.
 
 ---
