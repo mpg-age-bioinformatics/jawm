@@ -2439,3 +2439,123 @@ print("Main script running inside container")
 In this example, jawm first runs the main script inside the container and then executes the finalization command inside the same container context if the main script succeeds.
 
 ---
+
+## `inputs`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+User-defined input metadata associated with the `Process`.
+
+`inputs` is a helper parameter that allows users to attach named input values to a process using a familiar and structured dictionary format. jawm stores this on the process instance as `self.inputs`, but nothing in the core execution logic depends on it directly.
+
+This makes it useful for documenting process inputs, keeping workflow definitions readable, or passing structured metadata alongside the process definition.
+
+_**Note**_: `inputs` is a dict-like parameter, so it is **merged** across configuration layers instead of being replaced entirely.
+
+**Example:**
+```python
+inputs={
+    "sample": "S01",
+    "reads_1": "data/S01_R1.fastq.gz",
+    "reads_2": "data/S01_R2.fastq.gz"
+}
+```
+
+**YAML Example:**
+```yaml
+inputs:
+  sample: "S01"
+  reads_1: "data/S01_R1.fastq.gz"
+  reads_2: "data/S01_R2.fastq.gz"
+```
+
+**CLI Example:**
+```bash
+jawm module.py --global.inputs.sample="S01"
+```
+
+**Process-specific CLI Example:**
+```bash
+jawm module.py --process.my_process.inputs.sample="S01"
+```
+
+---
+
+## `outputs`
+
+- **Category**: `parameter`
+- **Type**: `dict`
+
+User-defined output metadata associated with the `Process`.
+
+`outputs` is a helper parameter that allows users to attach named output values to a process using a familiar and structured dictionary format. jawm stores this on the process instance as `self.outputs`, but nothing in the core execution logic depends on it directly.
+
+This makes it useful for documenting expected outputs, keeping workflow definitions readable, or attaching structured output metadata to the process definition.
+
+_**Note**_: `outputs` is a dict-like parameter, so it is **merged** across configuration layers instead of being replaced entirely.
+
+**Example:**
+```python
+outputs={
+    "bam": "results/sample.bam",
+    "bai": "results/sample.bam.bai",
+    "report": "results/report.txt"
+}
+```
+
+**YAML Example:**
+```yaml
+outputs:
+  bam: "results/sample.bam"
+  bai: "results/sample.bam.bai"
+  report: "results/report.txt"
+```
+
+**CLI Example:**
+```bash
+jawm module.py --global.outputs.report="results/report.txt"
+```
+
+**Process-specific CLI Example:**
+```bash
+jawm module.py --process.my_process.outputs.report="results/report.txt"
+```
+
+---
+
+## `desc`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+User-defined description or note associated with the `Process`.
+
+`desc` is a helper metadata field that allows users to attach a short description, comment, or note to a process. It can be useful for documenting the purpose of a process, explaining what it does, or adding workflow-specific context for readability.
+
+jawm stores `desc` on the process instance, but it does not affect execution logic, dependency handling, scheduling, or any other core workflow behavior.
+
+_**Note**_: `desc` is intended only for human-readable metadata.
+
+**Example:**
+```python
+desc="Align paired-end reads against the reference genome"
+```
+
+**YAML Example:**
+```yaml
+desc: "Align paired-end reads against the reference genome"
+```
+
+**CLI Example:**
+```bash
+jawm module.py --global.desc="Global note for all processes"
+```
+
+**Process-specific CLI Example:**
+```bash
+jawm module.py --process.my_process.desc="This process creates the final summary report"
+```
+
+---
+
