@@ -2317,3 +2317,125 @@ echo "Main script running"
 In this example, jawm executes the main script first and then runs the finalization command only if the main script succeeds.
 
 ---
+
+## `container_before_script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Shell command executed **inside the container context before** the main process script starts.
+
+`container_before_script` is useful for lightweight setup steps that must happen **inside** the container, such as creating directories, printing diagnostic information, changing container-local state, or preparing files available only from inside the container environment.
+
+This parameter is mainly relevant when using:
+
+- `environment="docker"`
+- `environment="apptainer"` or `environment="singularity"`
+- `manager="kubernetes"`
+
+For Docker and Apptainer-based execution, jawm wraps the container command so that the order is effectively:
+
+```text
+container_before_script && <main_script> && container_after_script
+```
+
+For Kubernetes execution, `container_before_script` is also placed before the main script inside the generated in-container command.
+
+_**Note**_: `container_before_script` runs **inside the container**, unlike `before_script`, which wraps the main execution command outside the container context.
+
+_**Note**_: If `container_before_script` exits with a non-zero status, the main script does not run.
+
+**Example:**
+```python
+container_before_script='mkdir -p /work/results && echo "Preparing container workspace"'
+```
+
+**Example with chained commands:**
+```python
+container_before_script='echo "Inside container" && ls -lah /work'
+```
+
+**YAML Example:**
+```yaml
+container_before_script: 'mkdir -p /work/results && echo "Preparing container workspace"'
+```
+
+**Full Python Example with Docker:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="container_before_example",
+    environment="docker",
+    container="python:3.12",
+    container_before_script='mkdir -p /work/results && echo "Container setup done"',
+    script="""#!/usr/bin/env python3
+print("Main script running inside container")
+"""
+)
+```
+
+In this example, jawm first runs the setup command inside the container and only then starts the main script.
+
+---
+
+## `container_after_script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Shell command executed **inside the container context after** the main process script finishes successfully.
+
+`container_after_script` is useful for lightweight finalization steps that must happen **inside** the container, such as moving files, writing completion markers, printing summaries, or cleaning temporary files created during containerized execution.
+
+This parameter is mainly relevant when using:
+
+- `environment="docker"`
+- `environment="apptainer"` or `environment="singularity"`
+- `manager="kubernetes"`
+
+For Docker and Apptainer-based execution, jawm wraps the container command so that the order is effectively:
+
+```text
+container_before_script && <main_script> && container_after_script
+```
+
+For Kubernetes execution, `container_after_script` is also placed after the main script inside the generated in-container command.
+
+_**Note**_: `container_after_script` runs **inside the container**, unlike `after_script`, which wraps the main execution command outside the container context.
+
+_**Note**_: `container_after_script` runs only if the main script exits successfully.
+
+**Example:**
+```python
+container_after_script='touch /work/results/done.txt && echo "Container run finished"'
+```
+
+**Example with chained commands:**
+```python
+container_after_script='echo "Cleaning up container workspace" && rm -f /work/tmp.txt'
+```
+
+**YAML Example:**
+```yaml
+container_after_script: 'touch /work/results/done.txt && echo "Container run finished"'
+```
+
+**Full Python Example with Docker:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="container_after_example",
+    environment="docker",
+    container="python:3.12",
+    container_after_script='touch /work/results/done.txt && echo "Container cleanup done"',
+    script="""#!/usr/bin/env python3
+print("Main script running inside container")
+"""
+)
+```
+
+In this example, jawm first runs the main script inside the container and then executes the finalization command inside the same container context if the main script succeeds.
+
+---
