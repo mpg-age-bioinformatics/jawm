@@ -1804,6 +1804,38 @@ def _is_override_token(tok):
     return tok.startswith("--global.") or tok.startswith("--process.")
 
 
+def _parse_cli_bool(value):
+    """
+    Convert only 'true' / 'false' string values to Python bool.
+    Leave everything else unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+
+    v = value.strip().lower()
+    if v == "true":
+        return True
+    if v == "false":
+        return False
+    return value
+
+def _normalize_bool_overrides(d, Process):
+    """
+    Normalize only top-level boolean Process parameters in a nested override dict.
+    Nested values under dict-like parameters such as var/env/manager_slurm remain untouched.
+    """
+    if not isinstance(d, dict):
+        return d
+
+    expected_types = getattr(Process, "parameter_types", {}) or {}
+
+    for key, value in list(d.items()):
+        if expected_types.get(key) is bool:
+            d[key] = _parse_cli_bool(value)
+
+    return d
+
+
 # Custom action class for args --help
 class _IgnoreAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -2305,6 +2337,11 @@ def main():
                     continue
 
         i += 1
+
+    global_overrides = _normalize_bool_overrides(global_overrides or {}, Process)
+
+    for pname, entry in list((process_overrides or {}).items()):
+        process_overrides[pname] = _normalize_bool_overrides(entry, Process)
 
     Process._cli_global_overrides = global_overrides or {}
     Process._cli_process_overrides = process_overrides or {}
