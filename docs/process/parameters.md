@@ -2109,6 +2109,16 @@ p2.execute()
 
 In this case, `p2.execute()` would run only when `p1.execute()` process has complted.
 
+**CLI Example:**
+```bash
+jawm module.py --global.parallel=false
+```
+
+**Process-specific CLI Example:**
+```bash
+jawm module.py --process.my_process.parallel=true
+```
+
 ---
 
 ## `validation`
@@ -2192,6 +2202,16 @@ p = jawm.Process(
 
 In this example, strict validation would fail because the script does not start with a valid shebang line, and the process would be skipped by setting `when=False`.
 
+**CLI Example:**
+```bash
+jawm module.py --global.validation="strict"
+```
+
+**Process-specific CLI Example:**
+```bash
+jawm module.py --process.my_process.validation="strict"
+```
+
 ---
 
 ## `before_script`
@@ -2246,3 +2266,54 @@ In this example, jawm runs the setup command first and only then executes the ma
 
 ---
 
+## `after_script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Shell command executed **after** the main process command finishes successfully.
+
+`after_script` is used to append one or chained shell (bash) commands to the final execution command. It is mainly useful for lightweight cleanup or finalization steps such as moving files, writing completion markers, printing summary messages, or removing temporary files after the main script has run.
+
+jawm combines the command in this order:
+
+```text
+before_script && <main_command> && after_script
+```
+
+This means `after_script` runs only if the main command finishes with a zero exit code.
+
+_**Note**_: `after_script` is a shell command wrapper around the main execution command. It is different from putting cleanup logic inside `script`, and different from `container_after_script`, which runs inside the container context.
+
+**Example:**
+```python
+after_script='echo "Process finished successfully"'
+```
+
+**Example with chained commands:**
+```python
+after_script='touch results/done.txt && echo "Done marker created"'
+```
+
+**YAML Example:**
+```yaml
+after_script: 'touch results/done.txt && echo "Done marker created"'
+```
+
+**Full Python Example:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="after_script_example",
+    after_script='touch results/done.txt && echo "Finishing run"',
+    script="""#!/bin/bash
+mkdir -p results
+echo "Main script running"
+"""
+)
+```
+
+In this example, jawm executes the main script first and then runs the finalization command only if the main script succeeds.
+
+---
