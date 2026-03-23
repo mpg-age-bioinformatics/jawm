@@ -90,9 +90,10 @@ This process will:
 ## Configuration options
 
 Processes can be configured using:
+
 - inline Python arguments,
 - YAML parameter files (global and process-specific),
-- environment variable files,
+- jawm config or environment variables files,
 - and CLI-level overrides.
 
 All configuration sources follow explicit and documented precedence rules.
@@ -102,6 +103,7 @@ All configuration sources follow explicit and documented precedence rules.
 ## When to use jawm
 
 `jawm` is a good fit if you:
+
 - want Python-native workflows without a separate DSL,
 - work across machines and different systems,
 - need reproducibility and observability,
