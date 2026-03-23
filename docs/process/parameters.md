@@ -2193,3 +2193,56 @@ p = jawm.Process(
 In this example, strict validation would fail because the script does not start with a valid shebang line, and the process would be skipped by setting `when=False`.
 
 ---
+
+## `before_script`
+
+- **Category**: `parameter`
+- **Type**: `str`
+
+Shell command executed **before** the main process command starts.
+
+`before_script` is used to prepend one or chained shell (bash) commands to the final execution command. It is mainly useful for lightweight setup steps such as creating directories, printing diagnostic messages, loading shell state, or preparing files before the main script runs.
+
+jawm combines the command in this order:
+
+```text
+before_script && <main_command> && after_script
+```
+
+This means `before_script` runs first, and if it fails with a non-zero exit code, the main command is not executed.
+
+_**Note**_: `before_script` is a shell command wrapper around the main execution command. It is different from putting setup logic inside `script`, and different from `container_before_script`, which runs inside the container context.
+
+**Example:**
+```python
+before_script='echo "Starting process"'
+```
+
+**Example with chained commands:**
+```python
+before_script='mkdir -p results && echo "Workspace prepared"'
+```
+
+**YAML Example:**
+```yaml
+before_script: 'mkdir -p results && echo "Workspace prepared"'
+```
+
+**Full Python Example:**
+```python
+import jawm
+
+p = jawm.Process(
+    name="before_script_example",
+    before_script='mkdir -p results && echo "Preparing run"',
+    script="""#!/bin/bash
+echo "Main script running"
+touch results/done.txt
+"""
+)
+```
+
+In this example, jawm runs the setup command first and only then executes the main script.
+
+---
+
