@@ -61,7 +61,11 @@ extra_css:
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
+  - Getting Started:
+    - Installation: get_started/install.md
+    - Your First Process: get_started/run_process.md
+    - Running a Workflow: get_started/run_workflow.md
+    - Developing a Workflow: get_started/develop_workflow.md
   - Process: 
     - Overview: process/overview.md
     - Configuration & Precedence: process/conf_precedence.md
