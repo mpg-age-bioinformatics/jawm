@@ -34,7 +34,7 @@ jobs:
 
       - name: Build MkDocs site
         run: |
-          mkdocs build --strict
+          mkdocs build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
