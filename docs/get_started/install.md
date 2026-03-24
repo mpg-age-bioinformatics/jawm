@@ -10,7 +10,7 @@ This installs the core jawm package.
 
 ---
 
-## Installation with Optional Dependencies
+**Installation with Optional Dependencies**
 
 If you also want optional dependencies such as `pandas` and `openpyxl`, install jawm with the `full` extra:
 
@@ -22,7 +22,7 @@ This is useful if your workflows or helper utilities rely on additional data-pro
 
 ---
 
-## Useful Installation Variants
+**Useful Installation Variants**
 
 To avoid unnecessary dependency upgrades during installation:
 
@@ -40,14 +40,14 @@ These options can also be combined if needed.
 
 ---
 
-## Notes
+**Notes**
 
 - Installing `jawm[full]` may fail on some systems because it pulls in packages such as `pandas`, which may require native compilation when prebuilt wheels are not available.
 - If you run into installation issues, try upgrading packaging tools first: `python -m pip install -U pip setuptools wheel`
 
 ---
 
-## Verify Installation
+**Verify Installation**
 
 After installation, you can verify that jawm is available by running:
 

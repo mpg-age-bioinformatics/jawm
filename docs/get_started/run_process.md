@@ -7,7 +7,7 @@ This section walks through creating and running your first simple process.
 
 ---
 
-## Minimal Example
+**Minimal Example**
 
 Create a Python file, for example `hello.py`:
 
@@ -49,7 +49,7 @@ You should see logs (example below) printed in the terminal and a log directory 
 
 ---
 
-## What Happens Under the Hood
+**What Happens Under the Hood**
 
 When you call:
 
@@ -67,7 +67,7 @@ jawm performs primarily the following steps:
 
 ---
 
-## Process Logs
+**Process Logs**
 
 After execution, jawm creates a log directory under:
 
@@ -81,22 +81,24 @@ Each run generates a unique folder:
 hello_world_<timestamp>_<hash>
 ```
 
-Inside this folder, you will find files and artifacts such as:
+Inside this folder, you will find relevant files and artifacts such as:
 
 ```text
-hello_world.script
-hello_world.command
-hello_world.output
-hello_world.error
-hello_world.id
-hello_world.exitcode
+logs/
+└── hello_world_<timestamp>_<hash>/
+    ├── hello_world.script
+    ├── hello_world.command
+    ├── hello_world.output
+    ├── hello_world.error
+    ├── hello_world.id
+    └── hello_world.exitcode
 ```
 
 These files help you debug, inspect, and reproduce the process execution.
 
 ---
 
-## Using Python Instead of Bash
+**Using Python Instead of Bash**
 
 You can also write Python scripts directly:
 
@@ -117,7 +119,7 @@ jawm will detect the interpreter from the shebang line.
 
 ---
 
-## Adding Variables
+**Adding Variables**
 
 You can make your process dynamic using `var`:
 
@@ -143,7 +145,7 @@ Hello jawm
 
 ---
 
-## Running via jawm CLI
+**Running via jawm CLI**
 
 Instead of running your script with Python, it is recommended to use the jawm CLI:
 
