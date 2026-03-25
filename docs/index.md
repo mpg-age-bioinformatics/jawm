@@ -8,7 +8,7 @@ of Python without committing to heavyweight workflow frameworks or external runt
 
 ---
 
-## Why jawm?
+**Why jawm?**
 
 - Python-first  
   Workflows are plain Python modules. No DSL, no separate compiler, no runtime service.
@@ -37,7 +37,7 @@ of Python without committing to heavyweight workflow frameworks or external runt
 
 ---
 
-## Core concepts
+**Core concepts**
 
 At its core, jawm is built around a single abstraction:
 
@@ -55,7 +55,7 @@ triggers them based on the definations.
 
 ---
 
-## Quick example
+**Quick example**
 
 ```python
 import jawm
@@ -81,13 +81,13 @@ This process will:
 
 ---
 
-## Execution environments
+**Execution environments**
 
 `jawm` supports multiple execution backends out of the box including Local, Slurm, Kubernetes with Containers support. Switching between them requires no changes to workflow logic.
 
 ---
 
-## Configuration options
+**Configuration options**
 
 Processes can be configured using:
 
@@ -100,7 +100,7 @@ All configuration sources follow explicit and documented precedence rules.
 
 ---
 
-## When to use jawm
+**When to use jawm**
 
 `jawm` is a good fit if you:
 
@@ -113,13 +113,13 @@ It is intentionally minimal and composable, leaving orchestration decisions in y
 
 ---
 
-## Project status
+**Project status**
 
 `jawm` is under active development.
 The public API is stabilizing, but some interfaces may evolve prior to a 1.0.0 release.
 
 ---
 
-## Next steps
+**Next steps**
 
 Head over to Getting started to install jawm and build your first workflow module.
