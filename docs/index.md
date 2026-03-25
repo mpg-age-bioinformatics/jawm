@@ -32,6 +32,9 @@ It is designed for researchers, data scientists, and engineers who want the flex
 - 📦 **Container support when needed**  
   Run processes in Docker or Apptainer along with the native execution.
 
+- 🌐 **Reusable workflow modules**  
+  Run shared/remote workflow modules directly or import them into other workflows for reuse.
+
 - 🔍 **Observable and easy to debug**  
   Each run stores logs, generated scripts, commands, exit codes, and runtime metadata.
 
@@ -43,15 +46,14 @@ At its core, jawm is built around a single abstraction:
 
 `Process`
 
-A Process represents one step in a workflow:
+A `Process` represents one step in a workflow. It can:
 
-- it executes a script (inline or from a file),
-- has parameters, which control what runs, and how it runs,
-- can depend on other processes,
-- and runs using a selectable execution backend.
+<span style="color:#2196F3; font-weight:600">→</span> execute a script (inline or from file)  
+<span style="color:#2196F3; font-weight:600">→</span> define parameters that control execution  
+<span style="color:#2196F3; font-weight:600">→</span> depend on other processes, or run conditionally  
+<span style="color:#2196F3; font-weight:600">→</span> use a selectable execution backend
 
-A workflow is simply a Python module that defines one or more Process objects and
-triggers them based on the definations.
+A workflow in jawm is simply a Python module that defines set of `Process` objects and executes them in the desired order.
 
 ---
 
@@ -70,14 +72,14 @@ echo "Hello from jawm"
 p.execute()
 ```
 
-That’s it.
+This is all you need to run your first jawm process.
 
-This process will:
+When executed, jawm will:
 
-- generate a unique hash,
-- create a dedicated log directory,
-- execute locally by default,
-- and record its execution state.
+- generate a unique process hash,
+- create a dedicated run log directory,
+- execute the process locally by default,
+- and store logs and runtime metadata.
 
 ---
 
@@ -89,14 +91,16 @@ This process will:
 
 ### Configuration options
 
-Processes can be configured using:
+`jawm` provides multiple ways to configure processes, depending on how you prefer to build and run workflows.
 
-- inline Python arguments,
-- YAML parameter files (global and process-specific),
-- jawm config or environment variables files,
-- and CLI-level overrides.
+A `Process` can be configured through:
 
-All configuration sources follow explicit and documented precedence rules.
+- 📌 inline Python arguments
+- 📌 YAML parameter files with `global` and `process` scope
+- 📌 jawm config or environment variable files
+- 📌 CLI-level overrides
+
+These configuration sources follow explicit precedence rules, so it is always clear which value takes effect when the same parameter is defined in more than one place.
 
 ---
 
@@ -104,12 +108,15 @@ All configuration sources follow explicit and documented precedence rules.
 
 `jawm` is a good fit if you:
 
-- want Python-native workflows without a separate DSL,
-- work across machines and different systems,
-- need reproducibility and observability,
-- prefer explicit control over execution and configuration.
+- 🐍 want Python-native workflows without a separate DSL
+- 🌍 work across different machines and execution systems
+- ♻️ need reproducible and traceable process execution
+- 🔍 want clear logs, metadata, and debuggable runs
+- ⚙️ prefer explicit control over execution and configuration
+- 🌐 run shared or remotely available workflow modules directly with ease
+- 🪶 want a lightweight workflow manager/orchestrator that stays out of your way
 
-It is intentionally minimal and composable, leaving orchestration decisions in your hands.
+jawm is intentionally minimal and composable, leaving workflow structure and orchestration decisions in your hands.
 
 ---
 
@@ -119,3 +126,7 @@ It is intentionally minimal and composable, leaving orchestration decisions in y
 The public API is stabilizing, but some interfaces may evolve prior to a 1.0.0 release.
 
 ---
+
+### Next steps
+
+Head over to Getting started to install jawm and build your first workflow module.
