@@ -129,4 +129,4 @@ The public API is stabilizing, but some interfaces may evolve prior to a 1.0.0 r
 
 ### Next steps
 
-Head over to Getting started to install jawm and build your first workflow module.
+Head over to [Getting Started](get_started/install.md) to install jawm and build your first workflow module.
