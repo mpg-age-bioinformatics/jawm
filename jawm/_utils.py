@@ -48,7 +48,7 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
             if ext in [".yaml", ".yml"]:
                 parsed = yaml.safe_load(f)
                 if isinstance(parsed, dict):
-                    parsed = _expand_relpaths_in_value(parsed, os.getcwd())
+                    # parsed = _expand_relpaths_in_value(parsed, os.getcwd())
                     vars_dict.update(parsed)
                 elif isinstance(parsed, list):
                     for entry in parsed:
@@ -71,7 +71,7 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
                         val = val.strip().strip('"').strip("'")
                         vars_dict[key.strip()] = val
 
-        return vars_dict
+        return _expand_relpaths_in_value(vars_dict, os.getcwd())
 
     # Gather all relevant files
     all_files = []
@@ -284,8 +284,8 @@ def _expand_relpaths_in_value(val, cwd=None, skip_keys=None):
         if val.startswith(r"\./"):
             return val[1:]  # literal './'
 
-        if expand_path and val.startswith("./"):
-            return os.path.join(cwd, val[2:])
+        if expand_path and (val.startswith("./") or val.startswith("../")):
+            return os.path.abspath(os.path.join(cwd, val))
 
         if expand_home and val.startswith("~/"):
             return os.path.expanduser(val)

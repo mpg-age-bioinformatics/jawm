@@ -3983,6 +3983,245 @@ except Exception as e:
 
 
 
+print("\n>>> Test 55: Path resolution policy — workdir for explicit relative paths, YAML-relative only for includes, CLI -w stays consistent")
+try:
+    Process.reset_stop()
+
+    root = tempfile.mkdtemp(prefix="path_resolution_policy_", dir=base_tmp)
+    try:
+        # ------------------------------------------------------------------
+        # Layout
+        #   root/
+        #     run/                  <- workdir used for all relative paths
+        #     cfg/
+        #       params_main.yaml
+        #       vars_plain.yaml
+        #       vars_scoped.yaml
+        #       parent.yaml
+        #       includes/
+        #         child.yaml
+        #     cli_case/
+        #       main.py
+        #       params.yaml
+        # ------------------------------------------------------------------
+        run_dir = os.path.join(root, "run")
+        cfg_dir = os.path.join(root, "cfg")
+        inc_dir = os.path.join(cfg_dir, "includes")
+        cli_dir = os.path.join(root, "cli_case")
+        os.makedirs(run_dir, exist_ok=True)
+        os.makedirs(cfg_dir, exist_ok=True)
+        os.makedirs(inc_dir, exist_ok=True)
+        os.makedirs(cli_dir, exist_ok=True)
+
+        # Save and switch cwd so jawm resolves relative paths from here
+        old_cwd = os.getcwd()
+        os.chdir(run_dir)
+
+        # ---------- A) param_file should resolve explicit relative paths from workdir ----------
+        params_main = os.path.join(cfg_dir, "params_main.yaml")
+        with open(params_main, "w", encoding="utf-8") as f:
+            f.write(f"""
+- scope: global
+  logs_directory: ./logs_from_dot
+  error_summary_file: ../err_from_dotdot.log
+  monitoring_directory: monitoring_plain
+
+- scope: process
+  name: "path_param_proc"
+  script: |
+    #!/usr/bin/env python3
+    import os
+    print("LOGS=", os.path.abspath(r"{{{{jawm.process.logs_directory}}}}"))
+    print("ERR =", os.path.abspath(r"{{{{jawm.process.error_summary_file}}}}"))
+    print("MON =", os.path.abspath(r"{{{{jawm.process.monitoring_directory}}}}"))
+""")
+
+        proc_param = Process(
+            name="path_param_proc",
+            param_file=params_main
+        )
+
+        expected_logs = os.path.abspath(os.path.join(run_dir, "./logs_from_dot"))
+        expected_err  = os.path.abspath(os.path.join(run_dir, "../err_from_dotdot.log"))
+        expected_mon  = os.path.abspath(os.path.join(run_dir, "monitoring_plain"))
+
+        assert os.path.abspath(proc_param.logs_directory) == expected_logs, \
+            f"❌ param_file logs_directory should resolve from workdir\nExpected: {expected_logs}\nGot:      {proc_param.logs_directory}"
+        assert os.path.abspath(proc_param.error_summary_file) == expected_err, \
+            f"❌ param_file error_summary_file should resolve from workdir\nExpected: {expected_err}\nGot:      {proc_param.error_summary_file}"
+        assert os.path.abspath(proc_param.monitoring_directory) == expected_mon, \
+            f"❌ param_file monitoring_directory should resolve from workdir\nExpected: {expected_mon}\nGot:      {proc_param.monitoring_directory}"
+
+        proc_param.execute()
+        Process.wait(proc_param.hash)
+        assert proc_param.get_exitcode().startswith("0"), "❌ param_file process failed"
+
+        # ---------- B) plain var_file YAML should resolve ./ and ../ from workdir ----------
+        vars_plain = os.path.join(cfg_dir, "vars_plain.yaml")
+        with open(vars_plain, "w", encoding="utf-8") as f:
+            f.write("""
+map.dot: ./input_from_dot.txt
+map.dotdot: ../input_from_dotdot.txt
+map.plain: input_plain.txt
+""")
+
+        proc_vars_plain = Process(
+            name="path_vars_plain_proc",
+            script="""#!/usr/bin/env python3
+print("DOT={{map.dot}}")
+print("DOTDOT={{map.dotdot}}")
+print("PLAIN={{map.plain}}")
+""",
+            var_file=vars_plain,
+            logs_directory="logs_test_path_resolution"
+        )
+        proc_vars_plain.execute()
+        Process.wait(proc_vars_plain.hash)
+        assert proc_vars_plain.get_exitcode().startswith("0"), "❌ plain var_file process failed"
+
+        out_plain = proc_vars_plain.get_output()
+        assert os.path.abspath(os.path.join(run_dir, "./input_from_dot.txt")) in out_plain, \
+            "❌ plain YAML var_file './path' did not resolve from workdir"
+        assert os.path.abspath(os.path.join(run_dir, "../input_from_dotdot.txt")) in out_plain, \
+            "❌ plain YAML var_file '../path' did not resolve from workdir"
+        assert "PLAIN=input_plain.txt" in out_plain or "PLAIN= input_plain.txt" in out_plain, \
+            "❌ plain YAML var_file bare relative path should remain unchanged"
+
+        # ---------- C) scoped var_file YAML should resolve ./ and ../ from workdir ----------
+        vars_scoped = os.path.join(cfg_dir, "vars_scoped.yaml")
+        with open(vars_scoped, "w", encoding="utf-8") as f:
+            f.write("""
+- scope: process
+  name: "path_vars_scoped_proc"
+  var:
+    map.dot: ./scoped_from_dot.txt
+    map.dotdot: ../scoped_from_dotdot.txt
+    map.plain: scoped_plain.txt
+""")
+
+        proc_vars_scoped = Process(
+            name="path_vars_scoped_proc",
+            script="""#!/usr/bin/env python3
+print("DOT={{map.dot}}")
+print("DOTDOT={{map.dotdot}}")
+print("PLAIN={{map.plain}}")
+""",
+            var_file=vars_scoped,
+            logs_directory="logs_test_path_resolution"
+        )
+        proc_vars_scoped.execute()
+        Process.wait(proc_vars_scoped.hash)
+        assert proc_vars_scoped.get_exitcode().startswith("0"), "❌ scoped var_file process failed"
+
+        out_scoped = proc_vars_scoped.get_output()
+        assert os.path.abspath(os.path.join(run_dir, "./scoped_from_dot.txt")) in out_scoped, \
+            "❌ scoped YAML var_file './path' did not resolve from workdir"
+        assert os.path.abspath(os.path.join(run_dir, "../scoped_from_dotdot.txt")) in out_scoped, \
+            "❌ scoped YAML var_file '../path' did not resolve from workdir"
+        assert "PLAIN=scoped_plain.txt" in out_scoped or "PLAIN= scoped_plain.txt" in out_scoped, \
+            "❌ scoped YAML var_file bare relative path should remain unchanged"
+
+        # ---------- D) includes should remain relative to the YAML file ----------
+        child_yaml = os.path.join(inc_dir, "child.yaml")
+        with open(child_yaml, "w", encoding="utf-8") as f:
+            f.write("""
+- scope: global
+  logs_directory: included_logs_plain
+""")
+
+        parent_yaml = os.path.join(cfg_dir, "parent.yaml")
+        with open(parent_yaml, "w", encoding="utf-8") as f:
+            f.write("""
+- includes: ./includes/child.yaml
+
+- scope: process
+  name: "path_include_proc"
+  script: |
+    #!/bin/bash
+    echo "include test"
+""")
+
+        proc_include = Process(
+            name="path_include_proc",
+            param_file=parent_yaml
+        )
+
+        expected_from_workdir = os.path.abspath(os.path.join(run_dir, "included_logs_plain"))
+        expected_from_yaml    = os.path.abspath(os.path.join(inc_dir, "included_logs_plain"))
+
+        assert os.path.abspath(proc_include.logs_directory) == expected_from_workdir, \
+            (
+                "❌ Included YAML values should resolve from workdir, while include lookup stays YAML-relative\n"
+                f"Expected logs_directory: {expected_from_workdir}\n"
+                f"Got:                     {proc_include.logs_directory}\n"
+                f"(Wrong old-style YAML-relative value would be: {expected_from_yaml})"
+            )
+
+        # Explicitly prove the include itself worked via YAML-relative path
+        assert os.path.exists(child_yaml), "❌ Child include file missing unexpectedly"
+
+        # ---------- E) CLI -w should keep the same policy ----------
+        def cli_cmd(args):
+            if shutil.which("jawm"):
+                return ["jawm", *args]
+            return [sys.executable, "-m", "jawm.cli", *args]
+
+        def run_cli(args, timeout=60, cwd=None):
+            r = subprocess.run(cli_cmd(args), capture_output=True, text=True, timeout=timeout, cwd=cwd)
+            both = (r.stdout or "") + (r.stderr or "")
+            return r.returncode, r.stdout, r.stderr, both
+
+        cli_main = os.path.join(cli_dir, "main.py")
+        with open(cli_main, "w", encoding="utf-8") as f:
+            f.write(
+                "from jawm import Process\n"
+                "p = Process(name='cli_path_policy_proc', script='#!/bin/bash\\necho OK')\n"
+                "print('CLI_LOGS=', p.logs_directory)\n"
+                "print('CLI_ERR=', p.error_summary_file)\n"
+                "print('CLI_MON=', p.monitoring_directory)\n"
+            )
+
+        cli_params = os.path.join(cli_dir, "params.yaml")
+        with open(cli_params, "w", encoding="utf-8") as f:
+            f.write("""
+- scope: global
+  logs_directory: ./cli_logs
+  error_summary_file: ../cli_error.log
+  monitoring_directory: ./cli_monitoring
+""")
+
+        rc, out, err, both = run_cli(
+            [cli_dir, "-p", cli_params, "-w", run_dir],
+            cwd=root
+        )
+        assert rc == 0, f"❌ CLI -w run failed\n{both}"
+
+        expected_cli_logs = os.path.abspath(os.path.join(run_dir, "./cli_logs"))
+        expected_cli_err  = os.path.abspath(os.path.join(run_dir, "../cli_error.log"))
+        expected_cli_mon  = os.path.abspath(os.path.join(run_dir, "./cli_monitoring"))
+
+        assert f"CLI_LOGS= {expected_cli_logs}" in both or f"CLI_LOGS={expected_cli_logs}" in both, \
+            f"❌ CLI -w did not anchor logs_directory to workdir\nExpected: {expected_cli_logs}\nOutput:\n{both}"
+        assert f"CLI_ERR= {expected_cli_err}" in both or f"CLI_ERR={expected_cli_err}" in both, \
+            f"❌ CLI -w did not anchor error_summary_file to workdir\nExpected: {expected_cli_err}\nOutput:\n{both}"
+        assert f"CLI_MON= {expected_cli_mon}" in both or f"CLI_MON={expected_cli_mon}" in both, \
+            f"❌ CLI -w did not anchor monitoring_directory to workdir\nExpected: {expected_cli_mon}\nOutput:\n{both}"
+
+        print("✅ Passed: Path resolution policy (workdir for explicit relative paths, YAML-relative only for includes, CLI -w consistent)")
+        passed += 1
+
+    finally:
+        try:
+            os.chdir(old_cwd)
+        except Exception:
+            pass
+        shutil.rmtree(root, ignore_errors=True)
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
 # -----------------------------
 # Cleanup created directories
 # -----------------------------

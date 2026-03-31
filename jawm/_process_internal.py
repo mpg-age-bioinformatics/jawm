@@ -155,10 +155,19 @@ def _parse_yaml_config(self, param_file):
         return any(ch in s for ch in ("*", "?", "["))
 
     def _load_yaml_entries(path, base_dir):
-        """Load YAML as list-of-entries, apply relpath expansion using base_dir."""
+        """
+        Load YAML as list-of-entries.
+
+        Policy:
+        - normal YAML values resolve from current workdir
+        - only `includes:` are resolved relative to the YAML file location
+        """
         with open(path, "r") as f:
             data = yaml.safe_load(f) or []
-        data = _expand_relpaths_in_value(data, base_dir)
+        # Expand normal YAML values from current workdir,
+        # but leave `includes` untouched so it can be resolved
+        # relative to the YAML file in _expand_includes_in_place().
+        data = _expand_relpaths_in_value(data, os.getcwd(), skip_keys={"includes"})
         if isinstance(data, dict):
             data = [data]
         return data if isinstance(data, list) else []
