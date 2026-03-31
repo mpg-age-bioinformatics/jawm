@@ -247,6 +247,7 @@ def _expand_relpaths_in_value(val, cwd=None, skip_keys=None):
     Supported expansions:
     - './' → <cwd>/
     - '\./' → literal './'
+    - '../' -> normalized relative to <cwd>
     - '~/': expanded to user home only if JAWM_EXPAND_HOME=true
 
     Controlled by environment variables:

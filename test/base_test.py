@@ -3986,6 +3986,7 @@ except Exception as e:
 print("\n>>> Test 55: Path resolution policy — workdir for explicit relative paths, YAML-relative only for includes, CLI -w stays consistent")
 try:
     Process.reset_stop()
+    _clear_params()
 
     root = tempfile.mkdtemp(prefix="path_resolution_policy_", dir=base_tmp)
     try:
@@ -4216,6 +4217,7 @@ print("PLAIN={{map.plain}}")
         except Exception:
             pass
         shutil.rmtree(root, ignore_errors=True)
+        _restore_params(bak_default, bak_override)
 
 except Exception as e:
     print(f"❌ Failed: {e}")

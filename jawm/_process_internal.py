@@ -154,7 +154,7 @@ def _parse_yaml_config(self, param_file):
         # minimal glob detection
         return any(ch in s for ch in ("*", "?", "["))
 
-    def _load_yaml_entries(path, base_dir):
+    def _load_yaml_entries(path):
         """
         Load YAML as list-of-entries.
 
@@ -233,7 +233,7 @@ def _parse_yaml_config(self, param_file):
                 visited.add(real)
 
                 inc_base_dir = os.path.dirname(_norm_abs(inc_path))
-                inc_entries = _load_yaml_entries(inc_path, inc_base_dir)
+                inc_entries = _load_yaml_entries(inc_path)
                 _expand_includes_in_place(inc_entries, visited, inc_base_dir)
                 inserted.extend(inc_entries)
 
@@ -248,7 +248,7 @@ def _parse_yaml_config(self, param_file):
             visited = {os.path.realpath(yaml_file)}
             base_dir = os.path.dirname(yaml_file)
 
-            yaml_data = _load_yaml_entries(yaml_file, base_dir)
+            yaml_data = _load_yaml_entries(yaml_file)
             _expand_includes_in_place(yaml_data, visited, base_dir)
 
         except Exception as e:
