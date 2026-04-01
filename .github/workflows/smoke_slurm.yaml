@@ -116,7 +116,12 @@ jobs:
               (command -v apt-get >/dev/null 2>&1 && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y python3-pip) ||
               (command -v dnf >/dev/null 2>&1 && dnf -y install python3-pip) ||
               (command -v yum >/dev/null 2>&1 && yum -y install python3-pip) ||
-              (echo "pip not available after install attempt" >&2 && exit 1)
+              true
+            )
+
+            /usr/bin/python3 -m pip --version >/dev/null 2>&1 || (
+              /usr/bin/python3 -m ensurepip --upgrade >/dev/null 2>&1 ||
+              (curl -fsSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py && /usr/bin/python3 /tmp/get-pip.py)
             )
 
             /usr/bin/python3 --version
