@@ -129,8 +129,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          echo "=== storage diagnostics before PVC creation ==="
+          kubectl get storageclass || true
+          kubectl get pods -A -o wide || true
+
+          # Give kind's storage provisioner a little time to settle
+          sleep 10
+
           # Create three PVCs in namespace jawm.
-          # kind usually has a default StorageClass; if not, you can set storageClassName explicitly.
           cat <<'YAML' | kubectl apply -f -
           apiVersion: v1
           kind: PersistentVolumeClaim
@@ -166,10 +172,25 @@ jobs:
                 storage: 1Gi
           YAML
 
-          # Wait for PVCs to be bound
-          kubectl -n jawm wait --for=jsonpath='{.status.phase}'=Bound pvc/jawm-work --timeout=120s
-          kubectl -n jawm wait --for=jsonpath='{.status.phase}'=Bound pvc/ref-data --timeout=120s
-          kubectl -n jawm wait --for=jsonpath='{.status.phase}'=Bound pvc/scratch --timeout=120s
+          echo "=== pvc state after creation ==="
+          kubectl get pvc -n jawm || true
+
+          wait_pvc() {
+            local pvc="$1"
+            kubectl -n jawm wait --for=jsonpath='{.status.phase}'=Bound "pvc/${pvc}" --timeout=180s || {
+              echo "=== pvc ${pvc} did not bind ==="
+              kubectl get storageclass || true
+              kubectl get pvc -n jawm || true
+              kubectl describe pvc -n jawm "${pvc}" || true
+              kubectl get pods -A -o wide || true
+              kubectl get events -A --sort-by=.lastTimestamp | tail -200 || true
+              exit 1
+            }
+          }
+
+          wait_pvc jawm-work
+          wait_pvc ref-data
+          wait_pvc scratch
 
           # Ensure subPath directories exist:
           # - workspace uses subPath: jawm_tests
