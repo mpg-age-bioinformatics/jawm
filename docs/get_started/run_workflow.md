@@ -6,7 +6,8 @@ Once jawm is installed, a workflow can be run either from a local Python module 
 
 ### Run a local workflow module
 
-A simple way to get started is to clone a demo workflow repository and run one of its modules.
+You can develop your own workflow as a simple Python file and run it directly with `jawm`.
+Alternatively, a quick way to test is to clone a demo workflow repository and run one of its modules.
 
 ```bash
 # clone the demo module
