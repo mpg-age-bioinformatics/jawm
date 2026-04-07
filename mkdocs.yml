@@ -75,6 +75,9 @@ nav:
     - Class-Level Parameters: process/cls_parameters.md
     - Methods: process/methods.md
     - Class-Level Methods: process/cls_methods.md
+  - Runtime Configuration:
+    - YAML Config: config/yaml.md
+    - JAWM Config: config/config.md
   - Module: module.md
   - CLI Tools: cli-tools.md
   - Testing: testing.md
