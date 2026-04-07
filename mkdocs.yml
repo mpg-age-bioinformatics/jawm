@@ -73,6 +73,7 @@ nav:
     - Configuration & Precedence: process/conf_precedence.md
     - Parameters: process/parameters.md
     - Class-Level Parameters: process/cls_parameters.md
+    - Methods: process/methods.md
   - Module: module.md
   - CLI Tools: cli-tools.md
   - Testing: testing.md
