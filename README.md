@@ -1,6 +1,8 @@
 # jawm
 just another workflow manager
 
+[![Documentation](https://img.shields.io/badge/docs-jawm-blue)](https://bioinformatics.age.mpg.de/jawm/)
+
 ## Why?
 
 - Python based and python-like
@@ -51,6 +53,6 @@ cd jawm_my_first_wf
 jawm my_first_wf.py -p ./yaml/docker.yaml
 ```
 
-[Read the Docs](https://github.com/mpg-age-bioinformatics/jawm) for more information on how to create workflows with jawm.
+[Read the Docs](https://bioinformatics.age.mpg.de/jawm/) for more information on how to create workflows with jawm.
 
 Availabe workflows can be found [here (GitHub.com)](https://github.com/mpg-age-bioinformatics?q=jawm_&type=all&language=&sort=).
