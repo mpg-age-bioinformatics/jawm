@@ -74,6 +74,7 @@ nav:
     - Parameters: process/parameters.md
     - Class-Level Parameters: process/cls_parameters.md
     - Methods: process/methods.md
+    - Class-Level Methods: process/cls_methods.md
   - Module: module.md
   - CLI Tools: cli-tools.md
   - Testing: testing.md
