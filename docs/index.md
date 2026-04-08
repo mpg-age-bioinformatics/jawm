@@ -125,6 +125,21 @@ jawm is intentionally minimal and composable, leaving workflow structure and orc
 `jawm` is under active development.
 The public API is stabilizing, but some interfaces may evolve prior to a 1.0.0 release.
 
+[![Version](https://img.shields.io/github/v/tag/mpg-age-bioinformatics/jawm?label=version&sort=semver)](https://github.com/mpg-age-bioinformatics/jawm/tags)
+
+---
+
+### Resources
+
+- Project repository: [mpg-age-bioinformatics/jawm](https://github.com/mpg-age-bioinformatics/jawm/)
+- Available workflows: [Search jawm_* repositories](https://github.com/mpg-age-bioinformatics?q=jawm_&type=all&language=&sort=)
+
+---
+
+### Credits
+
+The Bioinformatics Core Facility of the Max Planck Institute for Biology of Ageing, Cologne, Germany.
+
 ---
 
 ### Next steps

@@ -64,7 +64,7 @@ Availabe workflows can be found [here (GitHub.com)](https://github.com/mpg-age-b
 `jawm` is under active development.  
 The API is stabilizing, but some features and interfaces may evolve before a stable release.
 
-[![Latest Tag](https://img.shields.io/github/v/tag/mpg-age-bioinformatics/jawm?label=version)](https://github.com/mpg-age-bioinformatics/jawm/tags)
+[![Version](https://img.shields.io/github/v/tag/mpg-age-bioinformatics/jawm?label=version&sort=semver)](https://github.com/mpg-age-bioinformatics/jawm/tags)
 
 ## Credits
 
