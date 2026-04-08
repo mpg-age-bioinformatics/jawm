@@ -53,6 +53,19 @@ cd jawm_my_first_wf
 jawm my_first_wf.py -p ./yaml/docker.yaml
 ```
 
+## Resources
+
 [Read the Docs](https://bioinformatics.age.mpg.de/jawm/) for more information on how to create workflows with jawm.
 
 Availabe workflows can be found [here (GitHub.com)](https://github.com/mpg-age-bioinformatics?q=jawm_&type=all&language=&sort=).
+
+## Status
+
+`jawm` is under active development.  
+The API is stabilizing, but some features and interfaces may evolve before a stable release.
+
+[![Latest Tag](https://img.shields.io/github/v/tag/mpg-age-bioinformatics/jawm?label=version)](https://github.com/mpg-age-bioinformatics/jawm/tags)
+
+## Credits
+
+The Bioinformatics Core Facility of the Max Planck Institute for Biology of Ageing, Cologne, Germany.
