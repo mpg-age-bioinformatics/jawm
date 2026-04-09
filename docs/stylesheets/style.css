@@ -33,3 +33,14 @@
     padding-left: 5px;
     padding-right: 5px;
 }
+
+.md-header__button.md-logo {
+  margin: 0;
+  padding: 0.2rem 0.1rem 0.2rem 0.2rem;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2rem;
+  width: auto;
+}

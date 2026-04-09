@@ -8,6 +8,8 @@ edit_uri: edit/main/docs/
 theme:
   name: material
   # name: readthedocs
+  logo: assets/jawm-logo.png
+  favicon: assets/jawm-icon.png
   palette:
     - scheme: default
       primary: blue grey
