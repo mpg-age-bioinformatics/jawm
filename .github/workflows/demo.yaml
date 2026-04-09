@@ -12,7 +12,8 @@ on:
 
 jobs:
   build:
-    runs-on: [jawm]
+    # runs-on: [jawm]
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout current repository

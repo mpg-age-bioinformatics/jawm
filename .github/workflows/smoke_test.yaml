@@ -7,7 +7,8 @@ jobs:
   #  Local core test (matrix)
   # ─────────────────────────────
   core-tests:
-    runs-on: [self-hosted, jawm]
+    # runs-on: [self-hosted, jawm]
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.8", "3.10", "3.13"]
@@ -84,7 +85,8 @@ jobs:
   #  Git integration test
   # ─────────────────────────────
   git-tests:
-    runs-on: [self-hosted, jawm]
+    # runs-on: [self-hosted, jawm]
+    runs-on: ubuntu-latest
     name: 🌐 Git integration test (Python 3.12)
 
     steps:
@@ -116,7 +118,8 @@ jobs:
   #  Global notification handler
   # ─────────────────────────────
   notifications:
-    runs-on: [self-hosted, jawm]
+    # runs-on: [self-hosted, jawm]
+    runs-on: ubuntu-latest
     name: 🔔 Workflow Notifications
     needs: [core-tests, git-tests]  # run after both finish
     if: always()  # always run, even if one fails

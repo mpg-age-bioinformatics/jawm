@@ -8,7 +8,8 @@ permissions:
 
 jobs:
   pick-versions:
-    runs-on: [self-hosted, jawm]
+    # runs-on: [self-hosted, jawm]
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.pick.outputs.matrix }}
     steps:
@@ -59,7 +60,8 @@ jobs:
 
   k8s-jawm-test:
     needs: pick-versions
-    runs-on: [self-hosted, jawm]
+    # runs-on: [self-hosted, jawm]
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
