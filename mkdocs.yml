@@ -82,7 +82,10 @@ nav:
     - YAML Config: config/yaml.md
     - JAWM Variable Config: config/config.md
   - Utils: utils.md
-  - Module: module.md
+  - Module:
+    - Overview: module/overview.md
+    - Load & Use Modules: module/load_use.md
+    - Develop Module: module/develop.md
   - CLI Tools: cli-tools.md
   - Testing: testing.md
   - Advanced Development: development.md
