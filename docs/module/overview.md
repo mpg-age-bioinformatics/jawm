@@ -6,7 +6,7 @@ Modules are how jawm turns one-off workflows into building blocks you can run on
 
 ---
 
-## The mental model
+### The mental model
 
 If a [`Process`](../process/overview.md) is a single step (a bash/Python/R script that runs somewhere with some configuration), then a module is **a collection of Processes, grouped by purpose, that a user can invoke by name from the command line**.
 
@@ -20,7 +20,7 @@ Everything else — scripts, container images, scheduler backends, dependencies 
 
 ---
 
-## Why modules?
+### Why modules?
 
 Modules exist for four practical reasons:
 
@@ -31,7 +31,7 @@ Modules exist for four practical reasons:
 
 ---
 
-## Anatomy of a module
+### Anatomy of a module
 
 A minimal module is a single `.py` file. A typical one looks more like this:
 
@@ -48,7 +48,7 @@ _**Note**_: Nothing in jawm requires this directory layout. It's just the conven
 
 ---
 
-## Two ways to use a module
+### Two ways to use a module
 
 Once a module exists, there are two ways to put it to work:
 
@@ -59,7 +59,7 @@ Both modes are covered in detail on the [Load & Use Modules](load_use.md) page.
 
 ---
 
-## Conventions
+### Conventions
 
 These aren't enforced by jawm — they're community conventions that make modules predictable for anyone consuming them:
 
@@ -70,7 +70,7 @@ These aren't enforced by jawm — they're community conventions that make module
 
 ---
 
-## Where to go next
+### Where to go next
 
 - **[Load & Use Modules](load_use.md)** — running modules standalone, loading them from Git with `jawm.utils.load_modules()`, pinning to specific refs, the `JAWM_MODULES_PATH` environment variable, and composing multiple modules in a single parent workflow.
 - **[Develop a Module](develop.md)** — writing your own module from scratch: the skeleton, the `parse_arguments()` / `workflow()` idiom, exposing parameters via `var`, adding custom CLI flags, directory layout, and how to give your module a good `test` sub-workflow.
