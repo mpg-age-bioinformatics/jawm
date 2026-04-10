@@ -2041,7 +2041,6 @@ echo "M_END $(date +%s)"
 """,
         logs_directory="logs_norm"
     )
-    m2.execute()
 
     is_k8s = (getattr(m2, "manager", None) == "kubernetes")
     marker_in_script = f"/tmp/jawm_normdep_{m2.hash}.txt" if is_k8s else marker_host
@@ -2049,6 +2048,8 @@ echo "M_END $(date +%s)"
     # Update the already-created script by re-setting it (minimal + reliable)
     # If your Process doesn't allow changing script after creation, instead inline marker_in_script when building m2 above.
     m2.script = (m2.script or "").replace("__MARKER_PATH__", marker_in_script)
+
+    m2.execute()
 
     f2 = Process(
         name="norm_flag",
