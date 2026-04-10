@@ -44,3 +44,16 @@
   height: 2rem;
   width: auto;
 }
+
+.md-header__source {
+  max-width: 16rem;
+}
+
+.md-source__repository {
+  max-width: 16rem;
+}
+
+/* Comment this section in order to show stars/forks of git repo */
+.md-source__facts {
+  display: none;
+}
