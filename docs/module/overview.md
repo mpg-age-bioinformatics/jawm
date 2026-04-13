@@ -40,6 +40,7 @@ my_module/
 ├── my_module.py        # Process definitions + CLI entry point
 ├── submodules (optional)
 │   ├── submodule1.py
+    ├── submodule2.py
 └── yaml/               # Optional default parameter YAMLs
     └── docker.yaml
 ```
@@ -52,7 +53,7 @@ _**Note**_: Nothing in jawm requires this directory layout. It's just the conven
 
 Once a module exists, there are two ways to put it to work:
 
-- **Standalone.** Invoke the module file directly from the shell: `python qc.py -p params.yaml`. This is the easiest way to develop, test, and run a single module.
+- **Standalone.** Invoke the module file (local or remote) directly from the shell: `python qc.py -p params.yaml`. This is the easiest way to develop, test, and run a single module.
 - **Composed.** From a parent Python file, call `jawm.utils.load_modules([...])` to pull in one or more modules (local or remote) and then orchestrate them together. The parent becomes the conductor; each loaded module contributes its own Processes.
 
 Both modes are covered in detail on the [Load & Use Modules](load_use.md) page.
