@@ -84,8 +84,9 @@ nav:
   - Utils: utils.md
   - Module:
     - Overview: module/overview.md
-    - Load & Use Modules: module/load_use.md
-    - Develop Module: module/develop.md
+    - Run a Module: module/run.md
+    - Load Modules in Workflow: module/load.md
+    - Develop a Module: module/develop.md
   - CLI Tools: cli-tools.md
   - Testing: testing.md
   - Advanced Development: development.md

@@ -53,10 +53,8 @@ _**Note**_: Nothing in jawm requires this directory layout. It's just the conven
 
 Once a module exists, there are two ways to put it to work:
 
-- **Standalone.** Invoke the module file (local or remote) directly from the shell: `python qc.py -p params.yaml`. This is the easiest way to develop, test, and run a single module.
-- **Composed.** From a parent Python file, call `jawm.utils.load_modules([...])` to pull in one or more modules (local or remote) and then orchestrate them together. The parent becomes the conductor; each loaded module contributes its own Processes.
-
-Both modes are covered in detail on the [Load & Use Modules](load_use.md) page.
+- **Standalone.** Invoke the module file (local or remote) directly from the shell: `jawm my_module.py -p params.yaml`. This is the easiest way to develop, test, and run a single module. See [Run a Module](run.md).
+- **Composed.** From a parent Python file, call `jawm.utils.load_modules([...])` to pull in one or more modules (local or remote) and then orchestrate them together. The parent becomes the conductor; each loaded module contributes its own Processes. See [Load Modules in Workflow](load.md).
 
 ---
 
@@ -73,5 +71,6 @@ These aren't enforced by jawm — they're community conventions that make module
 
 ### Where to go next
 
-- **[Load & Use Modules](load_use.md)** — running modules standalone, loading them from Git with `jawm.utils.load_modules()`, pinning to specific refs, the `JAWM_MODULES_PATH` environment variable, and composing multiple modules in a single parent workflow.
+- **[Run a Module](run.md)** — running modules from the command line (local or remote), Git refs, CLI flags, parameter overrides, and what happens behind the scenes.
+- **[Load Modules in Workflow](load.md)** — loading modules in Python with `jawm.utils.load_modules()`, Git integration, `JAWM_MODULES_PATH`, and composing multiple modules into a single pipeline.
 - **[Develop a Module](develop.md)** — writing your own module from scratch: the skeleton, the `parse_arguments()` / `workflow()` idiom, exposing parameters via `var`, adding custom CLI flags, directory layout, and how to give your module a good `test` sub-workflow.
