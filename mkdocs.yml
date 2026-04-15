@@ -12,16 +12,16 @@ theme:
   favicon: assets/jawm-icon.png
   palette:
     - scheme: default
-      primary: blue grey
-      accent: teal
+      primary: teal
+      accent: indigo
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
 
     # Palette toggle for dark mode
     - scheme: slate
-      primary: black
-      accent: teal
+      primary: blue grey
+      accent: cyan
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
