@@ -23,8 +23,8 @@ It is designed for researchers, data scientists, and engineers who want the flex
 - ⚙️ **Flexible configuration**  
   Configure processes with Python arguments, YAML parameter files, and CLI overrides.
 
-- ♻️ **Reproducible by design**  
-  Each process execution gets a parameter-aware hash and its own run directory.
+- 🧾 **GxP-ready by design** 
+  Built with traceability and audit-friendly execution in mind.
 
 - 🔗 **Explicit workflow control**  
   Manage execution order, conditional runs, resumeability, and so on.
@@ -34,6 +34,9 @@ It is designed for researchers, data scientists, and engineers who want the flex
 
 - 🌐 **Reusable workflow modules**  
   Run shared/remote workflow modules directly or import them into other workflows for reuse.
+
+- 📊 **Data-driven testing** 
+  Validate workflows and modules using parameterized inputs and reproducible runs.
 
 - 🔍 **Observable and easy to debug**  
   Each run stores logs, generated scripts, commands, exit codes, and runtime metadata.
