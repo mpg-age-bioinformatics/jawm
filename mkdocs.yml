@@ -88,6 +88,8 @@ nav:
     - Load Modules in Workflow: module/load.md
     - Develop a Module: module/develop.md
   - CLI Tools: cli-tools.md
+  - Examples & Use Cases: examples.md
+  - How-To Guides: howto.md
   - Testing: testing.md
   - Advanced Development: development.md
   - Version Log: version-log.md
