@@ -1353,8 +1353,10 @@ class Process:
                 if allowed_exit != "all":
                     exit_code = proc.get_exitcode()
                     if not exit_code:
-                        if auto_missing_ok:
-                            if log: proc.logger.info(f"Process {proc.name} ({proc.hash}) finished/skipped but has no exit code recorded.")
+                        skipped_or_not_started = proc.finished_event.is_set() and proc.execution_start_at is None
+
+                        if auto_missing_ok or skipped_or_not_started:
+                            if log: proc.logger.info(f"Process {proc.name} ({proc.hash}) finished without an exit code (skipped or not executed).")
                         else:
                             if log: proc.logger.warning(f"Process {proc.name} ({proc.hash}) finished/skipped but has no exit code recorded.")
                             success = False
