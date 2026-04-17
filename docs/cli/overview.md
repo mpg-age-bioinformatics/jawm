@@ -21,17 +21,6 @@ jawm <module> [workflow] [flags]
 
 `<module>` can be a local file, a directory, a repository name, a full Git URL, or any of those with a `@ref` suffix to pin to a specific branch, tag, or commit. jawm resolves the module, clones it if needed, injects parameters and variables, and executes the workflow — all in one step.
 
-```bash
-# Local file
-jawm align.py main -v vars.yaml
-
-# Remote module by name, pinned to a tag
-jawm jawm_bwa@v1.2.0 main -v vars.yaml
-
-# Full Git URL with a subpath
-jawm git@github.com:org/jawm_rnaseq.git//submodules/qc main
-```
-
 Everything else — `jawm-dev`, `jawm-test`, `jawm-monitor` — is built around making `jawm` workflows easier to write, verify, and observe. See [`jawm`](jawm.md) for the full reference.
 
 ---
