@@ -1129,7 +1129,7 @@ class Process:
         -----------
         process_list ("all" (default) | list[str] | str) : Which process(es) to wait for.
         allowed_exit ("auto" (default) | int | str | list[int | str]) : Allowed exit codes (use "all" to accept any exit code). If not matched, give warning and return False; True otherwise.
-            "auto": Process finished with no exitcode (e.g. skipped) would not be considered as non-success in the case of `process_list="all"`, opposite behaviour for specified process(es).
+            "auto": Process finished with no exitcode is not considered a failure if it was intentionally skipped (when=False) or never started — regardless of whether process_list is "all" or a specific list. For processes that did start but have no exitcode, failure is only suppressed when process_list="all".
         tail (None | True | "stdout" | "stderr" | "both"): If set, stream live output while waiting.
             - True / "stdout": tail the process stdout file
             - "stderr": tail the process stderr file

@@ -210,6 +210,10 @@ echo 'Should not run' > skip.txt
     proc8.execute()
     assert proc8.finished_event.is_set(), "❌ Skipped process did not mark finished"
     assert not os.path.exists(os.path.join(proc8.log_path, "skip.txt")), "❌ Script ran despite when=False"
+    # Waiting on a skipped process by hash must return True and not abort — previously this would
+    # trigger a failure because no .exitcode file is written for when=False processes.
+    wait_result = Process.wait(proc8.hash)
+    assert wait_result is True, "❌ Process.wait() should return True for a when=False skipped process"
     print("✅ Passed: Conditional Skip with `when=False`")
     passed += 1
 except Exception as e:
