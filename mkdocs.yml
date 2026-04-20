@@ -90,6 +90,7 @@ nav:
     - Run a Module: module/run.md
     - Load Modules in Workflow: module/load.md
     - Develop a Module: module/develop.md
+    - Test a Module: module/test.md
     - Available Modules: module/modules.md
   - CLI Tools:
       - Overview: cli/overview.md
@@ -99,7 +100,6 @@ nav:
       - jawm-monitor: cli/jawm-monitor.md
   - Examples & Use Cases: examples.md
   - How-To Guides: howto.md
-  - Testing: testing.md
   - Advanced Development: development.md
   - Version Log: version-log.md
   - Support: support.md
