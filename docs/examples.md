@@ -1,4 +1,4 @@
 # Examples
 
 !!! note
-    We will add meaningful examples and use cases gradually.
+    Meaningful examples and use cases will be added gradually.
