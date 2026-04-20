@@ -20,78 +20,6 @@ jawm <module> [workflow] [-p YAML...] [-v FILE...] [-l DIR] [-w DIR]
 
 ---
 
-### Module argument
-
-The `<module>` argument tells jawm what to run. It is flexible — it can be a local path, a repository name, or a full Git URL.
-
-#### Local file or directory
-
-```bash
-# A single Python file
-jawm align.py main
-
-# A directory — jawm looks for jawm.py, then main.py, then the only .py file
-jawm ./my_pipeline/ main
-jawm .            main    # current directory
-```
-
-When a directory is given, jawm picks the entry point in this order:
-1. `jawm.py`
-2. `main.py`
-3. The only `.py` file (fails if more than one exists and none of the above match)
-
-#### Remote module by name
-
-If the module path does not exist locally and is not already a Git URL, jawm automatically constructs a Git SSH URL from `--server` and `--user`:
-
-```bash
-# Resolves to git@github.com:mpg-age-bioinformatics/jawm_bwa.git
-jawm jawm_bwa main
-
-# With an explicit org prefix
-jawm mpg-age-bioinformatics/jawm_bwa main
-```
-
-Use `--no-web` to disable this behaviour and only resolve modules locally.
-
-#### Full Git URL
-
-Any valid Git SSH or HTTPS URL is accepted directly:
-
-```bash
-jawm git@github.com:org/jawm_rnaseq.git main
-jawm https://github.com/org/jawm_rnaseq.git main
-```
-
-#### Pinning to a ref with `@`
-
-Append `@<ref>` to any module name or Git URL to pin to a specific branch, tag, or commit:
-
-```bash
-jawm jawm_bwa@v1.2.0 main            # tag
-jawm jawm_bwa@main main               # branch
-jawm jawm_bwa@4f3a2c1 main            # commit SHA
-
-# Two special tokens resolve automatically:
-jawm jawm_bwa@latest-tag main         # highest semantic version tag
-jawm jawm_bwa@last-tag main           # most recently created tag
-```
-
-`@latest-tag` picks the tag that sorts highest numerically (e.g. `v2.1.0` beats `v1.9.0`). `@last-tag` picks the tag most recently created by creation timestamp, regardless of version number.
-
-#### Subpath with `//`
-
-Run a module nested inside a repository:
-
-```bash
-jawm jawm_rnaseq//submodules/qc main
-jawm git@github.com:org/jawm_rnaseq.git//submodules/qc main
-```
-
-Everything after `//` is treated as a path relative to the repository root.
-
----
-
 ### Flags
 
 #### Core
@@ -116,6 +44,175 @@ Everything after `//` is treated as a path relative to the repository root.
 | `--no-web` | `False` | Disable online module lookup. jawm will only resolve modules that exist locally. |
 | `--git-cache` | `~/.jawm/git` | Local directory used as the Git clone cache. |
 
+#### `-p` / `--parameters`
+
+Passes one or more YAML files (or a directory of YAMLs) as `param_file` to every Process in the module. These files set Process configuration — manager, environment, container, retries, and so on.
+
+```bash
+jawm mymodule.py -p params.yaml
+jawm mymodule.py -p params/base.yaml params/slurm.yaml
+jawm mymodule.py -p params/          # all YAMLs in the directory
+```
+
+HTTPS URLs are also accepted — jawm downloads and caches the file before the run:
+
+```bash
+jawm mymodule.py -p https://example.com/configs/hg38.yaml
+```
+
+#### `-v` / `--variables`
+
+Passes one or more YAML or `.rc` files as variable sources. The key-value pairs in these files are substituted into `{{placeholder}}` tokens in each Process's script. Multiple files are merged in order.
+
+```bash
+jawm mymodule.py -v vars.yaml
+jawm mymodule.py -v samples.yaml paths.yaml
+```
+
+`-p` and `-v` can be used together — parameters control how Processes run, variables control what they run with:
+
+```bash
+jawm mymodule.py -p slurm.yaml -v sample_vars.yaml
+```
+
+#### `-l` / `--logs-directory`
+
+Sets the base directory for all log output. Each Process writes its stdout, stderr, script, and exit code into a subdirectory here. The CLI run log (a full transcript of the terminal output) is written to `<logs directory>/jawm_runs/`.
+
+```bash
+jawm mymodule.py -l /scratch/project/logs
+```
+
+Defaults to `./logs` in the current working directory.
+
+#### `-w` / `--workdir`
+
+Changes the working directory before jawm resolves any paths or runs the module. Useful when you want all relative paths in your module and YAML files to resolve against a specific project directory.
+
+```bash
+jawm mymodule.py -w /scratch/project123 -p params.yaml
+```
+
+The directory is created automatically if it does not exist.
+
+#### `-r` / `--resume`
+
+Enables resume mode. jawm checks each Process against its previous run logs — if a Process already completed successfully (exit code `0`), it is skipped and its previous logs and outputs are reused. Only Processes that failed or were not yet run are executed.
+
+```bash
+jawm mymodule.py -v vars.yaml -r
+```
+
+Resume is particularly useful for long pipelines where you want to pick up after a partial failure without re-running steps that already succeeded.
+
+#### `-n` / `--no-override`
+
+Prevents jawm from applying override-level parameters. By default, `-p` files are applied as overrides (highest precedence). Use `-n` to make them behave as defaults instead, allowing the module's own parameter definitions to take precedence.
+
+```bash
+# Lock all parameters — module defaults win over -p files
+jawm mymodule.py -p params.yaml -n
+
+# Lock only specific keys
+jawm mymodule.py -p params.yaml -n manager,env
+```
+
+#### `--server` / `--user`
+
+Control how bare module names (like `jawm_bwa`) are resolved to Git SSH URLs. jawm constructs the URL as `git@<server>:<user>/<name>.git`.
+
+```bash
+# Default: git@github.com:mpg-age-bioinformatics/jawm_bwa.git
+jawm jawm_bwa
+
+# Custom server and org
+jawm jawm_bwa --server gitlab.example.org --user my-team
+# → git@gitlab.example.org:my-team/jawm_bwa.git
+```
+
+#### `--no-web`
+
+Disables all online module resolution. When set, jawm will only run modules that exist as local files or directories — it will not attempt to clone from any Git server.
+
+```bash
+jawm ./my_pipeline/ --no-web -p params.yaml
+```
+
+Useful in air-gapped environments or when you want to ensure no network calls are made.
+
+---
+
+### Module argument
+
+The `<module>` argument tells jawm what to run. It is flexible — it can be a local path, a repository name, or a full Git URL.
+
+#### Local file or directory
+
+```bash
+# A single Python file
+jawm align.py
+
+# A directory — jawm looks for jawm.py, then main.py, then the only .py file
+jawm ./my_pipeline/
+jawm .    # current directory
+```
+
+When a directory is given, jawm picks the entry point in this order:
+
+1. `jawm.py`
+2. `main.py`
+3. The only `.py` file (fails if more than one exists and none of the above match)
+
+#### Remote module by name
+
+If the module path does not exist locally and is not already a Git URL, jawm automatically constructs a Git SSH URL from `--server` and `--user`:
+
+```bash
+# Resolves to git@github.com:mpg-age-bioinformatics/jawm_bwa.git
+jawm jawm_bwa
+
+# With an explicit org prefix
+jawm mpg-age-bioinformatics/jawm_bwa
+```
+
+Use `--no-web` to disable this behaviour and only resolve modules locally.
+
+#### Full Git URL
+
+Any valid Git SSH or HTTPS URL is accepted directly:
+
+```bash
+jawm git@github.com:org/jawm_rnaseq.git
+jawm https://github.com/org/jawm_rnaseq.git
+```
+
+#### Pinning to a ref with `@`
+
+Append `@<ref>` to any module name or Git URL to pin to a specific branch, tag, or commit:
+
+```bash
+jawm jawm_bwa@v1.2.0          # tag
+jawm jawm_bwa@main            # branch
+jawm jawm_bwa@4f3a2c1         # commit SHA
+
+# Two special tokens resolve automatically:
+jawm jawm_bwa@latest-tag      # highest semantic version tag
+jawm jawm_bwa@last-tag        # most recently created tag
+```
+
+`@latest-tag` picks the tag that sorts highest numerically (e.g. `v2.1.0` beats `v1.9.0`). `@last-tag` picks the tag most recently created by creation timestamp, regardless of version number.
+
+#### Subpath with `//`
+
+Run a module nested inside a repository:
+
+```bash
+jawm jawm_rnaseq//submodules/qc
+jawm git@github.com:org/jawm_rnaseq.git//submodules/qc
+```
+
+Everything after `//` is treated as a path relative to the repository root.
+
 ---
 
 ### Parameter overrides
@@ -128,13 +225,13 @@ Applies an override to **all** Processes in the module:
 
 ```bash
 # Set manager to slurm for every process
-jawm mymodule.py main --global.manager=slurm
+jawm mymodule.py --global.manager=slurm
 
 # Set a script variable for all processes
-jawm mymodule.py main --global.var.threads=16
+jawm mymodule.py --global.var.threads=16
 
 # Set an environment variable for all processes
-jawm mymodule.py main --global.env.TMPDIR=/scratch/tmp
+jawm mymodule.py --global.env.TMPDIR=/scratch/tmp
 ```
 
 #### `--process.<name>.<key>=<value>`
@@ -143,26 +240,26 @@ Applies an override to a **single named Process**:
 
 ```bash
 # Increase retries for one process
-jawm mymodule.py main --process.bwa_align.retries=3
+jawm mymodule.py --process.bwa_align.retries=3
 
 # Override a variable for one process only
-jawm mymodule.py main --process.bwa_align.var.genome=/data/ref/hg38.fa
+jawm mymodule.py --process.bwa_align.var.genome=/data/ref/hg38.fa
 
 # Change manager for one process
-jawm mymodule.py main --process.sort_bam.manager=local
+jawm mymodule.py --process.sort_bam.manager=local
 ```
 
 Both forms accept either `=` syntax or space-separated syntax:
 
 ```bash
-jawm mymodule.py main --global.var.threads=16
-jawm mymodule.py main --global.var.threads 16   # equivalent
+jawm mymodule.py --global.var.threads=16
+jawm mymodule.py --global.var.threads 16   # equivalent
 ```
 
 Multiple overrides can be combined freely:
 
 ```bash
-jawm mymodule.py main \
+jawm mymodule.py \
   --global.manager=slurm \
   --global.var.threads=16 \
   --process.bwa_align.var.genome=/data/ref/hg38.fa \
@@ -176,7 +273,7 @@ jawm mymodule.py main \
 `-p` and `-v` accept HTTPS URLs in addition to local paths. jawm downloads and caches the file before the run:
 
 ```bash
-jawm mymodule.py main -p https://example.com/params/hg38.yaml
+jawm mymodule.py -p https://example.com/params/hg38.yaml
 ```
 
 Downloaded files are cached in `~/.jawm/remote_params/` (override with `JAWM_URL_CACHE_DIR`). jawm will reuse the cached copy on subsequent runs unless `JAWM_URL_FORCE_REFRESH=1` is set.
@@ -185,7 +282,7 @@ Downloaded files are cached in `~/.jawm/remote_params/` (override with `JAWM_URL
 
 ### What jawm does when you run it
 
-When you invoke `jawm mymodule.py main -p params.yaml`, the following happens in order:
+When you invoke `jawm mymodule.py -p params.yaml`, the following happens in order:
 
 1. **Parse arguments** — flags, workflow name, override tokens, and the `//subpath` suffix are extracted
 2. **Resolve the module** — if the module is not a local path, jawm builds a Git SSH URL and clones it into the current directory. If a matching local folder already exists with the same commit, it is reused without cloning again
@@ -232,31 +329,31 @@ These environment variables affect `jawm` behaviour without needing a command-li
 
 ```bash
 # Run a local module with a parameter file
-jawm align.py main -p params.yaml
+jawm align.py -p params.yaml
 
-# Run and override variables inline
-jawm align.py main -v vars.yaml --global.var.threads=32
+# Run and override a variable inline
+jawm align.py -v vars.yaml --global.var.threads=32
 
 # Run only the 'qc' sub-workflow
 jawm rnaseq.py qc -v vars.yaml
 
 # Run from a remote Git repository, pinned to a tag
-jawm jawm_bwa@v1.2.0 main -v vars.yaml
+jawm jawm_bwa@v1.0.0 -v vars.yaml
 
 # Run with Slurm for all processes, override one process back to local
-jawm mymodule.py main \
+jawm mymodule.py \
   --global.manager=slurm \
   --process.download.manager=local
 
 # Resume a previously started run (skip completed processes)
-jawm mymodule.py main -v vars.yaml -r
+jawm mymodule.py -v vars.yaml -r
 
 # Use a custom git server and organisation
-jawm jawm_align main --server gitlab.example.org --user my-team
+jawm jawm_align --server gitlab.example.org --user my-team
 
 # Run without internet access (local only)
-jawm ./my_pipeline/ main --no-web -p params.yaml
+jawm ./my_pipeline/ --no-web -p params.yaml
 
 # Change working directory before running
-jawm mymodule.py main -w /scratch/project123 -p params.yaml
+jawm mymodule.py -w /scratch/project123 -p params.yaml
 ```
