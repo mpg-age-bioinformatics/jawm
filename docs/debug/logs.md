@@ -221,7 +221,7 @@ When `--stats` is enabled (or `JAWM_RECORD_STAT=1`), a `stats.json` file is writ
 
 ```json
 {
-  "n": 42,
+  "poll_count": 42,
   "cpu_avg_pct": 387.5,
   "cpu_peak_pct": 792.3,
   "rss_avg_mib": 4821.2,
