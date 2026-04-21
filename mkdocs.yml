@@ -93,11 +93,15 @@ nav:
     - Test a Module: module/test.md
     - Available Modules: module/modules.md
   - CLI Tools:
-      - Overview: cli/overview.md
-      - jawm: cli/jawm.md
-      - jawm-dev: cli/jawm-dev.md
-      - jawm-test: cli/jawm-test.md
-      - jawm-monitor: cli/jawm-monitor.md
+    - Overview: cli/overview.md
+    - jawm: cli/jawm.md
+    - jawm-dev: cli/jawm-dev.md
+    - jawm-test: cli/jawm-test.md
+    - jawm-monitor: cli/jawm-monitor.md
+  - Debugging & Stats:
+    - Log Structure: debug/logs.md
+    - Errors Debugging: debug/errors.md
+    - Stats & Performance: debug/stats.md 
   - Examples & Use Cases: examples.md
   - How-To Guides: howto.md
   - Advanced Development: development.md
