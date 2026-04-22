@@ -317,6 +317,68 @@ def _build_rows(entries, wide, now):
 
 
 # ----------------------------------------------------------
+#   Column format helpers
+# ----------------------------------------------------------
+
+# Canonical column names → index in the row produced by _build_rows
+_COL_INDEX = {
+    "status":   0,
+    "name":     1,
+    "hash":     2,
+    "manager":  3,
+    "id":       4,
+    "started":  5,
+    "elapsed":  6,
+    "ended":    7,
+    "exit":     8,
+    "path":     9,   # only present when --wide is active
+}
+
+
+def _parse_fmt(fmt_str):
+    """
+    Parse a --fmt string such as "name:60,id:30" into {col_index: width}.
+
+    Accepted separators between name and width: ':' or '='.
+    Column names are case-insensitive.
+    Returns a dict mapping column index → new cap width.
+    Raises ValueError on unrecognised column names or non-integer widths.
+    """
+    overrides = {}
+    if not fmt_str:
+        return overrides
+    for token in fmt_str.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        # accept both 'name:60' and 'name=60'
+        if ":" in token:
+            col, _, val = token.partition(":")
+        elif "=" in token:
+            col, _, val = token.partition("=")
+        else:
+            raise ValueError(
+                f"Invalid format token {token!r}. Expected 'col:width' or 'col=width'."
+            )
+        col = col.strip().lower()
+        if col not in _COL_INDEX:
+            known = ", ".join(sorted(_COL_INDEX))
+            raise ValueError(
+                f"Unknown column {col!r}. Known columns: {known}."
+            )
+        try:
+            width = int(val.strip())
+        except ValueError:
+            raise ValueError(
+                f"Column width for {col!r} must be an integer, got {val.strip()!r}."
+            )
+        if width < 1:
+            raise ValueError(f"Column width must be ≥ 1, got {width} for {col!r}.")
+        overrides[_COL_INDEX[col]] = width
+    return overrides
+
+
+# ----------------------------------------------------------
 #   ps command
 # ----------------------------------------------------------
 
@@ -332,6 +394,14 @@ def _cmd_ps(args):
     wide      = getattr(args, "wide", False)
     no_header = getattr(args, "no_header", False)
     use_color = sys.stdout.isatty() and not getattr(args, "no_color", False)
+
+    fmt_overrides = {}
+    if getattr(args, "fmt", None):
+        try:
+            fmt_overrides = _parse_fmt(args.fmt)
+        except ValueError as exc:
+            print(f"jawm-monitor ps: --fmt: {exc}", file=sys.stderr)
+            return 1
 
     if not os.path.isdir(mon):
         print(f"jawm-monitor: monitoring directory not found: {mon}")
@@ -377,6 +447,11 @@ def _cmd_ps(args):
     if wide:
         headers.append("LOG PATH")
         caps.append(60)
+
+    # Apply --fmt overrides (col index → new cap width)
+    for col_idx, new_width in fmt_overrides.items():
+        if col_idx < len(caps):
+            caps[col_idx] = new_width
 
     rows  = _build_rows(all_entries, wide, now)
     sep   = "  "
@@ -1065,12 +1140,15 @@ def _build_parser():
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
+            "column names for --fmt: status, name, hash, manager, id, started, elapsed, ended, exit, path\n\n"
             "examples:\n"
-            "  jawm-monitor ps                 running + last 20 completed\n"
-            "  jawm-monitor ps -r              only running\n"
-            "  jawm-monitor ps -c -n 50        last 50 completed\n"
-            "  jawm-monitor ps -a              all completed\n"
-            "  jawm-monitor ps --wide          add log-path column\n"
+            "  jawm-monitor ps                         running + last 20 completed\n"
+            "  jawm-monitor ps -r                      only running\n"
+            "  jawm-monitor ps -c -n 50                last 50 completed\n"
+            "  jawm-monitor ps -a                      all completed\n"
+            "  jawm-monitor ps --wide                  add log-path column\n"
+            "  jawm-monitor ps --fmt name:60            widen the name column to 60 chars\n"
+            "  jawm-monitor ps --fmt name:80,id:30     multiple column overrides\n"
         ),
     )
     _a = ps.add_argument
@@ -1084,6 +1162,10 @@ def _build_parser():
        help=f"Monitoring directory (default: {_DEFAULT_MON_DIR})")
     _a("--wide",            action="store_true", default=False,
        help="Show an additional log-path column")
+    _a("--fmt",             metavar="COL:WIDTH[,COL:WIDTH...]",
+       help="Override column widths. Use 'col:width' or 'col=width' pairs separated by commas. "
+            "Column names: status, name, hash, manager, id, started, elapsed, ended, exit, path. "
+            "Example: --fmt name:80  or  --fmt name:60,id:30")
     _a("--no-header",       dest="no_header", action="store_true", default=False,
        help="Suppress column headers and footer")
     _a("--no-color",        dest="no_color",  action="store_true", default=False,
