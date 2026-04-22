@@ -432,6 +432,39 @@ def _cmd_ps(args):
 #   clean helpers
 # ----------------------------------------------------------
 
+def _assert_inside(path, root):
+    """
+    Raise ValueError if *path* is not inside *root* after normalisation.
+
+    This is a last-ditch containment guard: collectors always produce paths
+    from os.listdir so they should already be safe, but this ensures no
+    path can escape its expected directory even if the call chain changes.
+    """
+    real_path = os.path.realpath(os.path.abspath(path))
+    real_root = os.path.realpath(os.path.abspath(root))
+    if not real_path.startswith(real_root + os.sep) and real_path != real_root:
+        raise ValueError(
+            f"Safety check failed: {path!r} is not inside {root!r}\n"
+            f"  resolved path: {real_path}\n"
+            f"  expected root: {real_root}"
+        )
+
+
+def _check_mon_dir(mon):
+    """
+    Lightweight sanity check that *mon* looks like a jawm monitoring directory.
+    It must have at least one of Running/ or Completed/ as a direct child.
+    Raises ValueError if neither exists so callers can bail before touching anything.
+    """
+    has_running   = os.path.isdir(os.path.join(mon, "Running"))
+    has_completed = os.path.isdir(os.path.join(mon, "Completed"))
+    if not (has_running or has_completed):
+        raise ValueError(
+            f"{mon!r} does not look like a jawm monitoring directory "
+            f"(expected a Running/ or Completed/ subdirectory)."
+        )
+
+
 def _parse_age(s):
     """
     Parse an age string into seconds.
@@ -506,8 +539,11 @@ def _collect_unresolved(mon, threshold_s, now):
         if start_dt is None:
             continue
         if (now - start_dt).total_seconds() > threshold_s:
-            mgr = e.get("Manager", "")
-            jid = e.get("Job ID", "")
+            # Derive manager and job-id from the *filename* (written by jawm,
+            # not user-controlled content) to avoid path-traversal if a
+            # monitoring file's content were ever crafted with "../" in it.
+            src_fname = e["_fname"]                        # e.g. local.85628.txt
+            mgr, jid  = _fname_parse_running(src_fname)   # parse from filename
             new_fname = f"{mgr}.{jid}.UNRESOLVED.txt"
             new_fpath = os.path.join(completed_dir, new_fname)
             results.append((e["_fpath"], new_fpath, e))
@@ -636,22 +672,32 @@ def _do_resolve(items, dry_run, use_color):
             print(f"  {src_name}  ERROR: {exc}", file=sys.stderr)
 
 
-def _do_remove_files(fpaths, dry_run):
-    """Delete a list of file paths."""
+def _do_remove_files(fpaths, dry_run, root_dir):
+    """
+    Delete a list of file paths.
+    root_dir is used for a containment safety check on every path.
+    """
     for fpath in fpaths:
         fname = os.path.basename(fpath)
         if dry_run:
             print(f"  {fname}")
             continue
         try:
+            _assert_inside(fpath, root_dir)
             os.remove(fpath)
             print(f"  removed  {fname}")
+        except ValueError as exc:
+            print(f"  SKIPPED  {fname}: {exc}", file=sys.stderr)
         except Exception as exc:
             print(f"  ERROR removing {fname}: {exc}", file=sys.stderr)
 
 
-def _do_remove_paths(paths, dry_run):
-    """Delete a list of file/directory paths (git cache entries)."""
+def _do_remove_paths(paths, dry_run, root_dir):
+    """
+    Delete a list of file/directory paths (git cache entries).
+    root_dir is used for a containment safety check on every path.
+    Symlinks are removed as links only — never recursively deleted.
+    """
     for p in paths:
         name = os.path.basename(p)
         size = _fmt_size(_path_size(p))
@@ -659,11 +705,17 @@ def _do_remove_paths(paths, dry_run):
             print(f"  {name}  ({size})")
             continue
         try:
-            if os.path.isdir(p):
+            _assert_inside(p, root_dir)
+            if os.path.islink(p):
+                # Remove the symlink itself, never follow it into external data.
+                os.remove(p)
+            elif os.path.isdir(p):
                 shutil.rmtree(p)
             else:
                 os.remove(p)
             print(f"  removed  {name}  ({size})")
+        except ValueError as exc:
+            print(f"  SKIPPED  {name}: {exc}", file=sys.stderr)
         except Exception as exc:
             print(f"  ERROR removing {name}: {exc}", file=sys.stderr)
 
@@ -742,6 +794,20 @@ def _cmd_clean(args):
     use_color = sys.stdout.isatty() and not getattr(args, "no_color", False)
     dry_run   = args.dry_run
     force     = args.force
+
+    # Sanity-check the monitoring directory before touching anything.
+    # Bail early if it doesn't look like a jawm monitoring directory so that
+    # a mis-typed --dir can't accidentally delete unrelated .txt files.
+    has_action_flags = any([
+        args.unresolved, args.running, args.completed, args.git_cache, args.all,
+        args.older_than, args.keep_last is not None,
+    ])
+    if has_action_flags and os.path.isdir(mon):
+        try:
+            _check_mon_dir(mon)
+        except ValueError as exc:
+            print(f"jawm-monitor clean: {exc}", file=sys.stderr)
+            return 1
 
     # Validate: --older-than and --keep-last are mutually exclusive
     if args.older_than and args.keep_last is not None:
@@ -851,13 +917,13 @@ def _cmd_clean(args):
         _do_resolve(unresolved_items, dry_run=False, use_color=use_color)
     if running_files:
         print(f"Removing {len(running_files)} running {'entry' if len(running_files)==1 else 'entries'}:")
-        _do_remove_files(running_files, dry_run=False)
+        _do_remove_files(running_files, dry_run=False, root_dir=os.path.join(mon, "Running"))
     if completed_files:
         print(f"Removing {len(completed_files)} completed {'entry' if len(completed_files)==1 else 'entries'}:")
-        _do_remove_files(completed_files, dry_run=False)
+        _do_remove_files(completed_files, dry_run=False, root_dir=os.path.join(mon, "Completed"))
     if git_paths:
         print(f"Removing {len(git_paths)} git cache {'entry' if len(git_paths)==1 else 'entries'}:")
-        _do_remove_paths(git_paths, dry_run=False)
+        _do_remove_paths(git_paths, dry_run=False, root_dir=git_dir)
 
     print("\nDone.")
     return 0
