@@ -6,6 +6,7 @@ tabular summary of process state without touching the per-process log directorie
 """
 
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -1462,19 +1463,67 @@ def _cmd_logs_errors(log_dir, last_n, use_color):
     return 0
 
 
-def _cmd_logs_show(log_dir, query, use_color):
-    """Drill into one or all matching process log directories."""
+# Files that --show can display, in the order they appear in the help text.
+# Each entry: (argparse dest, filename template (%s = process name), display label, is_json)
+_SHOW_FILE_FLAGS = [
+    ("show_error",   "%s.error",    "stderr",           False),
+    ("show_output",  "%s.output",   "stdout",           False),
+    ("show_script",  "%s.script",   "script",           False),
+    ("show_command", "%s.command",  "command",          False),
+    ("show_id",      "%s.id",       "id",               False),
+    ("show_slurm",   "%s.slurm",    "slurm job script", False),
+    ("show_k8s",     "%s.k8s.json", "k8s manifest",     False),
+    ("show_stats",   "stats.json",  "stats",            True ),
+]
+
+
+def _print_file_section(dpath, fname, label, is_json, dim, rst):
+    """Print a single file section under a dim header line."""
+    fpath = os.path.join(dpath, fname)
+    print()
+    print(f"{dim}--- {label}  ({fname}) ---{rst}")
+    if not os.path.isfile(fpath):
+        print("  (file not found)")
+        return
+    try:
+        with open(fpath) as fh:
+            content = fh.read()
+        if is_json:
+            try:
+                content = json.dumps(json.loads(content), indent=2)
+            except Exception:
+                pass   # fall back to raw content
+        sys.stdout.write(content)
+        if content and not content.endswith("\n"):
+            print()
+    except Exception as exc:
+        print(f"  error reading file: {exc}")
+
+
+def _cmd_logs_show(log_dir, query, args, use_color):
+    """
+    Drill into one or all matching process log directories.
+
+    Default (no file flags): prints a summary + last 20 lines of stderr.
+    With file flags (--error, --output, --script, --command, --id, --slurm,
+    --k8s, --stats): prints the summary header and the requested file(s) in full.
+    Multiple file flags may be combined.
+    """
     matches = _find_proc_dirs(log_dir, query)
     if not matches:
         print(f"jawm-monitor logs: no process matching {query!r} in {log_dir}")
         return 1
 
-    dim  = _C["DIM"] if use_color else ""
-    rst  = _C["RESET"] if use_color else ""
-    div  = _colorize("-" * 60, _C["DIM"], use_color)
+    dim = _C["DIM"] if use_color else ""
+    rst = _C["RESET"] if use_color else ""
+    div = _colorize("-" * 60, _C["DIM"], use_color)
 
-    # For name queries we show all runs of that process (oldest-first).
-    # For hash queries matches is newest-first; if somehow multiple, show all.
+    # Which file sections did the user request?
+    requested = [(fname_tpl, label, is_json)
+                 for dest, fname_tpl, label, is_json in _SHOW_FILE_FLAGS
+                 if getattr(args, dest, False)]
+
+    # For name queries show all runs (oldest-first); for hash queries newest-first.
     for idx, e in enumerate(matches):
         if idx > 0:
             print(div)
@@ -1485,12 +1534,12 @@ def _cmd_logs_show(log_dir, query, use_color):
         status = e["status"]
         ec     = e["exitcode"]
 
+        # --- summary header (always shown) ---
         sc = _C.get(status, "")
         print(f"Process:  {name}   {_colorize(status, sc, use_color)}")
         print(f"  Hash:    {hash_}")
         print(f"  Started: {_fmt_dt(e['dt'])}")
         print(f"  Dir:     {dpath}")
-
         if ec is not None:
             ec_color = _C["OK"] if ec == "0" else _C["FAILED"]
             print(f"  Exit:    {_colorize(ec, ec_color, use_color)}")
@@ -1500,24 +1549,30 @@ def _cmd_logs_show(log_dir, query, use_color):
                 elapsed  = _fmt_duration((ec_mtime - e["dt"]).total_seconds())
                 print(f"  Ended:   {_fmt_dt(ec_mtime)}   elapsed: {elapsed}")
 
-        # stderr tail
-        error_file = os.path.join(dpath, f"{name}.error")
-        if os.path.isfile(error_file):
-            try:
-                with open(error_file) as fh:
-                    lines = fh.readlines()
-                n_tail = 20
-                tail   = lines[-n_tail:] if len(lines) > n_tail else lines
-                trunc  = (f" (last {n_tail} of {len(lines)} lines)"
-                          if len(lines) > n_tail else f" ({len(lines)} lines)")
-                print()
-                print(f"{dim}--- stderr{trunc} ---{rst}")
-                for line in tail:
-                    sys.stdout.write(line)
-                if tail and not tail[-1].endswith("\n"):
+        if requested:
+            # --- explicit file sections ---
+            for fname_tpl, label, is_json in requested:
+                fname = fname_tpl % name if "%s" in fname_tpl else fname_tpl
+                _print_file_section(dpath, fname, label, is_json, dim, rst)
+        else:
+            # --- default: stderr tail ---
+            error_file = os.path.join(dpath, f"{name}.error")
+            if os.path.isfile(error_file):
+                try:
+                    with open(error_file) as fh:
+                        lines = fh.readlines()
+                    n_tail = 20
+                    tail   = lines[-n_tail:] if len(lines) > n_tail else lines
+                    trunc  = (f" (last {n_tail} of {len(lines)} lines)"
+                              if len(lines) > n_tail else f" ({len(lines)} lines)")
                     print()
-            except Exception:
-                pass
+                    print(f"{dim}--- stderr{trunc} ---{rst}")
+                    for line in tail:
+                        sys.stdout.write(line)
+                    if tail and not tail[-1].endswith("\n"):
+                        print()
+                except Exception:
+                    pass
 
     return 0
 
@@ -1633,7 +1688,7 @@ def _cmd_logs(args):
         return _cmd_logs_errors(log_dir, last_n=args.errors, use_color=use_color)
 
     if getattr(args, "show", None):
-        return _cmd_logs_show(log_dir, query=args.show, use_color=use_color)
+        return _cmd_logs_show(log_dir, query=args.show, args=args, use_color=use_color)
 
     # No flag → overview
     return _cmd_logs_overview(log_dir, use_color)
@@ -1809,8 +1864,16 @@ def _build_parser():
             "  jawm-monitor logs --ls -a                 all processes\n"
             "  jawm-monitor logs --ls --fmt name:60      widen name column\n"
             "  jawm-monitor logs --ls --wide             add directory column\n"
-            "  jawm-monitor logs --show gate_6           details for all gate_6 runs\n"
-            "  jawm-monitor logs --show 1e1cd29m         details by hash prefix\n"
+            "  jawm-monitor logs --show gate_6           summary + stderr tail\n"
+            "  jawm-monitor logs --show 1e1cd29m         show by hash prefix\n"
+            "  jawm-monitor logs --show gate_6 --error   full stderr\n"
+            "  jawm-monitor logs --show gate_6 --output  full stdout\n"
+            "  jawm-monitor logs --show gate_6 --script  resolved script\n"
+            "  jawm-monitor logs --show gate_6 --command launch command\n"
+            "  jawm-monitor logs --show gate_6 --slurm   slurm job script\n"
+            "  jawm-monitor logs --show gate_6 --k8s     kubernetes manifest\n"
+            "  jawm-monitor logs --show gate_6 --stats   stats.json\n"
+            "  jawm-monitor logs --show gate_6 --script --command   multiple files\n"
         ),
     )
     _c = lg.add_argument
@@ -1827,8 +1890,26 @@ def _build_parser():
     _c("--ls",             action="store_true", default=False,
        help="List process log directories in a table (like jawm-monitor ps)")
     _c("--show",           metavar="NAME_OR_HASH",
-       help="Show full details for a process: exit code, stderr tail, stats. "
-            "Accepts a process name (all runs shown) or a hash prefix")
+       help="Show details for a process: exit code, started/ended, stderr tail. "
+            "Accepts a process name (all runs shown) or a hash prefix. "
+            "Combine with the file flags below to view specific files in full.")
+    # File-view flags — used together with --show to display a specific file
+    _c("--error",          dest="show_error",   action="store_true", default=False,
+       help="Print the full stderr file  (<name>.error)")
+    _c("--output",         dest="show_output",  action="store_true", default=False,
+       help="Print the full stdout file  (<name>.output)")
+    _c("--script",         dest="show_script",  action="store_true", default=False,
+       help="Print the resolved script   (<name>.script)")
+    _c("--command",        dest="show_command", action="store_true", default=False,
+       help="Print the launch command    (<name>.command)")
+    _c("--id",             dest="show_id",      action="store_true", default=False,
+       help="Print the process/job ID   (<name>.id)")
+    _c("--slurm",          dest="show_slurm",   action="store_true", default=False,
+       help="Print the Slurm job script  (<name>.slurm)  [Slurm processes only]")
+    _c("--k8s",            dest="show_k8s",     action="store_true", default=False,
+       help="Print the Kubernetes manifest  (<name>.k8s.json)  [K8s processes only]")
+    _c("--stats",          dest="show_stats",   action="store_true", default=False,
+       help="Print the resource stats   (stats.json)  [requires --stats on the jawm run]")
     _c("-n", "--last",     type=int, default=20, metavar="N",
        help="Number of entries to show with --ls or --runs (default: 20)")
     _c("-a", "--all",      action="store_true", default=False,
