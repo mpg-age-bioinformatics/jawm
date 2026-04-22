@@ -7,6 +7,7 @@ tabular summary of process state without touching the per-process log directorie
 
 import argparse
 import os
+import shutil
 import sys
 from datetime import datetime
 
@@ -34,11 +35,12 @@ _DEFAULT_MON_DIR = os.environ.get(
     "JAWM_MONITORING_DIRECTORY",
     os.path.expanduser("~/.jawm/monitoring"),
 )
+_DEFAULT_GIT_DIR = os.path.expanduser("~/.jawm/git")
 
 _STALE_S      = 48 * 3600        # 48 h  → show as STALE
 _UNRESOLVED_S = 7  * 24 * 3600   # 7 days → hide, count in footer
 
-_VALID_CMDS = {"ps"}
+_VALID_CMDS = {"ps", "clean"}
 
 # ANSI colour codes (only applied when stdout is a tty)
 _C = {
@@ -46,6 +48,7 @@ _C = {
     "STALE":      "\033[35m",   # magenta
     "OK":         "\033[32m",   # green
     "FAILED":     "\033[31m",   # red
+    "UNRESOLVED": "\033[90m",   # dark grey
     "DIM":        "\033[2m",
     "RESET":      "\033[0m",
 }
@@ -163,6 +166,8 @@ def _load_running(mon_dir):
         data.setdefault("Job ID", jid)
         data["_status"] = "RUNNING"
         data["_mtime"]  = os.path.getmtime(fpath)
+        data["_fpath"]  = fpath
+        data["_fname"]  = fname
         entries.append(data)
     entries.sort(key=lambda e: e.get("Run Start") or "")
     return entries
@@ -170,7 +175,7 @@ def _load_running(mon_dir):
 
 def _load_completed(mon_dir, last_n):
     """
-    Return a list of dicts for files in Completed/, sorted by mtime desc.
+    Return a list of dicts for files in Completed/, sorted oldest-first.
     last_n=0 means no limit.
     """
     completed_dir = os.path.join(mon_dir, "Completed")
@@ -200,11 +205,16 @@ def _load_completed(mon_dir, last_n):
         data.setdefault("Job ID", jid)
         ec = data.get("Exit Code", ec_fname).strip()
         data["Exit Code"] = ec
-        try:
-            data["_status"] = "OK" if int(ec) == 0 else "FAILED"
-        except Exception:
-            data["_status"] = "DONE"
         data["_mtime"] = mtime
+        data["_fpath"] = fpath
+        data["_fname"] = fname
+        if ec.upper() == "UNRESOLVED":
+            data["_status"] = "UNRESOLVED"
+        else:
+            try:
+                data["_status"] = "OK" if int(ec) == 0 else "FAILED"
+            except Exception:
+                data["_status"] = "DONE"
         entries.append(data)
 
     return entries
@@ -252,13 +262,19 @@ def _build_rows(entries, wide, now):
         started  = _fmt_dt(start_dt)
 
         if status in ("RUNNING", "STALE"):
-            elapsed  = _fmt_duration((now - start_dt).total_seconds()) if start_dt else "pending"
-            ended    = "-"
+            elapsed   = _fmt_duration((now - start_dt).total_seconds()) if start_dt else "pending"
+            ended     = "-"
             exit_code = "-"
+        elif status == "UNRESOLVED":
+            # We don't know when the process actually ended — the Run End timestamp
+            # is just when clean -u ran, not real completion. Show nothing meaningful.
+            elapsed   = "-"
+            ended     = "-"
+            exit_code = "UNRESOLVED"
         else:
-            end_dt   = _parse_dt(e.get("Run End"))
-            elapsed  = _fmt_duration((end_dt - start_dt).total_seconds()) if (start_dt and end_dt) else "-"
-            ended    = _fmt_dt(end_dt)
+            end_dt    = _parse_dt(e.get("Run End"))
+            elapsed   = _fmt_duration((end_dt - start_dt).total_seconds()) if (start_dt and end_dt) else "-"
+            ended     = _fmt_dt(end_dt)
             exit_code = str(e.get("Exit Code", "-"))
 
         row = [status, name, hash_, manager, job_id, started, elapsed, ended, exit_code]
@@ -293,24 +309,23 @@ def _cmd_ps(args):
     now = datetime.now()
 
     # --- classify running entries ---
-    raw_running     = _load_running(mon) if show_running else []
-    visible_running = []
+    raw_running      = _load_running(mon) if show_running else []
+    visible_running  = []
     unresolved_count = 0
 
     for e in raw_running:
         start_dt = _parse_dt(e.get("Run Start"))
         if start_dt is None:
-            # No start time recorded yet — treat as RUNNING / pending
             visible_running.append(e)
             continue
         elapsed_s = (now - start_dt).total_seconds()
         if elapsed_s > _UNRESOLVED_S:
-            unresolved_count += 1          # hidden from table, counted in footer
+            unresolved_count += 1
         elif elapsed_s > _STALE_S:
             e["_status"] = "STALE"
             visible_running.append(e)
         else:
-            visible_running.append(e)      # status already "RUNNING"
+            visible_running.append(e)
 
     completed_entries = _load_completed(mon, last_n) if show_completed else []
     all_entries       = visible_running + completed_entries
@@ -326,7 +341,7 @@ def _cmd_ps(args):
 
     # --- table ---
     headers = ["STATUS", "NAME",  "HASH",  "MANAGER", "ID",  "STARTED", "ELAPSED", "ENDED", "EXIT"]
-    caps    = [7,         30,      12,      10,         15,    19,        12,        19,       6   ]
+    caps    = [10,        30,      12,      10,         15,    19,        12,        19,       6   ]
     if wide:
         headers.append("LOG PATH")
         caps.append(60)
@@ -373,11 +388,446 @@ def _cmd_ps(args):
 
         footer = f"  {mon}  |  {', '.join(parts)}"
         if unresolved_count:
-            footer += f"  |  {unresolved_count} unresolved — run 'jawm-monitor clean -u' to clean"
+            footer += f"  |  {unresolved_count} unresolved (>7d) — run 'jawm-monitor clean -u' to resolve"
 
         print()
         print(_colorize(footer, _C["DIM"], use_color))
 
+    return 0
+
+
+# ----------------------------------------------------------
+#   clean helpers
+# ----------------------------------------------------------
+
+def _parse_age(s):
+    """
+    Parse an age string into seconds.
+    Accepts: '7d', '48h', '30' (bare integer → days).
+    Returns float seconds, or raises ValueError on bad input.
+    """
+    s = s.strip().lower()
+    try:
+        if s.endswith("d"):
+            return float(s[:-1]) * 86400
+        if s.endswith("h"):
+            return float(s[:-1]) * 3600
+        return float(s) * 86400  # default unit: days
+    except (ValueError, AttributeError):
+        raise ValueError(f"Invalid age format: {s!r}. Use e.g. '7d', '48h', or '30' (days).")
+
+
+def _confirm(prompt, force):
+    """Ask for confirmation. Returns True if force=True or user types y/yes."""
+    if force:
+        return True
+    try:
+        ans = input(f"{prompt} [y/N] ").strip().lower()
+        return ans in ("y", "yes")
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+
+
+def _fmt_size(n_bytes):
+    """Format a byte count as a human-readable string."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if n_bytes < 1024:
+            return f"{n_bytes:.1f} {unit}"
+        n_bytes /= 1024
+    return f"{n_bytes:.1f} TB"
+
+
+def _path_size(p):
+    """Return total size of a file or directory tree in bytes."""
+    try:
+        if os.path.isfile(p):
+            return os.path.getsize(p)
+        total = 0
+        for dirpath, _, filenames in os.walk(p):
+            for fname in filenames:
+                try:
+                    total += os.path.getsize(os.path.join(dirpath, fname))
+                except OSError:
+                    pass
+        return total
+    except Exception:
+        return 0
+
+
+# ----------------------------------------------------------
+#   clean — collectors (pure read, return what would be acted on)
+# ----------------------------------------------------------
+
+def _collect_unresolved(mon, threshold_s, now):
+    """
+    Find Running/ entries older than threshold_s.
+    Returns list of (running_fpath, new_completed_fpath, data_dict).
+    """
+    results = []
+    running_dir   = os.path.join(mon, "Running")
+    completed_dir = os.path.join(mon, "Completed")
+    if not os.path.isdir(running_dir):
+        return results
+    for e in _load_running(mon):
+        start_dt = _parse_dt(e.get("Run Start"))
+        if start_dt is None:
+            continue
+        if (now - start_dt).total_seconds() > threshold_s:
+            mgr = e.get("Manager", "")
+            jid = e.get("Job ID", "")
+            new_fname = f"{mgr}.{jid}.UNRESOLVED.txt"
+            new_fpath = os.path.join(completed_dir, new_fname)
+            results.append((e["_fpath"], new_fpath, e))
+    return results
+
+
+def _collect_running_to_remove(mon, older_than_s, keep_last, now):
+    """
+    Collect Running/ file paths to delete.
+    older_than_s=None and keep_last=None → all entries.
+    older_than_s → only entries older than threshold (by Run Start).
+    keep_last    → keep the N most recently started, remove the rest.
+    """
+    entries = _load_running(mon)
+    if not entries:
+        return []
+
+    if older_than_s is not None:
+        def _is_old(e):
+            dt = _parse_dt(e.get("Run Start"))
+            if dt is None:
+                return False
+            return (now - dt).total_seconds() > older_than_s
+        entries = [e for e in entries if _is_old(e)]
+
+    if keep_last is not None and keep_last >= 0:
+        # sort newest first, skip first keep_last, the rest are removed
+        entries_by_newest = sorted(entries, key=lambda e: e.get("Run Start") or "", reverse=True)
+        entries = entries_by_newest[keep_last:]
+
+    return [e["_fpath"] for e in entries]
+
+
+def _collect_completed_to_remove(mon, older_than_s, keep_last, now):
+    """
+    Collect Completed/ file paths to delete.
+    older_than_s=None and keep_last=None → all entries.
+    older_than_s → only entries older than threshold (by mtime).
+    keep_last    → keep the N most recently completed, remove the rest.
+    """
+    completed_dir = os.path.join(mon, "Completed")
+    if not os.path.isdir(completed_dir):
+        return []
+
+    files = []
+    for fname in os.listdir(completed_dir):
+        if not fname.endswith(".txt"):
+            continue
+        fpath = os.path.join(completed_dir, fname)
+        mtime = os.path.getmtime(fpath)
+        files.append((mtime, fpath))
+
+    if not files:
+        return []
+
+    if older_than_s is not None:
+        cutoff = now.timestamp() - older_than_s
+        files = [(m, p) for m, p in files if m < cutoff]
+
+    if keep_last is not None and keep_last >= 0:
+        # sort newest first, skip first keep_last, the rest are removed
+        files_newest = sorted(files, key=lambda x: x[0], reverse=True)
+        files = files_newest[keep_last:]
+
+    return [p for _, p in files]
+
+
+def _collect_git_to_remove(git_dir, older_than_s, keep_last, now):
+    """
+    Collect git cache entries (immediate children of git_dir) to delete.
+    older_than_s=None and keep_last=None → all entries.
+    older_than_s → entries not accessed in that many seconds (by mtime).
+    keep_last    → keep the N most recently accessed, remove the rest.
+    """
+    if not os.path.isdir(git_dir):
+        return []
+
+    entries = []
+    for name in os.listdir(git_dir):
+        p = os.path.join(git_dir, name)
+        mtime = os.path.getmtime(p)
+        entries.append((mtime, p))
+
+    if not entries:
+        return []
+
+    if older_than_s is not None:
+        cutoff = now.timestamp() - older_than_s
+        entries = [(m, p) for m, p in entries if m < cutoff]
+
+    if keep_last is not None and keep_last >= 0:
+        entries_newest = sorted(entries, key=lambda x: x[0], reverse=True)
+        entries = entries_newest[keep_last:]
+
+    return [p for _, p in entries]
+
+
+# ----------------------------------------------------------
+#   clean — executors
+# ----------------------------------------------------------
+
+def _do_resolve(items, dry_run, use_color):
+    """Move Running entries to Completed/ as UNRESOLVED."""
+    tag = _colorize("UNRESOLVED", _C["UNRESOLVED"], use_color)
+    for running_fpath, completed_fpath, data in items:
+        src_name  = os.path.basename(running_fpath)
+        dest_name = os.path.basename(completed_fpath)
+        if dry_run:
+            print(f"  {src_name}  →  {dest_name}")
+            continue
+        try:
+            os.makedirs(os.path.dirname(completed_fpath), exist_ok=True)
+            with open(completed_fpath, "w") as fh:
+                # Re-write all original fields
+                for key in ("Job ID", "Job Name", "Job Hash", "Manager", "Path",
+                            "Process Initiated", "Run Start"):
+                    val = data.get(key, "")
+                    if val:
+                        fh.write(f"{key}: {val}\n")
+                fh.write(f"Run End: {datetime.now().strftime('%Y%m%d_%H%M%S')}\n")
+                fh.write("Exit Code: UNRESOLVED\n")
+            if os.path.exists(running_fpath):
+                os.remove(running_fpath)
+            print(f"  {src_name}  →  {dest_name}  [{tag}]")
+        except Exception as exc:
+            print(f"  {src_name}  ERROR: {exc}", file=sys.stderr)
+
+
+def _do_remove_files(fpaths, dry_run):
+    """Delete a list of file paths."""
+    for fpath in fpaths:
+        fname = os.path.basename(fpath)
+        if dry_run:
+            print(f"  {fname}")
+            continue
+        try:
+            os.remove(fpath)
+            print(f"  removed  {fname}")
+        except Exception as exc:
+            print(f"  ERROR removing {fname}: {exc}", file=sys.stderr)
+
+
+def _do_remove_paths(paths, dry_run):
+    """Delete a list of file/directory paths (git cache entries)."""
+    for p in paths:
+        name = os.path.basename(p)
+        size = _fmt_size(_path_size(p))
+        if dry_run:
+            print(f"  {name}  ({size})")
+            continue
+        try:
+            if os.path.isdir(p):
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
+            print(f"  removed  {name}  ({size})")
+        except Exception as exc:
+            print(f"  ERROR removing {name}: {exc}", file=sys.stderr)
+
+
+# ----------------------------------------------------------
+#   clean — summary (no args: show counts + help)
+# ----------------------------------------------------------
+
+def _clean_summary(mon, git_dir, use_color):
+    now = datetime.now()
+
+    # Running counts
+    running_all = _load_running(mon) if os.path.isdir(mon) else []
+    n_run_total = len(running_all)
+    n_stale, n_unresolved = 0, 0
+    for e in running_all:
+        dt = _parse_dt(e.get("Run Start"))
+        if dt is None:
+            continue
+        s = (now - dt).total_seconds()
+        if s > _UNRESOLVED_S:
+            n_unresolved += 1
+        elif s > _STALE_S:
+            n_stale += 1
+
+    # Completed counts
+    completed_dir = os.path.join(mon, "Completed")
+    n_completed = len([f for f in os.listdir(completed_dir) if f.endswith(".txt")]) \
+        if os.path.isdir(completed_dir) else 0
+
+    # Git cache
+    n_git = len(os.listdir(git_dir)) if os.path.isdir(git_dir) else 0
+    git_size = _fmt_size(_path_size(git_dir)) if os.path.isdir(git_dir) else "0 B"
+
+    dim = _C["DIM"] if use_color else ""
+    rst = _C["RESET"] if use_color else ""
+
+    print(f"{dim}jawm-monitor clean — nothing was changed  (pass flags to act){rst}")
+    print()
+    print(f"  Monitoring: {mon}")
+    print(f"    Running:    {n_run_total} entries"
+          + (f"  ({n_stale} stale >48h,  {n_unresolved} unresolved >7d)" if (n_stale or n_unresolved) else ""))
+    print(f"    Completed:  {n_completed} entries")
+    print()
+    print(f"  Git cache:  {git_dir}")
+    print(f"    Entries:    {n_git}  ({git_size})")
+    print()
+    print(f"  Available flags:")
+    print(f"    -u, --unresolved          move running >7d to Completed/ as UNRESOLVED")
+    print(f"    --running                 remove running entries")
+    print(f"    --completed               remove completed entries")
+    print(f"    --git-cache               clean git cache entries")
+    print(f"    --all                     resolve unresolved + remove all running + completed")
+    print(f"    --older-than <age>        filter by age  (e.g. 7d, 48h, 30)")
+    print(f"    --keep-last N             keep N most recent entries")
+    print(f"    -n, --dry-run             preview without making changes")
+    print(f"    -f, --force               skip confirmation prompt")
+    print()
+    print(f"  Examples:")
+    print(f"    jawm-monitor clean -u                    # resolve hanging >7d")
+    print(f"    jawm-monitor clean --completed --older-than 30d")
+    print(f"    jawm-monitor clean --running --keep-last 10")
+    print(f"    jawm-monitor clean --git-cache --keep-last 5")
+    print(f"    jawm-monitor clean --all --dry-run")
+
+
+# ----------------------------------------------------------
+#   clean command
+# ----------------------------------------------------------
+
+def _cmd_clean(args):
+    mon     = _mon_dir(getattr(args, "dir", None))
+    git_dir = _DEFAULT_GIT_DIR
+    now     = datetime.now()
+
+    use_color = sys.stdout.isatty() and not getattr(args, "no_color", False)
+    dry_run   = args.dry_run
+    force     = args.force
+
+    # Validate: --older-than and --keep-last are mutually exclusive
+    if args.older_than and args.keep_last is not None:
+        print("jawm-monitor clean: --older-than and --keep-last are mutually exclusive.", file=sys.stderr)
+        return 1
+
+    older_than_s = None
+    if args.older_than:
+        try:
+            older_than_s = _parse_age(args.older_than)
+        except ValueError as exc:
+            print(f"jawm-monitor clean: {exc}", file=sys.stderr)
+            return 1
+
+    keep_last = args.keep_last  # int or None
+
+    # Determine which actions are requested
+    do_unresolved = args.unresolved or args.all
+    do_running    = args.running    or args.all
+    do_completed  = args.completed  or args.all
+    do_git        = args.git_cache
+
+    # --older-than alone (no target) → apply to running + completed
+    if older_than_s is not None and not any([do_unresolved, do_running, do_completed, do_git]):
+        do_running   = True
+        do_completed = True
+
+    # --keep-last alone (no target) → error
+    if keep_last is not None and not any([do_running, do_completed, do_git]):
+        print("jawm-monitor clean: --keep-last requires a target (--running, --completed, or --git-cache).", file=sys.stderr)
+        return 1
+
+    has_action = any([do_unresolved, do_running, do_completed, do_git])
+    if not has_action:
+        _clean_summary(mon, git_dir, use_color)
+        return 0
+
+    # --- Collect what would be affected ---
+
+    # 1. Unresolved: use --older-than as threshold if specified, else default 7d
+    unresolved_items = []
+    if do_unresolved:
+        threshold = older_than_s if (args.unresolved and older_than_s) else _UNRESOLVED_S
+        unresolved_items = _collect_unresolved(mon, threshold, now)
+
+    # 2. Running: for --all, remove all remaining; for --running, respect filters
+    running_files = []
+    if do_running:
+        ot = older_than_s if args.running else None   # --all ignores --older-than for running
+        kl = keep_last    if args.running else None
+        # exclude entries already captured in unresolved_items
+        unresolved_paths = {fp for fp, _, _ in unresolved_items}
+        all_running_files = _collect_running_to_remove(mon, ot, kl, now)
+        running_files = [f for f in all_running_files if f not in unresolved_paths]
+
+    # 3. Completed
+    completed_files = []
+    if do_completed:
+        ot = older_than_s  # respected for both --completed and --all
+        kl = keep_last if args.completed else None   # --all doesn't apply keep-last to completed
+        completed_files = _collect_completed_to_remove(mon, ot, kl, now)
+
+    # 4. Git cache
+    git_paths = []
+    if do_git:
+        git_paths = _collect_git_to_remove(git_dir, older_than_s, keep_last, now)
+
+    # --- Nothing to do ---
+    total = len(unresolved_items) + len(running_files) + len(completed_files) + len(git_paths)
+    if total == 0:
+        print("jawm-monitor clean: nothing to clean.")
+        return 0
+
+    # --- Preview ---
+    if unresolved_items:
+        print(f"Resolve {len(unresolved_items)} running entr{'y' if len(unresolved_items)==1 else 'ies'} → UNRESOLVED:")
+        for fp, cfp, _ in unresolved_items:
+            print(f"  {os.path.basename(fp)}  →  {os.path.basename(cfp)}")
+    if running_files:
+        print(f"Remove {len(running_files)} running entr{'y' if len(running_files)==1 else 'ies'}:")
+        for fp in running_files:
+            print(f"  {os.path.basename(fp)}")
+    if completed_files:
+        print(f"Remove {len(completed_files)} completed entr{'y' if len(completed_files)==1 else 'ies'}:")
+        for fp in completed_files:
+            print(f"  {os.path.basename(fp)}")
+    if git_paths:
+        total_size = _fmt_size(sum(_path_size(p) for p in git_paths))
+        print(f"Remove {len(git_paths)} git cache entr{'y' if len(git_paths)==1 else 'ies'}  ({total_size}):")
+        for p in git_paths:
+            print(f"  {os.path.basename(p)}")
+
+    if dry_run:
+        print("\n(dry run — no changes made)")
+        return 0
+
+    # --- Confirm ---
+    print()
+    if not _confirm(f"  Proceed with {total} operation(s)?", force):
+        print("Aborted.")
+        return 0
+    print()
+
+    # --- Execute ---
+    if unresolved_items:
+        print(f"Resolving {len(unresolved_items)} unresolved {'entry' if len(unresolved_items)==1 else 'entries'}:")
+        _do_resolve(unresolved_items, dry_run=False, use_color=use_color)
+    if running_files:
+        print(f"Removing {len(running_files)} running {'entry' if len(running_files)==1 else 'entries'}:")
+        _do_remove_files(running_files, dry_run=False)
+    if completed_files:
+        print(f"Removing {len(completed_files)} completed {'entry' if len(completed_files)==1 else 'entries'}:")
+        _do_remove_files(completed_files, dry_run=False)
+    if git_paths:
+        print(f"Removing {len(git_paths)} git cache {'entry' if len(git_paths)==1 else 'entries'}:")
+        _do_remove_paths(git_paths, dry_run=False)
+
+    print("\nDone.")
     return 0
 
 
@@ -399,6 +849,8 @@ def _build_parser():
             "  jawm-monitor ps -a               # running + all completed\n"
             "  jawm-monitor ps --wide           # include log path column\n"
             "  jawm-monitor ps -d /tmp/mon      # custom monitoring directory\n"
+            "  jawm-monitor clean               # show counts + available options\n"
+            "  jawm-monitor clean -u            # resolve hanging processes\n"
         ),
     )
     parser.add_argument("-V", "--version", action="version", version=f"jawm-monitor {_VERSION}")
@@ -427,32 +879,78 @@ def _build_parser():
             "  jawm-monitor ps --wide          add log-path column\n"
         ),
     )
-    _add = ps.add_argument
+    _a = ps.add_argument
+    _a("-r", "--running",   action="store_true", default=False, help="Show only running processes")
+    _a("-c", "--completed", action="store_true", default=False, help="Show only completed processes")
+    _a("-n", "--last",      type=int, default=20, metavar="N",
+       help="Number of most recent completed entries to show (default: 20; ignored with -a)")
+    _a("-a", "--all",       action="store_true", default=False,
+       help="Show all completed entries (overrides -n/--last)")
+    _a("-d", "--dir",       metavar="DIR",
+       help=f"Monitoring directory (default: {_DEFAULT_MON_DIR})")
+    _a("--wide",            action="store_true", default=False,
+       help="Show an additional log-path column")
+    _a("--no-header",       dest="no_header", action="store_true", default=False,
+       help="Suppress column headers and footer")
+    _a("--no-color",        dest="no_color",  action="store_true", default=False,
+       help="Disable ANSI colour output")
 
-    _add("-r", "--running",
-         action="store_true", default=False,
-         help="Show only running processes")
-    _add("-c", "--completed",
-         action="store_true", default=False,
-         help="Show only completed processes")
-    _add("-n", "--last",
-         type=int, default=20, metavar="N",
-         help="Number of most recent completed entries to show (default: 20; ignored with -a)")
-    _add("-a", "--all",
-         action="store_true", default=False,
-         help="Show all completed entries (overrides -n/--last)")
-    _add("-d", "--dir",
-         metavar="DIR",
-         help=f"Monitoring directory (default: {_DEFAULT_MON_DIR})")
-    _add("--wide",
-         action="store_true", default=False,
-         help="Show an additional log-path column")
-    _add("--no-header",
-         dest="no_header", action="store_true", default=False,
-         help="Suppress column headers and footer")
-    _add("--no-color",
-         dest="no_color", action="store_true", default=False,
-         help="Disable ANSI colour output")
+    # ---- clean ----
+    cl = sub.add_parser(
+        "clean",
+        help="Clean up monitoring and git cache entries",
+        description=(
+            "Clean stale or unwanted entries from the monitoring directory and git cache.\n\n"
+            "With no flags: shows a summary of cleanable entries and lists all options.\n"
+            "All destructive operations require confirmation unless --force is passed.\n"
+            "Use --dry-run to preview any operation without making changes."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "age format: '7d' = 7 days, '48h' = 48 hours, '30' = 30 days (bare int = days)\n\n"
+            "examples:\n"
+            "  jawm-monitor clean                           show summary, do nothing\n"
+            "  jawm-monitor clean -u                        resolve running >7d → UNRESOLVED\n"
+            "  jawm-monitor clean -u --older-than 2d        resolve running >2d → UNRESOLVED\n"
+            "  jawm-monitor clean --running                 remove all running entries\n"
+            "  jawm-monitor clean --running --older-than 2d remove running entries older than 2 days\n"
+            "  jawm-monitor clean --running --keep-last 5   keep 5 most recent running, remove rest\n"
+            "  jawm-monitor clean --completed               remove all completed entries\n"
+            "  jawm-monitor clean --completed --older-than 30d\n"
+            "  jawm-monitor clean --completed --keep-last 100\n"
+            "  jawm-monitor clean --git-cache               wipe entire git cache\n"
+            "  jawm-monitor clean --git-cache --older-than 14d\n"
+            "  jawm-monitor clean --git-cache --keep-last 5\n"
+            "  jawm-monitor clean --all                     resolve + remove all running + completed\n"
+            "  jawm-monitor clean --all --dry-run           preview --all without acting\n"
+        ),
+    )
+    _b = cl.add_argument
+    _b("-u", "--unresolved",  action="store_true", default=False,
+       help="Move running entries older than 7d (or --older-than) to Completed/ as UNRESOLVED")
+    _b("--running",           action="store_true", default=False,
+       help="Remove running entries (all, or filtered by --older-than / --keep-last)")
+    _b("--completed",         action="store_true", default=False,
+       help="Remove completed entries (all, or filtered by --older-than / --keep-last)")
+    _b("--git-cache",         dest="git_cache", action="store_true", default=False,
+       help="Clean git cache entries in ~/.jawm/git/ (all, or filtered by --older-than / --keep-last)")
+    _b("--all",               action="store_true", default=False,
+       help="Resolve unresolved + remove all running and completed entries")
+    _b("--older-than",        metavar="AGE",
+       help="Only act on entries older than AGE (e.g. 7d, 48h, 30). "
+            "Mutually exclusive with --keep-last")
+    _b("--keep-last",         dest="keep_last", type=int, metavar="N",
+       help="Keep N most recent entries, remove the rest. "
+            "Applies to --running, --completed, and --git-cache. "
+            "Mutually exclusive with --older-than")
+    _b("-n", "--dry-run",     dest="dry_run", action="store_true", default=False,
+       help="Preview what would be affected without making any changes")
+    _b("-f", "--force",       action="store_true", default=False,
+       help="Skip the confirmation prompt")
+    _b("-d", "--dir",         metavar="DIR",
+       help=f"Monitoring directory (default: {_DEFAULT_MON_DIR})")
+    _b("--no-color",          dest="no_color", action="store_true", default=False,
+       help="Disable ANSI colour output")
 
     return parser
 
@@ -471,6 +969,9 @@ def main():
 
     if args.command == "ps":
         sys.exit(_cmd_ps(args) or 0)
+
+    if args.command == "clean":
+        sys.exit(_cmd_clean(args) or 0)
 
     print(f"jawm-monitor: unknown command '{args.command}'", file=sys.stderr)
     parser.print_help(sys.stderr)
