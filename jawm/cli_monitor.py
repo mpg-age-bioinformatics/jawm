@@ -173,31 +173,56 @@ def _load_running(mon_dir):
     return entries
 
 
+def _sort_key_completed(data, mtime):
+    """
+    Return a sort key (string, sortable lexicographically) for a completed entry.
+
+    Preference order for OK / FAILED:
+      1. Run End   — actual completion time
+      2. Run Start — fallback if Run End is missing
+      3. mtime     — last resort
+
+    For UNRESOLVED entries Run End is set to when 'clean -u' ran, not when
+    the process actually did anything useful.  We deliberately skip it and
+    use Run Start so that old abandoned processes sort by when they started,
+    not by when the operator resolved them.
+    """
+    run_end   = data.get("Run End", "")
+    run_start = data.get("Run Start", "")
+    ec        = data.get("Exit Code", "")
+
+    # jawm datetime strings are lexicographically sortable (YYYYMMDD_HHMMSS)
+    if ec.upper() != "UNRESOLVED":
+        if run_end and run_end not in ("NA", "None"):
+            return run_end
+    if run_start and run_start not in ("NA", "None"):
+        return run_start
+    # Fallback: convert mtime epoch to a comparable string
+    return datetime.fromtimestamp(mtime).strftime("%Y%m%d_%H%M%S")
+
+
 def _load_completed(mon_dir, last_n):
     """
     Return a list of dicts for files in Completed/, sorted oldest-first.
     last_n=0 means no limit.
+
+    Entries are ordered by actual process time (Run End > Run Start > mtime),
+    not by filesystem mtime.  This prevents UNRESOLVED entries — whose file
+    mtime is set to when 'clean -u' ran rather than when the process started —
+    from dominating the 'last N' window.
     """
     completed_dir = os.path.join(mon_dir, "Completed")
     entries = []
     if not os.path.isdir(completed_dir):
         return entries
 
-    files = []
+    raw = []
     for fname in os.listdir(completed_dir):
         if not fname.endswith(".txt"):
             continue
         fpath = os.path.join(completed_dir, fname)
-        files.append((os.path.getmtime(fpath), fpath, fname))
-
-    # Select the most recent N entries, then display oldest-first (like ps/squeue)
-    files.sort(key=lambda x: x[0], reverse=True)
-    if last_n > 0:
-        files = files[:last_n]
-    files.reverse()  # oldest at top, newest at bottom
-
-    for mtime, fpath, fname in files:
-        data = _parse_file(fpath)
+        mtime = os.path.getmtime(fpath)
+        data  = _parse_file(fpath)
         if not data:
             continue
         mgr, jid, ec_fname = _fname_parse_completed(fname)
@@ -215,9 +240,16 @@ def _load_completed(mon_dir, last_n):
                 data["_status"] = "OK" if int(ec) == 0 else "FAILED"
             except Exception:
                 data["_status"] = "DONE"
-        entries.append(data)
+        data["_sort_key"] = _sort_key_completed(data, mtime)
+        raw.append(data)
 
-    return entries
+    # Select the most recent N entries by process time, then display oldest-first
+    raw.sort(key=lambda d: d["_sort_key"], reverse=True)
+    if last_n > 0:
+        raw = raw[:last_n]
+    raw.reverse()  # oldest at top, newest at bottom
+
+    return raw
 
 
 # ----------------------------------------------------------
@@ -589,13 +621,13 @@ def _do_resolve(items, dry_run, use_color):
         try:
             os.makedirs(os.path.dirname(completed_fpath), exist_ok=True)
             with open(completed_fpath, "w") as fh:
-                # Re-write all original fields
+                # Re-write all original fields; no Run End — the process never
+                # finished cleanly so there is no meaningful end timestamp.
                 for key in ("Job ID", "Job Name", "Job Hash", "Manager", "Path",
                             "Process Initiated", "Run Start"):
                     val = data.get(key, "")
                     if val:
                         fh.write(f"{key}: {val}\n")
-                fh.write(f"Run End: {datetime.now().strftime('%Y%m%d_%H%M%S')}\n")
                 fh.write("Exit Code: UNRESOLVED\n")
             if os.path.exists(running_fpath):
                 os.remove(running_fpath)
