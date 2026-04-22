@@ -9,6 +9,7 @@ import argparse
 import os
 import shutil
 import sys
+import time
 from datetime import datetime
 
 # ----------------------------------------------------------
@@ -36,6 +37,7 @@ _DEFAULT_MON_DIR = os.environ.get(
     os.path.expanduser("~/.jawm/monitoring"),
 )
 _DEFAULT_GIT_DIR = os.path.expanduser("~/.jawm/git")
+_DEFAULT_LOG_DIR = "logs"   # relative to cwd; override with -l/--log-dir
 
 _STALE_S      = 48 * 3600        # 48 h  → show as STALE
 _UNRESOLVED_S = 7  * 24 * 3600   # 7 days → hide, count in footer
@@ -320,7 +322,7 @@ def _build_rows(entries, wide, now):
 #   Column format helpers
 # ----------------------------------------------------------
 
-# Canonical column names → index in the row produced by _build_rows
+# Canonical column names → index in the row produced by _build_rows  (ps)
 _COL_INDEX = {
     "status":   0,
     "name":     1,
@@ -334,16 +336,31 @@ _COL_INDEX = {
     "path":     9,   # only present when --wide is active
 }
 
+# Column names → index for `logs --ls` rows (different layout from ps)
+_LOG_LS_COL_INDEX = {
+    "status":   0,
+    "name":     1,
+    "hash":     2,
+    "started":  3,
+    "ended":    4,
+    "elapsed":  5,
+    "exit":     6,
+    "dir":      7,   # only present when --wide is active
+}
 
-def _parse_fmt(fmt_str):
+
+def _parse_fmt(fmt_str, col_map=None):
     """
     Parse a --fmt string such as "name:60,id:30" into {col_index: width}.
 
     Accepted separators between name and width: ':' or '='.
     Column names are case-insensitive.
+    col_map defaults to _COL_INDEX (ps columns); pass _LOG_LS_COL_INDEX for logs --ls.
     Returns a dict mapping column index → new cap width.
     Raises ValueError on unrecognised column names or non-integer widths.
     """
+    if col_map is None:
+        col_map = _COL_INDEX
     overrides = {}
     if not fmt_str:
         return overrides
@@ -361,8 +378,8 @@ def _parse_fmt(fmt_str):
                 f"Invalid format token {token!r}. Expected 'col:width' or 'col=width'."
             )
         col = col.strip().lower()
-        if col not in _COL_INDEX:
-            known = ", ".join(sorted(_COL_INDEX))
+        if col not in col_map:
+            known = ", ".join(sorted(col_map))
             raise ValueError(
                 f"Unknown column {col!r}. Known columns: {known}."
             )
@@ -374,7 +391,7 @@ def _parse_fmt(fmt_str):
             )
         if width < 1:
             raise ValueError(f"Column width must be ≥ 1, got {width} for {col!r}.")
-        overrides[_COL_INDEX[col]] = width
+        overrides[col_map[col]] = width
     return overrides
 
 
@@ -1101,6 +1118,528 @@ def _cmd_clean(args):
 
 
 # ----------------------------------------------------------
+#   logs — directory helpers
+# ----------------------------------------------------------
+
+def _parse_proc_dir_name(dirname):
+    """
+    Parse '<name>_<YYYYMMDD>_<HHMMSS>_<hash>' → (name, 'YYYYMMDD_HHMMSS', hash).
+    Returns None if dirname doesn't match the expected pattern.
+    The name portion may itself contain underscores; parsing is anchored from the right.
+    """
+    parts = dirname.rsplit("_", 3)
+    if len(parts) != 4:
+        return None
+    name, date, time_, hash_ = parts
+    if (len(date) == 8 and date.isdigit() and
+            len(time_) == 6 and time_.isdigit() and
+            len(hash_) == 10 and hash_.isalnum()):
+        return name, f"{date}_{time_}", hash_
+    return None
+
+
+def _read_exitcode_file(proc_dir, name):
+    """Read <proc_dir>/<name>.exitcode → stripped string, or None if absent."""
+    path = os.path.join(proc_dir, f"{name}.exitcode")
+    try:
+        with open(path) as fh:
+            return fh.read().strip()
+    except Exception:
+        return None
+
+
+def _proc_dir_status(exitcode):
+    """Derive a display status string from an exit-code string (or None)."""
+    if exitcode is None:
+        return "RUNNING"
+    return "OK" if exitcode == "0" else "FAILED"
+
+
+def _load_proc_dirs(log_dir, last_n=0):
+    """
+    Scan log_dir for process log directories (name_YYYYMMDD_HHMMSS_hash).
+    Returns a list of entry dicts sorted oldest-first.
+    last_n=0 → all entries; last_n>0 → the most recent N (still oldest-first).
+    Directory size is NOT computed here — use _path_size() on demand.
+    """
+    entries = []
+    try:
+        names = os.listdir(log_dir)
+    except Exception:
+        return []
+    for dirname in names:
+        dpath = os.path.join(log_dir, dirname)
+        if not os.path.isdir(dpath):
+            continue
+        parsed = _parse_proc_dir_name(dirname)
+        if parsed is None:
+            continue
+        name, ts_str, hash_ = parsed
+        ec = _read_exitcode_file(dpath, name)
+        entries.append({
+            "name":     name,
+            "hash":     hash_,
+            "ts_str":   ts_str,
+            "dt":       _parse_dt(ts_str),
+            "status":   _proc_dir_status(ec),
+            "exitcode": ec,
+            "path":     dpath,
+            "dirname":  dirname,
+        })
+    entries.sort(key=lambda e: e["ts_str"])
+    if last_n > 0:
+        entries = entries[-last_n:]   # most recent N, still oldest-first
+    return entries
+
+
+def _parse_error_log(log_dir):
+    """
+    Parse <log_dir>/error.log into a list of entry dicts, oldest-first.
+    Each dict: {timestamp, process, hash, log_folder, error_type, message, raw}.
+    Returns [] if error.log doesn't exist or can't be read.
+    """
+    error_log = os.path.join(log_dir, "error.log")
+    if not os.path.isfile(error_log):
+        return []
+    try:
+        with open(error_log) as fh:
+            content = fh.read()
+    except Exception:
+        return []
+
+    DASH80 = "-" * 80
+    entries = []
+    for block in content.split(DASH80):
+        block = block.strip()
+        if not block:
+            continue
+        lines = block.splitlines()
+        entry = {
+            "raw": block, "process": "", "hash": "",
+            "timestamp": "", "log_folder": "", "error_type": "", "message": "",
+        }
+        i = 0
+        # Line 0: [2026-04-07 09:50:03] Process: align_sample1 (Hash: 1d25c67735)
+        if i < len(lines):
+            line = lines[i]
+            if line.startswith("["):
+                ts_end = line.find("]")
+                if ts_end > 0:
+                    entry["timestamp"] = line[1:ts_end]
+                    rest = line[ts_end + 2:].strip()
+                    if rest.startswith("Process:"):
+                        rest = rest[8:].strip()
+                        hmark = " (Hash: "
+                        if hmark in rest:
+                            entry["process"] = rest[:rest.index(hmark)]
+                            entry["hash"]    = rest[rest.index(hmark) + len(hmark):].rstrip(")")
+                        else:
+                            entry["process"] = rest
+            i += 1
+        # Line 1: Log folder: /path/...
+        if i < len(lines) and lines[i].startswith("Log folder:"):
+            entry["log_folder"] = lines[i][11:].strip()
+            i += 1
+        # Rest: error message; first word before ':' is the error type prefix
+        if i < len(lines):
+            first = lines[i]
+            if ": " in first:
+                entry["error_type"] = first.split(":")[0].strip()
+            entry["message"] = "\n".join(lines[i:])
+        if entry["process"] or entry["message"]:
+            entries.append(entry)
+    return entries
+
+
+def _list_run_files(log_dir):
+    """
+    Return list of (mtime_float, fpath) for files in <log_dir>/jawm_runs/,
+    sorted oldest-first (ascending mtime).
+    """
+    runs_dir = os.path.join(log_dir, "jawm_runs")
+    if not os.path.isdir(runs_dir):
+        return []
+    files = []
+    for fname in os.listdir(runs_dir):
+        fpath = os.path.join(runs_dir, fname)
+        if os.path.isfile(fpath):
+            files.append((os.path.getmtime(fpath), fpath))
+    files.sort()
+    return files
+
+
+def _find_proc_dirs(log_dir, query):
+    """
+    Find process log dirs matching query (case-insensitive).
+    - ≤10 alphanumeric chars → treated as a hash prefix; newest match first.
+    - Otherwise              → exact process name match; all instances oldest-first.
+    """
+    all_entries = _load_proc_dirs(log_dir, last_n=0)
+    q = query.lower().strip()
+    is_hash_query = len(q) <= 10 and q.isalnum()
+    if is_hash_query:
+        matches = [e for e in all_entries if e["hash"].lower().startswith(q)]
+        matches.sort(key=lambda e: e["ts_str"], reverse=True)
+    else:
+        matches = [e for e in all_entries if e["name"].lower() == q]
+    return matches
+
+
+# ----------------------------------------------------------
+#   logs — command handlers
+# ----------------------------------------------------------
+
+def _cmd_logs_overview(log_dir, use_color):
+    """Print a compact summary of the logs directory."""
+    if not os.path.isdir(log_dir):
+        print(f"jawm-monitor logs: directory not found: {os.path.abspath(log_dir)}")
+        print("  Use -l/--log-dir to specify a different path.")
+        return 1
+
+    entries   = _load_proc_dirs(log_dir, last_n=0)
+    n_ok      = sum(1 for e in entries if e["status"] == "OK")
+    n_failed  = sum(1 for e in entries if e["status"] == "FAILED")
+    n_running = sum(1 for e in entries if e["status"] == "RUNNING")
+    errors    = _parse_error_log(log_dir)
+    runs      = _list_run_files(log_dir)
+    last_run  = datetime.fromtimestamp(runs[-1][0]) if runs else None
+
+    dim = _C["DIM"] if use_color else ""
+    rst = _C["RESET"] if use_color else ""
+
+    print(f"Logs: {os.path.abspath(log_dir)}")
+    print()
+
+    runs_label = str(len(runs))
+    if last_run:
+        runs_label += f"   last: {last_run.strftime('%Y-%m-%d %H:%M')}"
+    print(f"  Runs:       {runs_label}")
+
+    proc_parts = []
+    if n_ok:      proc_parts.append(_colorize(f"{n_ok} OK",         _C["OK"],      use_color))
+    if n_failed:  proc_parts.append(_colorize(f"{n_failed} failed",  _C["FAILED"],  use_color))
+    if n_running: proc_parts.append(_colorize(f"{n_running} running", _C["RUNNING"], use_color))
+    proc_label = str(len(entries))
+    if proc_parts:
+        proc_label += f"   ({',  '.join(proc_parts)})"
+    print(f"  Processes:  {proc_label}")
+
+    err_label = str(len(errors))
+    if errors:
+        err_label += f"   → {_colorize('error.log', _C['FAILED'], use_color)}"
+    print(f"  Errors:     {err_label}")
+
+    print()
+    print(f"{dim}  Flags: --runs  --run [-f]  --errors [N]  --ls [-n N]  --show <name|hash>{rst}")
+    return 0
+
+
+def _cmd_logs_runs(log_dir, last_n, no_header, use_color):
+    """List run transcripts in jawm_runs/, oldest-first."""
+    runs = _list_run_files(log_dir)
+    if not runs:
+        print(f"jawm-monitor logs: no run transcripts found in {log_dir}/jawm_runs/")
+        return 0
+
+    if last_n > 0:
+        runs = runs[-last_n:]   # most recent N, displayed oldest-first (already sorted)
+
+    headers = ["STARTED",  "MODULE",  "SIZE"]
+    caps    = [19,          50,        10   ]
+    sep     = "  "
+
+    rows = []
+    for mtime, fpath in runs:
+        started = _fmt_dt(datetime.fromtimestamp(mtime))
+        fname   = os.path.basename(fpath)
+        base    = fname[:-4] if fname.endswith(".log") else fname
+        # Strip trailing _YYYYMMDD_HHMMSS from module name if present
+        parts   = base.rsplit("_", 2)
+        module  = parts[0] if (len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit()) else base
+        size    = _fmt_size(os.path.getsize(fpath))
+        rows.append([started, module, size, fpath])   # fpath kept for footer, not displayed
+
+    col_w = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row[:len(headers)]):
+            col_w[i] = min(caps[i], max(col_w[i], len(str(cell))))
+
+    if not no_header and rows:
+        hdr = sep.join(h.ljust(col_w[i]) for i, h in enumerate(headers))
+        print(_colorize(hdr, _C["DIM"], use_color))
+        print(_colorize("-" * len(hdr), _C["DIM"], use_color))
+
+    for row in rows:
+        cells = [_trunc(str(row[i]), col_w[i]).ljust(col_w[i]) for i in range(len(headers))]
+        print(sep.join(cells))
+
+    if not no_header:
+        n      = len(runs)
+        footer = (f"  {os.path.join(os.path.abspath(log_dir), 'jawm_runs')}"
+                  f"  |  {n} run{'s' if n != 1 else ''}")
+        if last_n > 0:
+            footer += f" (last {last_n})"
+        print()
+        print(_colorize(footer, _C["DIM"], use_color))
+    return 0
+
+
+def _tail_file(path, follow):
+    """
+    Print a file's full content, then optionally keep polling for new lines
+    (like tail -f) until KeyboardInterrupt.
+    """
+    try:
+        with open(path) as fh:
+            sys.stdout.write(fh.read())
+            sys.stdout.flush()
+            if not follow:
+                return
+            while True:
+                line = fh.readline()
+                if line:
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+                else:
+                    time.sleep(0.1)
+    except KeyboardInterrupt:
+        print()   # clean newline after ^C
+    except Exception as exc:
+        print(f"jawm-monitor logs: error reading {path}: {exc}", file=sys.stderr)
+
+
+def _cmd_logs_run(log_dir, follow):
+    """Print (and optionally follow) the most recent run transcript."""
+    runs = _list_run_files(log_dir)
+    if not runs:
+        print(f"jawm-monitor logs: no run transcripts found in {log_dir}/jawm_runs/")
+        return 1
+    _, fpath = runs[-1]   # most recent
+    # Print the file path as a dim annotation on stderr so it doesn't pollute pipes
+    print(f"# {fpath}", file=sys.stderr)
+    _tail_file(fpath, follow)
+    return 0
+
+
+def _cmd_logs_errors(log_dir, last_n, use_color):
+    """Print the last N entries from error.log."""
+    errors = _parse_error_log(log_dir)
+    if not errors:
+        error_log = os.path.join(log_dir, "error.log")
+        if not os.path.isfile(error_log):
+            print(f"jawm-monitor logs: no error.log found in {log_dir}")
+        else:
+            print("jawm-monitor logs: error.log is empty — no errors recorded")
+        return 0
+
+    shown = errors[-last_n:] if last_n > 0 else errors
+    dim   = _C["DIM"] if use_color else ""
+    rst   = _C["RESET"] if use_color else ""
+
+    for entry in shown:
+        ts      = entry.get("timestamp", "?")
+        proc    = entry.get("process", "?")
+        hash_   = entry.get("hash", "")
+        etype   = entry.get("error_type", "")
+        message = entry.get("message") or entry.get("raw", "")
+        folder  = entry.get("log_folder", "")
+
+        hash_str  = f"  ({hash_})" if hash_ else ""
+        etype_str = (f"  {_colorize(etype, _C['FAILED'], use_color)}" if etype else "")
+        print(f"{_colorize(f'[{ts}]', _C['DIM'], use_color)}"
+              f"  {proc}{hash_str}{etype_str}")
+        if folder:
+            print(f"  {dim}{folder}{rst}")
+        for line in message.splitlines():
+            print(f"  {line}")
+        print()   # blank line between entries
+
+    total   = len(errors)
+    n_shown = len(shown)
+    footer  = (f"  {os.path.join(os.path.abspath(log_dir), 'error.log')}"
+               f"  |  showing {n_shown} of {total} error{'s' if total != 1 else ''}")
+    print(_colorize(footer, _C["DIM"], use_color))
+    return 0
+
+
+def _cmd_logs_show(log_dir, query, use_color):
+    """Drill into one or all matching process log directories."""
+    matches = _find_proc_dirs(log_dir, query)
+    if not matches:
+        print(f"jawm-monitor logs: no process matching {query!r} in {log_dir}")
+        return 1
+
+    dim  = _C["DIM"] if use_color else ""
+    rst  = _C["RESET"] if use_color else ""
+    div  = _colorize("-" * 60, _C["DIM"], use_color)
+
+    # For name queries we show all runs of that process (oldest-first).
+    # For hash queries matches is newest-first; if somehow multiple, show all.
+    for idx, e in enumerate(matches):
+        if idx > 0:
+            print(div)
+
+        name   = e["name"]
+        hash_  = e["hash"]
+        dpath  = e["path"]
+        status = e["status"]
+        ec     = e["exitcode"]
+
+        sc = _C.get(status, "")
+        print(f"Process:  {name}   {_colorize(status, sc, use_color)}")
+        print(f"  Hash:    {hash_}")
+        print(f"  Started: {_fmt_dt(e['dt'])}")
+        print(f"  Dir:     {dpath}")
+
+        if ec is not None:
+            ec_color = _C["OK"] if ec == "0" else _C["FAILED"]
+            print(f"  Exit:    {_colorize(ec, ec_color, use_color)}")
+            ec_file = os.path.join(dpath, f"{name}.exitcode")
+            if os.path.isfile(ec_file) and e["dt"]:
+                ec_mtime = datetime.fromtimestamp(os.path.getmtime(ec_file))
+                elapsed  = _fmt_duration((ec_mtime - e["dt"]).total_seconds())
+                print(f"  Ended:   {_fmt_dt(ec_mtime)}   elapsed: {elapsed}")
+
+        # stderr tail
+        error_file = os.path.join(dpath, f"{name}.error")
+        if os.path.isfile(error_file):
+            try:
+                with open(error_file) as fh:
+                    lines = fh.readlines()
+                n_tail = 20
+                tail   = lines[-n_tail:] if len(lines) > n_tail else lines
+                trunc  = (f" (last {n_tail} of {len(lines)} lines)"
+                          if len(lines) > n_tail else f" ({len(lines)} lines)")
+                print()
+                print(f"{dim}--- stderr{trunc} ---{rst}")
+                for line in tail:
+                    sys.stdout.write(line)
+                if tail and not tail[-1].endswith("\n"):
+                    print()
+            except Exception:
+                pass
+
+    return 0
+
+
+def _cmd_logs_ls(args, log_dir, use_color):
+    """List process log directories, styled like jawm-monitor ps."""
+    last_n    = 0 if getattr(args, "all", False) else max(0, getattr(args, "last", 20))
+    no_header = getattr(args, "no_header", False)
+    wide      = getattr(args, "wide", False)
+
+    fmt_overrides = {}
+    if getattr(args, "fmt", None):
+        try:
+            fmt_overrides = _parse_fmt(args.fmt, col_map=_LOG_LS_COL_INDEX)
+        except ValueError as exc:
+            print(f"jawm-monitor logs: --fmt: {exc}", file=sys.stderr)
+            return 1
+
+    if not os.path.isdir(log_dir):
+        print(f"jawm-monitor logs: directory not found: {os.path.abspath(log_dir)}")
+        print("  Use -l/--log-dir to specify a different path.")
+        return 1
+
+    entries = _load_proc_dirs(log_dir, last_n=last_n)
+    if not entries:
+        print(f"jawm-monitor logs: no process log directories found in {log_dir}")
+        return 0
+
+    now = datetime.now()
+
+    headers = ["STATUS", "NAME", "HASH", "STARTED",  "ENDED",   "ELAPSED", "EXIT"]
+    caps    = [8,         40,     10,     19,          19,         12,        6   ]
+    if wide:
+        headers.append("DIR")
+        caps.append(60)
+
+    for col_idx, new_width in fmt_overrides.items():
+        if col_idx < len(caps):
+            caps[col_idx] = new_width
+
+    rows = []
+    for e in entries:
+        status   = e["status"]
+        start_dt = e["dt"]
+        ended    = "-"
+        elapsed  = "-"
+
+        if status == "RUNNING":
+            if start_dt:
+                elapsed = _fmt_duration((now - start_dt).total_seconds())
+        else:
+            ec_path = os.path.join(e["path"], f"{e['name']}.exitcode")
+            if os.path.isfile(ec_path) and start_dt:
+                ec_mtime = datetime.fromtimestamp(os.path.getmtime(ec_path))
+                ended    = _fmt_dt(ec_mtime)
+                elapsed  = _fmt_duration((ec_mtime - start_dt).total_seconds())
+
+        row = [status, e["name"], e["hash"], _fmt_dt(start_dt), ended, elapsed,
+               e["exitcode"] if e["exitcode"] is not None else "-"]
+        if wide:
+            row.append(e["path"])
+        rows.append(row)
+
+    sep   = "  "
+    col_w = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            col_w[i] = min(caps[i], max(col_w[i], len(str(cell))))
+
+    if not no_header and rows:
+        hdr = sep.join(h.ljust(col_w[i]) for i, h in enumerate(headers))
+        print(_colorize(hdr, _C["DIM"], use_color))
+        print(_colorize("-" * len(hdr), _C["DIM"], use_color))
+
+    for row in rows:
+        status = row[0]
+        color  = _C.get(status, "") if use_color else ""
+        cells  = [_trunc(str(row[i]), col_w[i]).ljust(col_w[i]) for i in range(len(row))]
+        if color:
+            line = f"{color}{cells[0]}{_C['RESET']}{sep}{sep.join(cells[1:])}"
+        else:
+            line = sep.join(cells)
+        print(line)
+
+    if not no_header:
+        n      = len(entries)
+        footer = f"  {os.path.abspath(log_dir)}  |  {n} process{'es' if n != 1 else ''}"
+        if last_n > 0:
+            footer += f" (last {last_n})"
+        print()
+        print(_colorize(footer, _C["DIM"], use_color))
+    return 0
+
+
+def _cmd_logs(args):
+    """Dispatcher for 'jawm-monitor logs' subcommand."""
+    log_dir   = os.path.expanduser(getattr(args, "log_dir", None) or _DEFAULT_LOG_DIR)
+    use_color = sys.stdout.isatty() and not getattr(args, "no_color", False)
+
+    if getattr(args, "ls", False):
+        return _cmd_logs_ls(args, log_dir, use_color)
+
+    if getattr(args, "runs", False):
+        last_n = max(0, getattr(args, "last", 0))   # 0 = show all runs by default
+        return _cmd_logs_runs(log_dir, last_n,
+                              no_header=getattr(args, "no_header", False),
+                              use_color=use_color)
+
+    if getattr(args, "run", False):
+        return _cmd_logs_run(log_dir, follow=getattr(args, "follow", False))
+
+    if getattr(args, "errors", None) is not None:
+        return _cmd_logs_errors(log_dir, last_n=args.errors, use_color=use_color)
+
+    if getattr(args, "show", None):
+        return _cmd_logs_show(log_dir, query=args.show, use_color=use_color)
+
+    # No flag → overview
+    return _cmd_logs_overview(log_dir, use_color)
+
+
+# ----------------------------------------------------------
 #   Argument parser
 # ----------------------------------------------------------
 
@@ -1233,6 +1772,78 @@ def _build_parser():
     _b("--no-color",          dest="no_color", action="store_true", default=False,
        help="Disable ANSI colour output")
 
+    # ---- logs ----
+    lg = sub.add_parser(
+        "logs",
+        help="Inspect the jawm logs directory",
+        description=(
+            "Inspect the jawm logs directory (default: ./logs).\n\n"
+            "With no flags: prints a summary — process counts, error count, last run.\n\n"
+            "Each flag activates a specific view; use one at a time.\n\n"
+            "Log directory layout:\n"
+            "  logs/\n"
+            "  ├── error.log                     all failures, one entry per attempt\n"
+            "  ├── jawm_runs/\n"
+            "  │   └── <module>_<ts>.log         full CLI transcript per jawm run\n"
+            "  └── <name>_<ts>_<hash>/           one directory per process instance\n"
+            "      ├── <name>.output / .error     stdout / stderr\n"
+            "      ├── <name>.exitcode            exit status\n"
+            "      ├── <name>.script / .command   resolved script and launch command\n"
+            "      └── stats.json                 CPU/mem usage (if --stats was used)"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "column names for --fmt (with --ls):\n"
+            "  status, name, hash, started, ended, elapsed, exit, dir\n\n"
+            "examples:\n"
+            "  jawm-monitor logs                         overview of ./logs\n"
+            "  jawm-monitor logs -l /path/to/logs        use a custom log directory\n"
+            "  jawm-monitor logs --runs                  list all run transcripts\n"
+            "  jawm-monitor logs --runs -n 10            last 10 run transcripts\n"
+            "  jawm-monitor logs --run                   print last run transcript\n"
+            "  jawm-monitor logs --run -f                follow last run as it writes\n"
+            "  jawm-monitor logs --errors                last 10 errors from error.log\n"
+            "  jawm-monitor logs --errors 20             last 20 errors\n"
+            "  jawm-monitor logs --ls                    list processes (last 20)\n"
+            "  jawm-monitor logs --ls -n 50              last 50 processes\n"
+            "  jawm-monitor logs --ls -a                 all processes\n"
+            "  jawm-monitor logs --ls --fmt name:60      widen name column\n"
+            "  jawm-monitor logs --ls --wide             add directory column\n"
+            "  jawm-monitor logs --show gate_6           details for all gate_6 runs\n"
+            "  jawm-monitor logs --show 1e1cd29m         details by hash prefix\n"
+        ),
+    )
+    _c = lg.add_argument
+    _c("-l", "--log-dir",  dest="log_dir", metavar="DIR",
+       help=f"Logs directory to inspect (default: {_DEFAULT_LOG_DIR})")
+    _c("--runs",           action="store_true", default=False,
+       help="List run transcripts in jawm_runs/ (oldest-first; use -n to limit)")
+    _c("--run",            action="store_true", default=False,
+       help="Print the most recent run transcript to stdout")
+    _c("-f", "--follow",   action="store_true", default=False,
+       help="Follow the run transcript as new lines are written (use with --run)")
+    _c("--errors",         nargs="?", const=10, type=int, metavar="N",
+       help="Print the last N errors from error.log (default N=10 when flag is given without a value)")
+    _c("--ls",             action="store_true", default=False,
+       help="List process log directories in a table (like jawm-monitor ps)")
+    _c("--show",           metavar="NAME_OR_HASH",
+       help="Show full details for a process: exit code, stderr tail, stats. "
+            "Accepts a process name (all runs shown) or a hash prefix")
+    _c("-n", "--last",     type=int, default=20, metavar="N",
+       help="Number of entries to show with --ls or --runs (default: 20)")
+    _c("-a", "--all",      action="store_true", default=False,
+       help="Show all entries — overrides -n/--last (applies to --ls)")
+    _c("--fmt",            metavar="COL:WIDTH[,COL:WIDTH...]",
+       help="Override column widths for --ls. Pairs are col:width or col=width. "
+            "Columns: status, name, hash, started, ended, elapsed, exit, dir. "
+            "Example: --fmt name:60  or  --fmt name:60,hash:12")
+    _c("--wide",           action="store_true", default=False,
+       help="Add a directory path column (with --ls)")
+    _c("--no-header",      dest="no_header", action="store_true", default=False,
+       help="Suppress column headers and footer")
+    _c("--no-color",       dest="no_color", action="store_true", default=False,
+       help="Disable ANSI colour output")
+
     return parser
 
 
@@ -1253,6 +1864,9 @@ def main():
 
     if args.command == "clean":
         sys.exit(_cmd_clean(args) or 0)
+
+    if args.command == "logs":
+        sys.exit(_cmd_logs(args) or 0)
 
     print(f"jawm-monitor: unknown command '{args.command}'", file=sys.stderr)
     parser.print_help(sys.stderr)
