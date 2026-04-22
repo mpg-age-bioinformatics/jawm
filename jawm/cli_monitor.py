@@ -611,6 +611,59 @@ def _collect_completed_to_remove(mon, older_than_s, keep_last, now):
     return [p for _, p in files]
 
 
+def _collect_unresolved_running_to_remove(mon, threshold_s, now):
+    """
+    Find Running/ entries older than threshold_s for direct deletion (no move).
+    Returns a list of file paths.
+    Uses the same age logic as _collect_unresolved but skips the move step.
+    """
+    results = []
+    if not os.path.isdir(os.path.join(mon, "Running")):
+        return results
+    for e in _load_running(mon):
+        start_dt = _parse_dt(e.get("Run Start"))
+        if start_dt is None:
+            continue
+        if (now - start_dt).total_seconds() > threshold_s:
+            results.append(e["_fpath"])
+    return results
+
+
+def _collect_unresolved_completed_to_remove(mon, older_than_s, now):
+    """
+    Find Completed/ entries whose Exit Code is UNRESOLVED.
+    older_than_s=None → all UNRESOLVED entries.
+    older_than_s      → only entries whose Run Start is older than the threshold.
+                        Falls back to mtime if Run Start is absent.
+    Returns a list of file paths.
+    """
+    completed_dir = os.path.join(mon, "Completed")
+    if not os.path.isdir(completed_dir):
+        return []
+    results = []
+    for fname in os.listdir(completed_dir):
+        if not fname.endswith(".txt"):
+            continue
+        fpath = os.path.join(completed_dir, fname)
+        data  = _parse_file(fpath)
+        if not data:
+            continue
+        ec = data.get("Exit Code", "").strip()
+        if ec.upper() != "UNRESOLVED":
+            continue
+        if older_than_s is not None:
+            # Prefer Run Start (reliable for UNRESOLVED); fall back to mtime.
+            run_start = _parse_dt(data.get("Run Start"))
+            if run_start is not None:
+                age_s = (now - run_start).total_seconds()
+            else:
+                age_s = now.timestamp() - os.path.getmtime(fpath)
+            if age_s <= older_than_s:
+                continue   # not old enough — keep it
+        results.append(fpath)
+    return results
+
+
 def _collect_git_to_remove(git_dir, older_than_s, keep_last, now):
     """
     Collect git cache entries (immediate children of git_dir) to delete.
@@ -765,6 +818,7 @@ def _clean_summary(mon, git_dir, use_color):
     print()
     print(f"  Available flags:")
     print(f"    -u, --unresolved          move running >7d to Completed/ as UNRESOLVED")
+    print(f"    -U, --delete-unresolved   delete all UNRESOLVED from Running/ and Completed/")
     print(f"    --running                 remove running entries")
     print(f"    --completed               remove completed entries")
     print(f"    --git-cache               clean git cache entries")
@@ -775,7 +829,9 @@ def _clean_summary(mon, git_dir, use_color):
     print(f"    -f, --force               skip confirmation prompt")
     print()
     print(f"  Examples:")
-    print(f"    jawm-monitor clean -u                    # resolve hanging >7d")
+    print(f"    jawm-monitor clean -u                    # move hanging >7d → UNRESOLVED")
+    print(f"    jawm-monitor clean -U                    # delete all UNRESOLVED entries")
+    print(f"    jawm-monitor clean -U --older-than 30d   # delete UNRESOLVED older than 30 days")
     print(f"    jawm-monitor clean --completed --older-than 30d")
     print(f"    jawm-monitor clean --running --keep-last 10")
     print(f"    jawm-monitor clean --git-cache --keep-last 5")
@@ -799,7 +855,8 @@ def _cmd_clean(args):
     # Bail early if it doesn't look like a jawm monitoring directory so that
     # a mis-typed --dir can't accidentally delete unrelated .txt files.
     has_action_flags = any([
-        args.unresolved, args.running, args.completed, args.git_cache, args.all,
+        args.unresolved, args.delete_unresolved,
+        args.running, args.completed, args.git_cache, args.all,
         args.older_than, args.keep_last is not None,
     ])
     if has_action_flags and os.path.isdir(mon):
@@ -808,6 +865,11 @@ def _cmd_clean(args):
         except ValueError as exc:
             print(f"jawm-monitor clean: {exc}", file=sys.stderr)
             return 1
+
+    # -u and -U are mutually exclusive (move vs delete — pick one)
+    if args.unresolved and args.delete_unresolved:
+        print("jawm-monitor clean: -u/--unresolved and -U/--delete-unresolved are mutually exclusive.", file=sys.stderr)
+        return 1
 
     # Validate: --older-than and --keep-last are mutually exclusive
     if args.older_than and args.keep_last is not None:
@@ -825,13 +887,15 @@ def _cmd_clean(args):
     keep_last = args.keep_last  # int or None
 
     # Determine which actions are requested
-    do_unresolved = args.unresolved or args.all
-    do_running    = args.running    or args.all
-    do_completed  = args.completed  or args.all
-    do_git        = args.git_cache
+    do_unresolved        = args.unresolved        or args.all
+    do_delete_unresolved = args.delete_unresolved
+    do_running           = args.running           or args.all
+    do_completed         = args.completed         or args.all
+    do_git               = args.git_cache
 
     # --older-than alone (no target) → apply to running + completed
-    if older_than_s is not None and not any([do_unresolved, do_running, do_completed, do_git]):
+    if older_than_s is not None and not any([do_unresolved, do_delete_unresolved,
+                                             do_running, do_completed, do_git]):
         do_running   = True
         do_completed = True
 
@@ -840,43 +904,61 @@ def _cmd_clean(args):
         print("jawm-monitor clean: --keep-last requires a target (--running, --completed, or --git-cache).", file=sys.stderr)
         return 1
 
-    has_action = any([do_unresolved, do_running, do_completed, do_git])
+    has_action = any([do_unresolved, do_delete_unresolved, do_running, do_completed, do_git])
     if not has_action:
         _clean_summary(mon, git_dir, use_color)
         return 0
 
     # --- Collect what would be affected ---
 
-    # 1. Unresolved: use --older-than as threshold if specified, else default 7d
+    # 1. Unresolved move (-u): use --older-than as threshold if specified, else default 7d
     unresolved_items = []
     if do_unresolved:
         threshold = older_than_s if (args.unresolved and older_than_s) else _UNRESOLVED_S
         unresolved_items = _collect_unresolved(mon, threshold, now)
 
-    # 2. Running: for --all, remove all remaining; for --running, respect filters
+    # 2. Unresolved delete (-U): Running entries to delete + Completed UNRESOLVED entries
+    #    --older-than filters both sides; no --keep-last (doesn't apply to UNRESOLVED).
+    #    Deduplication: exclude any paths already covered by -u above (shouldn't overlap
+    #    since -u and -U are mutually exclusive, but be defensive).
+    unresolved_move_paths = {fp for fp, _, _ in unresolved_items}
+    ur_running_delete   = []
+    ur_completed_delete = []
+    if do_delete_unresolved:
+        threshold = older_than_s if older_than_s else _UNRESOLVED_S
+        ur_running_delete = [
+            p for p in _collect_unresolved_running_to_remove(mon, threshold, now)
+            if p not in unresolved_move_paths
+        ]
+        ur_completed_delete = _collect_unresolved_completed_to_remove(mon, older_than_s, now)
+
+    # 3. Running: for --all, remove all remaining; for --running, respect filters.
+    #    Exclude entries already captured by -u (move) or -U (delete).
     running_files = []
     if do_running:
         ot = older_than_s if args.running else None   # --all ignores --older-than for running
         kl = keep_last    if args.running else None
-        # exclude entries already captured in unresolved_items
-        unresolved_paths = {fp for fp, _, _ in unresolved_items}
+        excluded = unresolved_move_paths | set(ur_running_delete)
         all_running_files = _collect_running_to_remove(mon, ot, kl, now)
-        running_files = [f for f in all_running_files if f not in unresolved_paths]
+        running_files = [f for f in all_running_files if f not in excluded]
 
-    # 3. Completed
+    # 4. Completed: exclude entries already captured by -U to avoid double-listing.
     completed_files = []
     if do_completed:
-        ot = older_than_s  # respected for both --completed and --all
-        kl = keep_last if args.completed else None   # --all doesn't apply keep-last to completed
-        completed_files = _collect_completed_to_remove(mon, ot, kl, now)
+        ot = older_than_s
+        kl = keep_last if args.completed else None
+        excluded_completed = set(ur_completed_delete)
+        all_completed = _collect_completed_to_remove(mon, ot, kl, now)
+        completed_files = [f for f in all_completed if f not in excluded_completed]
 
-    # 4. Git cache
+    # 5. Git cache
     git_paths = []
     if do_git:
         git_paths = _collect_git_to_remove(git_dir, older_than_s, keep_last, now)
 
     # --- Nothing to do ---
-    total = len(unresolved_items) + len(running_files) + len(completed_files) + len(git_paths)
+    total = (len(unresolved_items) + len(ur_running_delete) + len(ur_completed_delete)
+             + len(running_files) + len(completed_files) + len(git_paths))
     if total == 0:
         print("jawm-monitor clean: nothing to clean.")
         return 0
@@ -886,6 +968,14 @@ def _cmd_clean(args):
         print(f"Resolve {len(unresolved_items)} running entr{'y' if len(unresolved_items)==1 else 'ies'} → UNRESOLVED:")
         for fp, cfp, _ in unresolved_items:
             print(f"  {os.path.basename(fp)}  →  {os.path.basename(cfp)}")
+    if ur_running_delete or ur_completed_delete:
+        n = len(ur_running_delete) + len(ur_completed_delete)
+        print(f"Delete {n} UNRESOLVED entr{'y' if n==1 else 'ies'} "
+              f"({len(ur_running_delete)} running,  {len(ur_completed_delete)} completed):")
+        for fp in ur_running_delete:
+            print(f"  [running]   {os.path.basename(fp)}")
+        for fp in ur_completed_delete:
+            print(f"  [completed] {os.path.basename(fp)}")
     if running_files:
         print(f"Remove {len(running_files)} running entr{'y' if len(running_files)==1 else 'ies'}:")
         for fp in running_files:
@@ -915,6 +1005,12 @@ def _cmd_clean(args):
     if unresolved_items:
         print(f"Resolving {len(unresolved_items)} unresolved {'entry' if len(unresolved_items)==1 else 'entries'}:")
         _do_resolve(unresolved_items, dry_run=False, use_color=use_color)
+    if ur_running_delete:
+        print(f"Deleting {len(ur_running_delete)} UNRESOLVED running {'entry' if len(ur_running_delete)==1 else 'entries'}:")
+        _do_remove_files(ur_running_delete, dry_run=False, root_dir=os.path.join(mon, "Running"))
+    if ur_completed_delete:
+        print(f"Deleting {len(ur_completed_delete)} UNRESOLVED completed {'entry' if len(ur_completed_delete)==1 else 'entries'}:")
+        _do_remove_files(ur_completed_delete, dry_run=False, root_dir=os.path.join(mon, "Completed"))
     if running_files:
         print(f"Removing {len(running_files)} running {'entry' if len(running_files)==1 else 'entries'}:")
         _do_remove_files(running_files, dry_run=False, root_dir=os.path.join(mon, "Running"))
@@ -1010,6 +1106,8 @@ def _build_parser():
             "  jawm-monitor clean                           show summary, do nothing\n"
             "  jawm-monitor clean -u                        resolve running >7d → UNRESOLVED\n"
             "  jawm-monitor clean -u --older-than 2d        resolve running >2d → UNRESOLVED\n"
+            "  jawm-monitor clean -U                        delete all UNRESOLVED (running + completed)\n"
+            "  jawm-monitor clean -U --older-than 30d       delete UNRESOLVED older than 30 days\n"
             "  jawm-monitor clean --running                 remove all running entries\n"
             "  jawm-monitor clean --running --older-than 2d remove running entries older than 2 days\n"
             "  jawm-monitor clean --running --keep-last 5   keep 5 most recent running, remove rest\n"
@@ -1024,9 +1122,12 @@ def _build_parser():
         ),
     )
     _b = cl.add_argument
-    _b("-u", "--unresolved",  action="store_true", default=False,
+    _b("-u", "--unresolved",        action="store_true", default=False,
        help="Move running entries older than 7d (or --older-than) to Completed/ as UNRESOLVED")
-    _b("--running",           action="store_true", default=False,
+    _b("-U", "--delete-unresolved", dest="delete_unresolved", action="store_true", default=False,
+       help="Delete all UNRESOLVED entries from both Running/ and Completed/. "
+            "Respects --older-than to filter by age. Mutually exclusive with -u")
+    _b("--running",                 action="store_true", default=False,
        help="Remove running entries (all, or filtered by --older-than / --keep-last)")
     _b("--completed",         action="store_true", default=False,
        help="Remove completed entries (all, or filtered by --older-than / --keep-last)")
