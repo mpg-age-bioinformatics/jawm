@@ -1744,16 +1744,10 @@ def _build_parser():
         description="jawm-monitor — inspect running and completed jawm processes",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "examples:\n"
-            "  jawm-monitor ps                  # running + last 20 completed\n"
-            "  jawm-monitor ps -r               # only running\n"
-            "  jawm-monitor ps -c               # only completed (last 20)\n"
-            "  jawm-monitor ps -c -n 50         # last 50 completed\n"
-            "  jawm-monitor ps -a               # running + all completed\n"
-            "  jawm-monitor ps --wide           # include log path column\n"
-            "  jawm-monitor ps -d /tmp/mon      # custom monitoring directory\n"
-            "  jawm-monitor clean               # show counts + available options\n"
-            "  jawm-monitor clean -u            # resolve hanging processes\n"
+            "Run 'jawm-monitor COMMAND --help' for full usage of each command:\n"
+            "  jawm-monitor ps --help\n"
+            "  jawm-monitor clean --help\n"
+            "  jawm-monitor logs --help\n"
         ),
     )
     parser.add_argument("-V", "--version", action="version", version=f"jawm-monitor {_VERSION}")
