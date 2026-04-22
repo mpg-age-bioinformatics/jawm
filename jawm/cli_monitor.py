@@ -185,9 +185,11 @@ def _load_completed(mon_dir, last_n):
         fpath = os.path.join(completed_dir, fname)
         files.append((os.path.getmtime(fpath), fpath, fname))
 
+    # Select the most recent N entries, then display oldest-first (like ps/squeue)
     files.sort(key=lambda x: x[0], reverse=True)
     if last_n > 0:
         files = files[:last_n]
+    files.reverse()  # oldest at top, newest at bottom
 
     for mtime, fpath, fname in files:
         data = _parse_file(fpath)
