@@ -35,15 +35,19 @@ _DEFAULT_MON_DIR = os.environ.get(
     os.path.expanduser("~/.jawm/monitoring"),
 )
 
+_STALE_S      = 48 * 3600        # 48 h  → show as STALE
+_UNRESOLVED_S = 7  * 24 * 3600   # 7 days → hide, count in footer
+
 _VALID_CMDS = {"ps"}
 
 # ANSI colour codes (only applied when stdout is a tty)
 _C = {
-    "RUNNING": "\033[33m",   # yellow
-    "OK":      "\033[32m",   # green
-    "FAILED":  "\033[31m",   # red
-    "DIM":     "\033[2m",
-    "RESET":   "\033[0m",
+    "RUNNING":    "\033[33m",   # yellow
+    "STALE":      "\033[35m",   # magenta
+    "OK":         "\033[32m",   # green
+    "FAILED":     "\033[31m",   # red
+    "DIM":        "\033[2m",
+    "RESET":      "\033[0m",
 }
 
 
@@ -60,7 +64,7 @@ def _mon_dir(override):
 def _parse_file(path):
     """
     Parse a key-value monitoring text file into a dict.
-    Lines are "Key: value" pairs. Returns {} on any error.
+    Lines are "Key: value" pairs.  Returns {} on any error.
     """
     data = {}
     try:
@@ -94,16 +98,13 @@ def _fmt_dt(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _elapsed(start_dt):
-    """Return a human-readable elapsed time from start_dt to now, e.g. '1h23m45s'."""
-    if start_dt is None:
-        return "pending"
-    delta = datetime.now() - start_dt
-    total_s = int(delta.total_seconds())
+def _fmt_duration(total_s):
+    """Format a duration in seconds as a compact human-readable string."""
+    total_s = int(total_s)
     if total_s < 0:
         return "-"
     h, rem = divmod(total_s, 3600)
-    m, s = divmod(rem, 60)
+    m, s   = divmod(rem, 60)
     if h > 0:
         return f"{h}h{m:02d}m{s:02d}s"
     if m > 0:
@@ -117,7 +118,7 @@ def _fname_parse_running(fname):
     Manager has no dots; id may (e.g. k8s pod names).
     """
     base = fname[:-4]  # strip .txt
-    dot = base.find(".")
+    dot  = base.find(".")
     if dot >= 0:
         return base[:dot], base[dot + 1:]
     return base, ""
@@ -129,12 +130,12 @@ def _fname_parse_completed(fname):
     Manager has no dots; id may contain dots; exitcode is an integer string.
     """
     base = fname[:-4]  # strip .txt
-    dot = base.find(".")
+    dot  = base.find(".")
     if dot < 0:
         return base, "", ""
-    manager = base[:dot]
-    rest = base[dot + 1:]
-    last_dot = rest.rfind(".")
+    manager   = base[:dot]
+    rest      = base[dot + 1:]
+    last_dot  = rest.rfind(".")
     if last_dot >= 0:
         return manager, rest[:last_dot], rest[last_dot + 1:]
     return manager, rest, ""
@@ -145,7 +146,7 @@ def _fname_parse_completed(fname):
 # ----------------------------------------------------------
 
 def _load_running(mon_dir):
-    """Return a list of dicts for all files in Running/."""
+    """Return a list of dicts for all files in Running/, sorted by Run Start asc."""
     running_dir = os.path.join(mon_dir, "Running")
     entries = []
     if not os.path.isdir(running_dir):
@@ -154,24 +155,23 @@ def _load_running(mon_dir):
         if not fname.endswith(".txt"):
             continue
         fpath = os.path.join(running_dir, fname)
-        data = _parse_file(fpath)
+        data  = _parse_file(fpath)
         if not data:
             continue
         mgr, jid = _fname_parse_running(fname)
         data.setdefault("Manager", mgr)
         data.setdefault("Job ID", jid)
         data["_status"] = "RUNNING"
-        data["_mtime"] = os.path.getmtime(fpath)
+        data["_mtime"]  = os.path.getmtime(fpath)
         entries.append(data)
-    # Sort by Run Start ascending (oldest running shown first)
     entries.sort(key=lambda e: e.get("Run Start") or "")
     return entries
 
 
 def _load_completed(mon_dir, last_n):
     """
-    Return a list of dicts for files in Completed/, sorted by mtime descending.
-    last_n=0 means no limit (return all).
+    Return a list of dicts for files in Completed/, sorted by mtime desc.
+    last_n=0 means no limit.
     """
     completed_dir = os.path.join(mon_dir, "Completed")
     entries = []
@@ -185,7 +185,6 @@ def _load_completed(mon_dir, last_n):
         fpath = os.path.join(completed_dir, fname)
         files.append((os.path.getmtime(fpath), fpath, fname))
 
-    # Most recently completed first
     files.sort(key=lambda x: x[0], reverse=True)
     if last_n > 0:
         files = files[:last_n]
@@ -214,7 +213,7 @@ def _load_completed(mon_dir, last_n):
 # ----------------------------------------------------------
 
 def _trunc(s, n):
-    """Truncate string to n chars, adding ellipsis if needed."""
+    """Truncate string to n chars, adding an ellipsis character if needed."""
     s = str(s) if s is not None else ""
     if len(s) > n:
         return s[: n - 1] + "…"
@@ -227,24 +226,40 @@ def _colorize(text, code, use_color):
     return f"{code}{text}{_C['RESET']}"
 
 
-def _build_rows(entries, wide):
-    """Convert list of entry dicts into display rows (list of string lists)."""
+def _build_rows(entries, wide, now):
+    """
+    Convert entry dicts into display rows (list of string lists).
+
+    Columns: STATUS  NAME  HASH  MANAGER  ID  STARTED  ELAPSED  ENDED  EXIT  [PATH]
+
+    ELAPSED:
+      - RUNNING / STALE  → time from Run Start to now  (live duration)
+      - Completed        → time from Run Start to Run End  (final duration)
+    ENDED:
+      - RUNNING / STALE  → "-"
+      - Completed        → Run End datetime
+    """
     rows = []
     for e in entries:
-        status = e.get("_status", "?")
-        name = e.get("Job Name", "-")
-        hash_ = e.get("Job Hash", "-")
-        manager = e.get("Manager", "-")
-        job_id = e.get("Job ID", "-")
-        started = _fmt_dt(_parse_dt(e.get("Run Start")))
-        if status == "RUNNING":
-            elapsed_ended = _elapsed(_parse_dt(e.get("Run Start")))
+        status   = e.get("_status", "?")
+        name     = e.get("Job Name", "-")
+        hash_    = e.get("Job Hash", "-")
+        manager  = e.get("Manager", "-")
+        job_id   = e.get("Job ID", "-")
+        start_dt = _parse_dt(e.get("Run Start"))
+        started  = _fmt_dt(start_dt)
+
+        if status in ("RUNNING", "STALE"):
+            elapsed  = _fmt_duration((now - start_dt).total_seconds()) if start_dt else "pending"
+            ended    = "-"
             exit_code = "-"
         else:
-            elapsed_ended = _fmt_dt(_parse_dt(e.get("Run End")))
+            end_dt   = _parse_dt(e.get("Run End"))
+            elapsed  = _fmt_duration((end_dt - start_dt).total_seconds()) if (start_dt and end_dt) else "-"
+            ended    = _fmt_dt(end_dt)
             exit_code = str(e.get("Exit Code", "-"))
 
-        row = [status, name, hash_, manager, job_id, started, elapsed_ended, exit_code]
+        row = [status, name, hash_, manager, job_id, started, elapsed, ended, exit_code]
         if wide:
             row.append(e.get("Path", "-"))
         rows.append(row)
@@ -258,29 +273,47 @@ def _build_rows(entries, wide):
 def _cmd_ps(args):
     mon = _mon_dir(getattr(args, "dir", None))
 
-    # Determine which sections to show
-    only_running = args.running and not args.completed
+    only_running  = args.running and not args.completed
     only_completed = args.completed and not args.running
-    # if both or neither: show both
-    show_running = not only_completed
+    show_running   = not only_completed
     show_completed = not only_running
 
-    last_n = 0 if args.all else max(0, args.last)
-    wide = getattr(args, "wide", False)
+    last_n    = 0 if args.all else max(0, args.last)
+    wide      = getattr(args, "wide", False)
     no_header = getattr(args, "no_header", False)
     use_color = sys.stdout.isatty() and not getattr(args, "no_color", False)
 
-    # Check directory existence early for a clear error message
     if not os.path.isdir(mon):
         print(f"jawm-monitor: monitoring directory not found: {mon}")
         print("  Set JAWM_MONITORING_DIRECTORY or pass --dir to override.")
         return 1
 
-    running_entries = _load_running(mon) if show_running else []
-    completed_entries = _load_completed(mon, last_n) if show_completed else []
-    all_entries = running_entries + completed_entries
+    now = datetime.now()
 
-    if not all_entries:
+    # --- classify running entries ---
+    raw_running     = _load_running(mon) if show_running else []
+    visible_running = []
+    unresolved_count = 0
+
+    for e in raw_running:
+        start_dt = _parse_dt(e.get("Run Start"))
+        if start_dt is None:
+            # No start time recorded yet — treat as RUNNING / pending
+            visible_running.append(e)
+            continue
+        elapsed_s = (now - start_dt).total_seconds()
+        if elapsed_s > _UNRESOLVED_S:
+            unresolved_count += 1          # hidden from table, counted in footer
+        elif elapsed_s > _STALE_S:
+            e["_status"] = "STALE"
+            visible_running.append(e)
+        else:
+            visible_running.append(e)      # status already "RUNNING"
+
+    completed_entries = _load_completed(mon, last_n) if show_completed else []
+    all_entries       = visible_running + completed_entries
+
+    if not all_entries and unresolved_count == 0:
         parts = []
         if show_running:
             parts.append("no running processes")
@@ -289,52 +322,59 @@ def _cmd_ps(args):
         print(f"jawm-monitor: {' and '.join(parts)} found in {mon}")
         return 0
 
-    # Column headers and hard caps
-    headers = ["STATUS", "NAME", "HASH", "MANAGER", "ID", "STARTED", "ELAPSED/ENDED", "EXIT"]
-    caps     = [7,        30,     12,     10,         15,   19,        19,              6   ]
+    # --- table ---
+    headers = ["STATUS", "NAME",  "HASH",  "MANAGER", "ID",  "STARTED", "ELAPSED", "ENDED", "EXIT"]
+    caps    = [7,         30,      12,      10,         15,    19,        12,        19,       6   ]
     if wide:
         headers.append("LOG PATH")
         caps.append(60)
 
-    rows = _build_rows(all_entries, wide)
+    rows  = _build_rows(all_entries, wide, now)
+    sep   = "  "
 
-    # Compute column widths from content, capped
+    # dynamic column widths, capped
     col_w = [len(h) for h in headers]
     for row in rows:
         for i, cell in enumerate(row):
             col_w[i] = min(caps[i], max(col_w[i], len(str(cell))))
 
-    # Separator and header
-    sep = "  "
-    if not no_header:
+    if not no_header and rows:
         hdr = sep.join(h.ljust(col_w[i]) for i, h in enumerate(headers))
         print(_colorize(hdr, _C["DIM"], use_color))
         print(_colorize("-" * len(hdr), _C["DIM"], use_color))
 
-    # Data rows
     for row in rows:
         status = row[0]
-        color = _C.get(status, "") if use_color else ""
-        cells = [_trunc(str(row[i]), col_w[i]).ljust(col_w[i]) for i in range(len(row))]
+        color  = _C.get(status, "") if use_color else ""
+        cells  = [_trunc(str(row[i]), col_w[i]).ljust(col_w[i]) for i in range(len(row))]
         if color:
-            # Colour only the STATUS cell; rest stays normal
             line = f"{color}{cells[0]}{_C['RESET']}{sep}{sep.join(cells[1:])}"
         else:
             line = sep.join(cells)
         print(line)
 
-    # Footer summary
+    # --- footer ---
     if not no_header:
         parts = []
         if show_running:
-            parts.append(f"{len(running_entries)} running")
+            n_run   = sum(1 for e in visible_running if e["_status"] == "RUNNING")
+            n_stale = sum(1 for e in visible_running if e["_status"] == "STALE")
+            run_label = f"{n_run} running"
+            if n_stale:
+                run_label += f", {n_stale} stale (>48h)"
+            parts.append(run_label)
         if show_completed:
             label = f"{len(completed_entries)} completed"
             if last_n > 0:
                 label += f" (last {last_n})"
             parts.append(label)
+
+        footer = f"  {mon}  |  {', '.join(parts)}"
+        if unresolved_count:
+            footer += f"  |  {unresolved_count} unresolved — run 'jawm-monitor clean -u' to clean"
+
         print()
-        print(_colorize(f"  {mon}  |  {', '.join(parts)}", _C["DIM"], use_color))
+        print(_colorize(footer, _C["DIM"], use_color))
 
     return 0
 
@@ -370,7 +410,10 @@ def _build_parser():
         description=(
             "List processes recorded in the jawm monitoring directory.\n\n"
             "By default shows all currently running processes followed by\n"
-            "the 20 most recently completed processes."
+            "the 20 most recently completed processes.\n\n"
+            "Age thresholds (running processes only):\n"
+            "  > 48 h   → shown as STALE\n"
+            "  > 7 days → hidden, counted in footer as unresolved"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
@@ -418,7 +461,7 @@ def _build_parser():
 
 def main():
     parser = _build_parser()
-    args = parser.parse_args()
+    args   = parser.parse_args()
 
     if not args.command:
         parser.print_help()
