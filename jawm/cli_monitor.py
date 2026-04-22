@@ -1667,6 +1667,43 @@ def _cmd_logs_ls(args, log_dir, use_color):
     return 0
 
 
+def _cmd_logs_hash(log_dir, module, use_color):
+    """Print the jawm_hashes/ files for a given module name."""
+    hashes_dir = os.path.join(log_dir, "jawm_hashes")
+    if not os.path.isdir(hashes_dir):
+        print(f"jawm-monitor logs: no jawm_hashes/ directory found in {log_dir}")
+        return 1
+
+    files = [
+        (f"{module}.hash",                "output hash"),
+        (f"{module}_input.history",        "input history"),
+        (f"{module}_user_defined.history", "user-defined history"),
+    ]
+    found = False
+    dim = _C["DIM"] if use_color else ""
+    rst = _C["RESET"] if use_color else ""
+    for fname, label in files:
+        fpath = os.path.join(hashes_dir, fname)
+        if not os.path.isfile(fpath):
+            continue
+        found = True
+        print(f"{dim}--- {label}  ({fname}) ---{rst}")
+        try:
+            with open(fpath) as fh:
+                content = fh.read()
+            sys.stdout.write(content)
+            if content and not content.endswith("\n"):
+                print()
+        except Exception as exc:
+            print(f"  error reading file: {exc}")
+        print()
+
+    if not found:
+        print(f"jawm-monitor logs: no hash files found for module {module!r} in {hashes_dir}")
+        return 1
+    return 0
+
+
 def _cmd_logs(args):
     """Dispatcher for 'jawm-monitor logs' subcommand."""
     log_dir   = os.path.expanduser(getattr(args, "log_dir", None) or _DEFAULT_LOG_DIR)
@@ -1689,6 +1726,9 @@ def _cmd_logs(args):
 
     if getattr(args, "show", None):
         return _cmd_logs_show(log_dir, query=args.show, args=args, use_color=use_color)
+
+    if getattr(args, "hash", None):
+        return _cmd_logs_hash(log_dir, module=args.hash, use_color=use_color)
 
     # No flag → overview
     return _cmd_logs_overview(log_dir, use_color)
@@ -1864,6 +1904,7 @@ def _build_parser():
             "  jawm-monitor logs --ls -a                 all processes\n"
             "  jawm-monitor logs --ls --fmt name:60      widen name column\n"
             "  jawm-monitor logs --ls --wide             add directory column\n"
+            "  jawm-monitor logs --hash mymodule          hash + input/user-defined history\n"
             "  jawm-monitor logs --show gate_6           summary + stderr tail\n"
             "  jawm-monitor logs --show 1e1cd29m         show by hash prefix\n"
             "  jawm-monitor logs --show gate_6 --error   full stderr\n"
@@ -1889,6 +1930,9 @@ def _build_parser():
        help="Print the last N errors from error.log (default N=10 when flag is given without a value)")
     _c("--ls",             action="store_true", default=False,
        help="List process log directories in a table (like jawm-monitor ps)")
+    _c("--hash",           metavar="MODULE",
+       help="Print the jawm_hashes/ files for a module: "
+            "<module>.hash, <module>_input.history, <module>_user_defined.history")
     _c("--show",           metavar="NAME_OR_HASH",
        help="Show details for a process: exit code, started/ended, stderr tail. "
             "Accepts a process name (all runs shown) or a hash prefix. "
