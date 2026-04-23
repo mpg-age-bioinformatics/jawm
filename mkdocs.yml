@@ -95,9 +95,9 @@ nav:
   - CLI Tools:
     - Overview: cli/overview.md
     - jawm: cli/jawm.md
+    - jawm-monitor: cli/jawm-monitor.md
     - jawm-dev: cli/jawm-dev.md
     - jawm-test: cli/jawm-test.md
-    - jawm-monitor: cli/jawm-monitor.md
   - Debugging & Stats:
     - Log Structure: debug/logs.md
     - Errors Debugging: debug/errors.md

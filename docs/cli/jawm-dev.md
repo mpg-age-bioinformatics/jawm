@@ -19,7 +19,7 @@ Currently two commands are available: `init` and `lsvar` (there will be more dev
 
 ---
 
-## init
+## `init`
 
 Scaffolds a new jawm module from the [`jawm_demo`](https://github.com/mpg-age-bioinformatics/jawm_demo) template. It downloads the template, renames all references to match your module name, initialises a Git repository, and optionally creates a private remote on GitHub, GitLab, or Gitea.
 
@@ -114,7 +114,7 @@ If authentication is not available (no token, no `gh` CLI), the local directory 
 
 ---
 
-## lsvar
+## `lsvar`
 
 Reads a jawm module file and extracts all `{{variable}}` placeholders used inside `Process` script blocks. Outputs them as a YAML list — one entry per Process — which you can use as a starting point for your `var` dictionaries.
 
