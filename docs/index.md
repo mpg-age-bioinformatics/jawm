@@ -123,6 +123,16 @@ jawm is intentionally minimal and composable, leaving workflow structure and orc
 
 ---
 
+### Explore
+
+- [Process parameters](process/parameters.md) — full reference for configuring a `Process`
+- [CLI tools](cli/overview.md) — `jawm`, `jawm-monitor`, `jawm-dev`, `jawm-test`
+- [Configuration](config/overview.md) — YAML parameter files, env vars, and precedence rules
+- [Log structure](debug/logs.md) — where run artifacts, scripts, and stdout/stderr live
+- [Errors & debugging](debug/errors.md) — how to trace failures from the error summary down to stderr
+
+---
+
 ### Project status
 
 `jawm` is under active development.
@@ -135,7 +145,7 @@ The public API is stabilizing, but some interfaces may evolve prior to a 1.0.0 r
 ### Resources
 
 - Project repository: [mpg-age-bioinformatics/jawm](https://github.com/mpg-age-bioinformatics/jawm/)
-- Available workflows: [Search jawm_* repositories](https://github.com/mpg-age-bioinformatics?q=jawm_&type=all&language=&sort=)
+- Available workflows: [Search jawm_* repositories](https://github.com/mpg-age-bioinformatics?q=jawm_&type=all&language=&sort=) or head to [Available Modules](module/modules.md)
 
 ---
 
