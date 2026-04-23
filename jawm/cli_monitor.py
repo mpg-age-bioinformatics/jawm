@@ -1151,10 +1151,15 @@ def _read_exitcode_file(proc_dir, name):
 
 
 def _proc_dir_status(exitcode):
-    """Derive a display status string from an exit-code string (or None)."""
+    """
+    Derive a display status string from an exit-code string (or None).
+    Handles compound formats like '0:0' (exit_code:attempt) by checking
+    only the first component before ':'.
+    """
     if exitcode is None:
         return "RUNNING"
-    return "OK" if exitcode == "0" else "FAILED"
+    code = exitcode.split(":")[0] if ":" in exitcode else exitcode
+    return "OK" if code == "0" else "FAILED"
 
 
 def _load_proc_dirs(log_dir, last_n=0):
@@ -1542,7 +1547,7 @@ def _cmd_logs_show(log_dir, query, args, use_color):
         print(f"  Started: {_fmt_dt(e['dt'])}")
         print(f"  Dir:     {dpath}")
         if ec is not None:
-            ec_color = _C["OK"] if ec == "0" else _C["FAILED"]
+            ec_color = _C["OK"] if ec.split(":")[0] == "0" else _C["FAILED"]
             print(f"  Exit:    {_colorize(ec, ec_color, use_color)}")
             ec_file = os.path.join(dpath, f"{name}.exitcode")
             if os.path.isfile(ec_file) and e["dt"]:
