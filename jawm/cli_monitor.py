@@ -8,6 +8,7 @@ tabular summary of process state without touching the per-process log directorie
 import argparse
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -1735,6 +1736,535 @@ def _cmd_logs(args):
 
 
 # ----------------------------------------------------------
+#   stats — helpers
+# ----------------------------------------------------------
+
+_MIB_TO_GB = 1_048_576 / 1_000_000_000  # 1 MiB in decimal GB (1 GB = 10^9 bytes)
+
+
+def _mib_to_gb(mib):
+    """Convert MiB to decimal GB (1 GB = 1 000 000 000 bytes). Returns None for None."""
+    return mib * _MIB_TO_GB if mib is not None else None
+
+
+def _load_stats_json(proc_dir):
+    """
+    Load stats.json from a process log directory.
+    Returns a dict on success, {} on parse error, None if the file is absent.
+    """
+    fpath = os.path.join(proc_dir, "stats.json")
+    if not os.path.isfile(fpath):
+        return None
+    try:
+        with open(fpath) as fh:
+            return json.load(fh)
+    except Exception:
+        return {}
+
+
+def _parse_run_summary(log_path):
+    """
+    Scan a jawm run transcript for the last :::SUMMARY::: block.
+
+    The block looks like:
+        [2026-01-15 09:08:45] - INFO - jawm.cli|st :: [stats] :::SUMMARY:::
+            Number of jawm Processes: 9
+            Average CPU usage across jawm Processes: ~322.8%
+            Peak CPU usage across jawm Processes: 503.7%
+            Peak CPU jawm Process: P16 (log path: ...)
+            Average memory (RSS) usage across jawm Processes: ~0.179 GB
+            Peak memory (RSS) usage across jawm Processes: 0.318 GB
+            Peak memory (RSS) jawm Process: P13 (log path: ...)
+
+    Returns a dict (may be partial), or None if no SUMMARY block is found.
+
+    Keys (all optional):
+        timestamp, n_processes,
+        cpu_avg_pct, cpu_peak_pct, cpu_peak_process,
+        mem_avg_gb,  mem_peak_gb,  mem_peak_process
+    """
+    try:
+        with open(log_path) as fh:
+            content = fh.read()
+    except Exception:
+        return None
+
+    idx = content.rfind(":::SUMMARY:::")
+    if idx < 0:
+        return None
+
+    # Extract from the line that contains :::SUMMARY::: onwards.
+    line_start = content.rfind("\n", 0, idx) + 1
+    block = content[line_start:]
+
+    result = {}
+
+    # Timestamp from log header: [2026-01-15 09:08:45]
+    m = re.search(r'\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]', block[:200])
+    if m:
+        result["timestamp"] = m.group(1)
+
+    m = re.search(r'Number of jawm Processes:\s*(\d+)', block)
+    if m:
+        try:
+            result["n_processes"] = int(m.group(1))
+        except Exception:
+            pass
+
+    m = re.search(r'Average CPU usage[^:]*:\s*~?(\d[\d.]*)\s*%', block)
+    if m:
+        try:
+            result["cpu_avg_pct"] = float(m.group(1))
+        except Exception:
+            pass
+
+    m = re.search(r'Peak CPU usage[^:]*:\s*(\d[\d.]*)\s*%', block)
+    if m:
+        try:
+            result["cpu_peak_pct"] = float(m.group(1))
+        except Exception:
+            pass
+
+    m = re.search(r'Peak CPU jawm Process:\s*(\S+)', block)
+    if m:
+        result["cpu_peak_process"] = m.group(1)
+
+    m = re.search(r'Average memory[^:]*:\s*~?(\d[\d.]*)\s*GB', block)
+    if m:
+        try:
+            result["mem_avg_gb"] = float(m.group(1))
+        except Exception:
+            pass
+
+    # "Peak memory (RSS) usage across … : 0.318 GB"
+    # Must NOT match the "Peak memory (RSS) jawm Process:" line.
+    m = re.search(r'Peak memory[^:]*usage[^:]*:\s*(\d[\d.]*)\s*GB', block)
+    if m:
+        try:
+            result["mem_peak_gb"] = float(m.group(1))
+        except Exception:
+            pass
+
+    m = re.search(r'Peak memory[^:]*Process:\s*(\S+)', block)
+    if m:
+        result["mem_peak_process"] = m.group(1)
+
+    return result if result else None
+
+
+# ----------------------------------------------------------
+#   stats — command handlers
+# ----------------------------------------------------------
+
+def _cmd_stats_summary(log_dir, use_color):
+    """
+    Print a concise summary of the most recent run transcript's SUMMARY block.
+    This is the default view for 'jawm-monitor stats' (no extra flags).
+    """
+    if not os.path.isdir(log_dir):
+        print(f"jawm-monitor stats: directory not found: {os.path.abspath(log_dir)}")
+        print("  Use -l/--log-dir to specify a different path.")
+        return 1
+
+    runs = _list_run_files(log_dir)
+    if not runs:
+        print(f"jawm-monitor stats: no run transcripts found in {log_dir}/jawm_runs/")
+        print("  Statistics are only available when jawm is run with --stats.")
+        return 1
+
+    _, last_run_path = runs[-1]
+    s = _parse_run_summary(last_run_path)
+
+    if s is None:
+        print(f"jawm-monitor stats: no :::SUMMARY::: block in {os.path.basename(last_run_path)}")
+        print("  Statistics are only available when jawm is run with --stats.")
+        print(f"  File: {last_run_path}")
+        return 1
+
+    dim = _C["DIM"] if use_color else ""
+    rst = _C["RESET"] if use_color else ""
+
+    ts = s.get("timestamp", "")
+    print(f"Last run summary{f'  [{ts}]' if ts else ''}")
+    print(f"  {dim}{last_run_path}{rst}")
+    print()
+
+    n = s.get("n_processes")
+    if n is not None:
+        print(f"  Processes:   {n}")
+
+    cpu_avg  = s.get("cpu_avg_pct")
+    cpu_peak = s.get("cpu_peak_pct")
+    cpu_proc = s.get("cpu_peak_process", "")
+    if cpu_avg is not None:
+        print(f"  CPU avg:     ~{cpu_avg:.1f}%")
+    if cpu_peak is not None:
+        line = f"{cpu_peak:.1f}%"
+        if cpu_proc:
+            line += f"   (peak: {cpu_proc})"
+        print(f"  CPU peak:     {line}")
+
+    mem_avg  = s.get("mem_avg_gb")
+    mem_peak = s.get("mem_peak_gb")
+    mem_proc = s.get("mem_peak_process", "")
+    if mem_avg is not None:
+        print(f"  Mem avg:     ~{mem_avg:.3f} GB")
+    if mem_peak is not None:
+        line = f"{mem_peak:.3f} GB"
+        if mem_proc:
+            line += f"   (peak: {mem_proc})"
+        print(f"  Mem peak:     {line}")
+
+    print()
+    print(f"{dim}  Flags: --runs  --process  --show <name|hash>  --additional-fields{rst}")
+    return 0
+
+
+# Sort-key lambdas for --runs (operate on the row dicts built by _cmd_stats_runs)
+_STATS_RUNS_SORT_KEYS = {
+    "date":      lambda r: r.get("_ts", ""),
+    "module":    lambda r: (r.get("module") or "").lower(),
+    "processes": lambda r: r.get("n_processes") or 0,
+    "cpu_avg":   lambda r: r.get("cpu_avg_pct") or 0.0,
+    "cpu_peak":  lambda r: r.get("cpu_peak_pct") or 0.0,
+    "mem_avg":   lambda r: r.get("mem_avg_gb") or 0.0,
+    "mem_peak":  lambda r: r.get("mem_peak_gb") or 0.0,
+}
+
+
+def _cmd_stats_runs(args, log_dir, use_color):
+    """
+    Per-run stats table.  One row per run transcript that has a :::SUMMARY::: block.
+
+    Columns: DATE  MODULE  PROCS  CPU AVG  CPU PEAK  MEM AVG GB  MEM PEAK GB
+
+    Default sort: newest run first.  --sort <key> and --reverse are supported.
+    """
+    last_n    = max(0, getattr(args, "last", 0))   # 0 = show all
+    no_header = getattr(args, "no_header", False)
+    sort_key  = (getattr(args, "sort", None) or "date").lower()
+    reverse   = getattr(args, "reverse", False)
+
+    if sort_key not in _STATS_RUNS_SORT_KEYS:
+        known = ", ".join(sorted(_STATS_RUNS_SORT_KEYS))
+        print(f"jawm-monitor stats: unknown --sort key {sort_key!r}. Valid keys: {known}",
+              file=sys.stderr)
+        return 1
+
+    if not os.path.isdir(log_dir):
+        print(f"jawm-monitor stats: directory not found: {os.path.abspath(log_dir)}")
+        print("  Use -l/--log-dir to specify a different path.")
+        return 1
+
+    runs = _list_run_files(log_dir)   # oldest-first
+    if not runs:
+        print(f"jawm-monitor stats: no run transcripts found in {log_dir}/jawm_runs/")
+        return 0
+
+    rows = []
+    for mtime, fpath in runs:
+        fname  = os.path.basename(fpath)
+        base   = fname[:-4] if fname.endswith(".log") else fname
+        parts  = base.rsplit("_", 2)
+        module = (parts[0]
+                  if len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit()
+                  else base)
+
+        s = _parse_run_summary(fpath)
+        if s is None:
+            continue   # run transcript has no stats
+
+        ts = s.get("timestamp") or datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+        rows.append({
+            "_ts":         ts,
+            "date":        ts,
+            "module":      module,
+            "n_processes": s.get("n_processes"),
+            "cpu_avg_pct": s.get("cpu_avg_pct"),
+            "cpu_peak_pct":s.get("cpu_peak_pct"),
+            "mem_avg_gb":  s.get("mem_avg_gb"),
+            "mem_peak_gb": s.get("mem_peak_gb"),
+        })
+
+    if not rows:
+        print(f"jawm-monitor stats: no run transcripts with a :::SUMMARY::: block found in "
+              f"{log_dir}/jawm_runs/")
+        print("  Statistics are only available when jawm is run with --stats.")
+        return 0
+
+    # All sort keys default descending (newest/highest first); --reverse flips.
+    do_reverse = not reverse   # True → descending by default
+    rows.sort(key=_STATS_RUNS_SORT_KEYS[sort_key], reverse=do_reverse)
+
+    if last_n > 0:
+        rows = rows[:last_n]   # top N after sort
+
+    def _fp(v): return f"{v:.1f}%" if v is not None else "-"
+    def _fg(v): return f"{v:.3f}"  if v is not None else "-"
+    def _fn(v): return str(v)      if v is not None else "-"
+
+    headers = ["DATE",  "MODULE", "PROCS", "CPU AVG", "CPU PEAK", "MEM AVG GB", "MEM PEAK GB"]
+    caps    = [19,       40,       6,       10,         10,         12,            12          ]
+    sep     = "  "
+
+    disp = []
+    for r in rows:
+        disp.append([
+            r["date"],       r["module"],           _fn(r["n_processes"]),
+            _fp(r["cpu_avg_pct"]), _fp(r["cpu_peak_pct"]),
+            _fg(r["mem_avg_gb"]),  _fg(r["mem_peak_gb"]),
+        ])
+
+    col_w = [len(h) for h in headers]
+    for row in disp:
+        for i, cell in enumerate(row):
+            col_w[i] = min(caps[i], max(col_w[i], len(cell)))
+
+    if not no_header and disp:
+        hdr = sep.join(h.ljust(col_w[i]) for i, h in enumerate(headers))
+        print(_colorize(hdr, _C["DIM"], use_color))
+        print(_colorize("-" * len(hdr), _C["DIM"], use_color))
+
+    for row in disp:
+        cells = [_trunc(row[i], col_w[i]).ljust(col_w[i]) for i in range(len(row))]
+        print(sep.join(cells))
+
+    if not no_header:
+        n      = len(rows)
+        footer = (f"  {os.path.join(os.path.abspath(log_dir), 'jawm_runs')}"
+                  f"  |  {n} run{'s' if n != 1 else ''} with stats"
+                  + (f"  (last {last_n})" if last_n > 0 else ""))
+        print()
+        print(_colorize(footer, _C["DIM"], use_color))
+    return 0
+
+
+# Sort-key lambdas for --process (operate on enriched entry dicts that have a "stats" key)
+_STATS_PROC_SORT_KEYS = {
+    "name":     lambda e: (e.get("name") or "").lower(),
+    "hash":     lambda e: e.get("hash") or "",
+    "started":  lambda e: e.get("ts_str") or "",
+    "polls":    lambda e: (e.get("stats") or {}).get("poll_count") or 0,
+    "cpu_avg":  lambda e: (e.get("stats") or {}).get("cpu_avg_pct") or 0.0,
+    "cpu_peak": lambda e: (e.get("stats") or {}).get("cpu_peak_pct") or 0.0,
+    "mem_avg":  lambda e: (e.get("stats") or {}).get("rss_avg_mib") or 0.0,
+    "mem_peak": lambda e: (e.get("stats") or {}).get("rss_peak_mib") or 0.0,
+}
+
+
+def _cmd_stats_process(args, log_dir, use_color):
+    """
+    Per-process stats table built from stats.json files in process log directories.
+
+    Columns: NAME  HASH  STARTED  POLLS  CPU AVG  CPU PEAK  MEM AVG GB  MEM PEAK GB
+    With --additional-fields: appends one extra column per additional_fields key.
+
+    Default sort: 'started' ascending (oldest-first, like logs --ls).
+    Metric sorts default descending (highest-first); --reverse flips either.
+    """
+    last_n          = max(0, getattr(args, "last", 0))
+    no_header       = getattr(args, "no_header", False)
+    sort_key        = (getattr(args, "sort", None) or "started").lower()
+    reverse         = getattr(args, "reverse", False)
+    show_additional = getattr(args, "additional_fields", False)
+
+    if sort_key not in _STATS_PROC_SORT_KEYS:
+        known = ", ".join(sorted(_STATS_PROC_SORT_KEYS))
+        print(f"jawm-monitor stats: unknown --sort key {sort_key!r}. Valid keys: {known}",
+              file=sys.stderr)
+        return 1
+
+    if not os.path.isdir(log_dir):
+        print(f"jawm-monitor stats: directory not found: {os.path.abspath(log_dir)}")
+        print("  Use -l/--log-dir to specify a different path.")
+        return 1
+
+    all_entries = _load_proc_dirs(log_dir, last_n=0)
+
+    entries = []
+    for e in all_entries:
+        s = _load_stats_json(e["path"])
+        if s is None:
+            continue   # no stats.json for this process
+        ec = dict(e)
+        ec["stats"] = s
+        entries.append(ec)
+
+    if not entries:
+        print(f"jawm-monitor stats: no stats.json files found in {log_dir}")
+        print("  Statistics are only available when jawm is run with --stats.")
+        return 0
+
+    # Sort direction:
+    #   "started" → ascending by default (oldest-first), --reverse → descending
+    #   metrics   → descending by default (highest-first), --reverse → ascending
+    if sort_key == "started":
+        do_reverse = reverse           # default ascending
+    else:
+        do_reverse = not reverse       # default descending
+
+    entries.sort(key=_STATS_PROC_SORT_KEYS[sort_key], reverse=do_reverse)
+
+    if last_n > 0:
+        # ascending "started": most recent = tail of list
+        # everything else (descending or reversed): most significant = head of list
+        if sort_key == "started" and not reverse:
+            entries = entries[-last_n:]
+        else:
+            entries = entries[:last_n]
+
+    # Collect additional-field column names in insertion order across all entries.
+    add_keys = []
+    if show_additional:
+        seen = set()
+        for e in entries:
+            for k in ((e.get("stats") or {}).get("additional_fields") or {}):
+                if k not in seen:
+                    seen.add(k)
+                    add_keys.append(k)
+
+    def _fp(v): return f"{v:.1f}%" if v is not None else "-"
+    def _fg(v): return f"{v:.3f}"  if v is not None else "-"
+    def _fn(v): return str(v)      if v is not None else "-"
+
+    headers = ["NAME", "HASH", "STARTED", "POLLS", "CPU AVG", "CPU PEAK", "MEM AVG GB", "MEM PEAK GB"]
+    caps    = [40,      10,     19,         6,       10,         10,         12,            12          ]
+    for k in add_keys:
+        headers.append(k.upper()[:15])
+        caps.append(15)
+
+    sep  = "  "
+    disp = []
+    for e in entries:
+        s     = e.get("stats") or {}
+        add   = s.get("additional_fields") or {}
+        r_avg = s.get("rss_avg_mib")
+        r_pk  = s.get("rss_peak_mib")
+        row   = [
+            e["name"],
+            e["hash"],
+            _fmt_dt(e["dt"]),
+            _fn(s.get("poll_count")),
+            _fp(s.get("cpu_avg_pct")),
+            _fp(s.get("cpu_peak_pct")),
+            _fg(_mib_to_gb(r_avg)),
+            _fg(_mib_to_gb(r_pk)),
+        ]
+        for k in add_keys:
+            row.append(str(add.get(k, "-")))
+        disp.append(row)
+
+    col_w = [len(h) for h in headers]
+    for row in disp:
+        for i, cell in enumerate(row):
+            col_w[i] = min(caps[i], max(col_w[i], len(str(cell))))
+
+    if not no_header and disp:
+        hdr = sep.join(h.ljust(col_w[i]) for i, h in enumerate(headers))
+        print(_colorize(hdr, _C["DIM"], use_color))
+        print(_colorize("-" * len(hdr), _C["DIM"], use_color))
+
+    for row in disp:
+        cells = [_trunc(str(row[i]), col_w[i]).ljust(col_w[i]) for i in range(len(row))]
+        print(sep.join(cells))
+
+    if not no_header:
+        n      = len(entries)
+        footer = (f"  {os.path.abspath(log_dir)}"
+                  f"  |  {n} process{'es' if n != 1 else ''} with stats"
+                  + (f"  (last {last_n})" if last_n > 0 else ""))
+        print()
+        print(_colorize(footer, _C["DIM"], use_color))
+    return 0
+
+
+def _cmd_stats_show(log_dir, query, show_additional, use_color):
+    """
+    Show full stats detail for one or more processes matching query.
+    Works the same way as logs --show: accepts a process name (all runs)
+    or a hash prefix (newest match).
+    """
+    matches = _find_proc_dirs(log_dir, query)
+    if not matches:
+        print(f"jawm-monitor stats: no process matching {query!r} in {log_dir}")
+        return 1
+
+    dim = _C["DIM"] if use_color else ""
+    rst = _C["RESET"] if use_color else ""
+    div = _colorize("-" * 60, _C["DIM"], use_color)
+
+    found_any = False
+    for idx, e in enumerate(matches):
+        s = _load_stats_json(e["path"])
+        if s is None:
+            continue   # skip processes without stats.json
+        if found_any:
+            print(div)
+        found_any = True
+
+        status = e["status"]
+        sc     = _C.get(status, "")
+        print(f"Process:  {e['name']}   {_colorize(status, sc, use_color)}")
+        print(f"  Hash:    {e['hash']}")
+        print(f"  Started: {_fmt_dt(e['dt'])}")
+        print(f"  Dir:     {e['path']}")
+        print()
+
+        poll_count = s.get("poll_count")
+        cpu_avg    = s.get("cpu_avg_pct")
+        cpu_peak   = s.get("cpu_peak_pct")
+        rss_avg    = s.get("rss_avg_mib")
+        rss_peak   = s.get("rss_peak_mib")
+
+        if poll_count is not None:
+            print(f"  Polls:       {poll_count}")
+        if cpu_avg is not None:
+            print(f"  CPU avg:     ~{cpu_avg:.1f}%")
+        if cpu_peak is not None:
+            print(f"  CPU peak:     {cpu_peak:.1f}%")
+        if rss_avg is not None:
+            print(f"  Mem avg:     ~{_mib_to_gb(rss_avg):.3f} GB  ({rss_avg:.1f} MiB)")
+        if rss_peak is not None:
+            print(f"  Mem peak:     {_mib_to_gb(rss_peak):.3f} GB  ({rss_peak:.1f} MiB)")
+
+        if show_additional:
+            add = s.get("additional_fields") or {}
+            if add:
+                print()
+                print(f"  {dim}Additional fields:{rst}")
+                for k, v in sorted(add.items()):
+                    print(f"    {k}: {v}")
+
+    if not found_any:
+        print(f"jawm-monitor stats: no stats.json found for processes matching {query!r}")
+        print("  Statistics are only available when jawm is run with --stats.")
+        return 1
+    return 0
+
+
+def _cmd_stats(args):
+    """Dispatcher for 'jawm-monitor stats' subcommand."""
+    log_dir   = os.path.expanduser(getattr(args, "log_dir", None) or _DEFAULT_LOG_DIR)
+    use_color = sys.stdout.isatty() and not getattr(args, "no_color", False)
+
+    if getattr(args, "runs", False):
+        return _cmd_stats_runs(args, log_dir, use_color)
+
+    if getattr(args, "process", False):
+        return _cmd_stats_process(args, log_dir, use_color)
+
+    if getattr(args, "show", None):
+        return _cmd_stats_show(
+            log_dir, query=args.show,
+            show_additional=getattr(args, "additional_fields", False),
+            use_color=use_color,
+        )
+
+    # No flag → summary of last run transcript
+    return _cmd_stats_summary(log_dir, use_color)
+
+
+# ----------------------------------------------------------
 #   Argument parser
 # ----------------------------------------------------------
 
@@ -1748,6 +2278,7 @@ def _build_parser():
             "  jawm-monitor ps --help\n"
             "  jawm-monitor clean --help\n"
             "  jawm-monitor logs --help\n"
+            "  jawm-monitor stats --help\n"
         ),
     )
     parser.add_argument("-V", "--version", action="version", version=f"jawm-monitor {_VERSION}")
@@ -1963,6 +2494,63 @@ def _build_parser():
     _c("--no-color",       dest="no_color", action="store_true", default=False,
        help="Disable ANSI colour output")
 
+    # ---- stats ----
+    st = sub.add_parser(
+        "stats",
+        help="Show resource usage statistics",
+        description=(
+            "Show resource usage statistics collected during jawm runs.\n\n"
+            "With no flags: prints the summary from the most recent run transcript\n"
+            "(the :::SUMMARY::: block written when jawm is run with --stats).\n\n"
+            "Resource data comes from two sources:\n"
+            "  • :::SUMMARY::: blocks in jawm_runs/ transcripts  (--runs view)\n"
+            "  • stats.json files in individual process log dirs  (--process / --show)\n\n"
+            "Statistics are only recorded when jawm is invoked with --stats."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "--sort keys for --runs:     date, module, processes, cpu_avg, cpu_peak, mem_avg, mem_peak\n"
+            "--sort keys for --process:  name, hash, started, polls, cpu_avg, cpu_peak, mem_avg, mem_peak\n\n"
+            "examples:\n"
+            "  jawm-monitor stats                              summary of last run\n"
+            "  jawm-monitor stats --runs                       per-run stats (all runs, newest first)\n"
+            "  jawm-monitor stats --runs -n 10                 last 10 runs with stats\n"
+            "  jawm-monitor stats --runs --sort cpu_peak       sort runs by peak CPU usage\n"
+            "  jawm-monitor stats --runs --sort mem_peak       sort runs by peak memory\n"
+            "  jawm-monitor stats --process                    per-process stats table\n"
+            "  jawm-monitor stats --process -n 20             most recent 20 processes\n"
+            "  jawm-monitor stats --process --sort cpu_peak    highest CPU consumers first\n"
+            "  jawm-monitor stats --process --sort mem_peak    highest memory consumers first\n"
+            "  jawm-monitor stats --process --additional-fields  include extra (Slurm/K8s) columns\n"
+            "  jawm-monitor stats --show gate_6                full stats for a process\n"
+            "  jawm-monitor stats --show 1e1cd29m              look up by hash prefix\n"
+            "  jawm-monitor stats --show gate_6 --additional-fields\n"
+        ),
+    )
+    _s = st.add_argument
+    _s("-l", "--log-dir",  dest="log_dir", metavar="DIR",
+       help=f"Logs directory to inspect (default: {_DEFAULT_LOG_DIR})")
+    _s("--runs",           action="store_true", default=False,
+       help="Per-run stats table: one row per run transcript with a :::SUMMARY::: block")
+    _s("--process",        action="store_true", default=False,
+       help="Per-process stats table: one row per process log directory with a stats.json")
+    _s("--show",           metavar="NAME_OR_HASH",
+       help="Full stats detail for a specific process by name or hash prefix")
+    _s("--sort",           metavar="KEY",
+       help="Sort key (see --help for valid values per command). "
+            "Default: 'date' for --runs (newest first), 'started' for --process (oldest first)")
+    _s("--reverse",        action="store_true", default=False,
+       help="Reverse the default sort direction")
+    _s("--additional-fields", dest="additional_fields", action="store_true", default=False,
+       help="Show additional fields (e.g. Slurm/K8s metrics) as extra columns in --process "
+            "or as a formatted block in --show")
+    _s("-n", "--last",     type=int, default=0, metavar="N",
+       help="Limit output to N entries (default: show all)")
+    _s("--no-header",      dest="no_header", action="store_true", default=False,
+       help="Suppress column headers and footer")
+    _s("--no-color",       dest="no_color",  action="store_true", default=False,
+       help="Disable ANSI colour output")
+
     return parser
 
 
@@ -1986,6 +2574,9 @@ def main():
 
     if args.command == "logs":
         sys.exit(_cmd_logs(args) or 0)
+
+    if args.command == "stats":
+        sys.exit(_cmd_stats(args) or 0)
 
     print(f"jawm-monitor: unknown command '{args.command}'", file=sys.stderr)
     parser.print_help(sys.stderr)
