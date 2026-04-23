@@ -70,7 +70,7 @@ jobs:
     name: "K8s kindest/node:${{ matrix.k8s_node_image }}"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install kubectl (match cluster version)
         shell: bash
@@ -203,7 +203,7 @@ jobs:
           kubectl -n jawm delete pod/jawm-pvc-init --ignore-not-found=true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
