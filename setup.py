@@ -7,6 +7,7 @@ setup(
         "full": [
             "pandas>=1.1",
             "openpyxl>=3.0",
+            "requests"
         ]
     },
 )

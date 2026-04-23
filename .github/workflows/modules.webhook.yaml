@@ -53,7 +53,7 @@ jobs:
           echo "JAWM_COMMIT_HASH=$JAWM_COMMIT_HASH" >> $GITHUB_ENV
 
           # Install from local clone
-          pip install .
+          pip install ".[full]"
 
       - name: Run jawm
         run: |
