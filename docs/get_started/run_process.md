@@ -96,6 +96,9 @@ logs/
 
 These files help you debug, inspect, and reproduce the process execution.
 
+!!! tip
+    Use [`jawm-monitor logs --show hello_world`](../cli/jawm-monitor.md#logs) to view the status, stderr tail, and any of these files directly from the terminal — without navigating into the log directory manually.
+
 ---
 
 **Using Python Instead of Bash**
