@@ -161,6 +161,13 @@ Entries are appended chronologically and separated by a line of dashes. If a pro
 !!! tip
     The error summary file is the fastest way to understand what went wrong across a complex run. See [Errors & Debugging](errors.md) for how to use it effectively.
 
+[`jawm-monitor logs --errors`](../cli/jawm-monitor.md#logs) is a quick alternative — it parses and formats `error.log` entries directly in the terminal, with syntax highlighting and hash-linked log paths:
+
+```bash
+jawm-monitor logs --errors        # last 10 errors
+jawm-monitor logs --errors 20     # last 20 errors
+```
+
 ---
 
 ### `jawm_runs/` — CLI run transcript
@@ -178,6 +185,14 @@ cat logs/jawm_runs/mymodule_20240315_142301.log
 ```
 
 This is particularly useful for post-mortem debugging when a run was unattended (e.g. in CI or a `screen` session), or when you want to share the full run context with someone else.
+
+[`jawm-monitor logs`](../cli/jawm-monitor.md#logs) provides a quicker interface for run transcripts:
+
+```bash
+jawm-monitor logs --runs          # list all transcripts with timestamps and sizes
+jawm-monitor logs --run           # print the most recent transcript
+jawm-monitor logs --run -f        # follow the current run as it writes (like tail -f)
+```
 
 ---
 
@@ -208,10 +223,13 @@ Configurable with the `monitoring_directory` Process parameter or `JAWM_MONITORI
     └── local.84231.0.txt   # <manager>.<id>.<exitcode>.txt
 ```
 
-Each file contains the job ID, process name, hash, manager, script path, start time, and (for completed) exit code. This directory is what `jawm-monitor` will use to provide live status views — it's designed to be readable by external tools without touching the per-process log directories.
+Each file contains the job ID, process name, hash, manager, script path, start time, and (for completed) exit code. Use [`jawm-monitor ps`](../cli/jawm-monitor.md#ps) to view process status across all running and completed entries without opening these files manually:
 
-!!! note
-    Monitoring directory is mainly used for jawm tracking; this is not genreally user facing.
+```bash
+jawm-monitor ps            # running + last 20 completed
+jawm-monitor ps -r         # only running
+jawm-monitor ps --wide     # add log-path column
+```
 
 ---
 
@@ -230,3 +248,11 @@ When `--stats` is enabled (or `JAWM_RECORD_STAT=1`), a `stats.json` file is writ
 ```
 
 CPU is reported as a percentage where 100% = one full core (so 800% = 8 cores fully utilised). See [Stats & Performance](stats.md) for how to read and use this.
+
+---
+
+### See also
+
+- [Errors & Debugging](errors.md) — how to work through failures step by step
+- [Stats & Performance](stats.md) — CPU and memory tracking per process
+- [`jawm-monitor`](../cli/jawm-monitor.md) — CLI for browsing logs, errors, run transcripts, and stats without manual `cat`

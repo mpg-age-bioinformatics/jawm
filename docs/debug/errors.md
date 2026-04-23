@@ -42,6 +42,13 @@ Entries are separated by a line of 80 dashes. If a process retried multiple time
 cat logs/error.log
 ```
 
+[`jawm-monitor logs --errors`](../cli/jawm-monitor.md#logs) formats the same entries in the terminal with colours and linked log paths, without opening the file manually:
+
+```bash
+jawm-monitor logs --errors        # last 10 errors
+jawm-monitor logs --errors 20     # last 20 errors
+```
+
 #### Error type prefixes
 
 The label at the start of the error message identifies where in jawm the failure originated:
@@ -79,6 +86,22 @@ cat logs/align_sample1_20260407_095002_1d25c67735/align_sample1.error
 ```
 
 This file contains everything the process wrote to standard error — tool warnings, traceback output, error messages from called programs. For most failures, this is the definitive answer to **_what the script actually complained about_**.
+
+[`jawm-monitor logs --show`](../cli/jawm-monitor.md#logs) lets you look up a process by name or hash prefix without knowing the full directory path:
+
+```bash
+# Summary + last 20 lines of stderr (no path needed)
+jawm-monitor logs --show align_sample1
+
+# Full stderr
+jawm-monitor logs --show align_sample1 --error
+
+# Full stdout
+jawm-monitor logs --show align_sample1 --output
+
+# Look up by hash prefix from the error.log entry
+jawm-monitor logs --show 1d25c67735 --error
+```
 
 The corresponding stdout file is at `<name>.output` in the same directory:
 
@@ -218,3 +241,4 @@ The `always_run` flag does not affect whether a process waits for its `depends_o
 - [Stats & Performance](stats.md) — CPU and memory tracking per process
 - [`error_summary_file` parameter](../process/parameters.md#error_summary_file) — configure the error summary path per process
 - [`Process.wait()` method](../process/methods.md#wait) — full parameter reference including `tail` options
+- [`jawm-monitor logs`](../cli/jawm-monitor.md#logs) — browse errors, process details, and run transcripts from the terminal
