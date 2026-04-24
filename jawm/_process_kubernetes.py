@@ -262,6 +262,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
         "kind": "ConfigMap",
         "metadata": {
             "name": script_cm_name,
+            **({"namespace": namespace} if namespace else {}),
             "labels": labels_block,
             **({"annotations": annotations} if annotations else {})
         },
@@ -625,6 +626,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
         "kind": "Job",
         "metadata": {
             "name": job_name,
+            **({"namespace": namespace} if namespace else {}),
             "labels": labels_block,
             **({"annotations": annotations} if annotations else {})
         },

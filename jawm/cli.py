@@ -1406,6 +1406,225 @@ def _collect_stats_slurm(items, logger):
             logger.debug("[stats] slurm write failed for %s: %s", stats_path, e)
 
 
+########## Methods for kubernetes stats collection ##########
+
+# Ordered list of (suffix, factor) pairs: longer suffixes first to avoid prefix conflicts.
+# Binary IEC (Ki/Mi/Gi/…) checked before decimal (K/M/G/…).
+# All factors convert the value to MiB.
+_K8S_MEM_TO_MIB = [
+    ("pi", 1024.0 ** 4 / (1024.0 ** 2)),    # PiB -> MiB
+    ("ti", 1024.0 ** 3 / (1024.0 ** 2)),    # TiB -> MiB
+    ("gi", 1024.0),                         # GiB -> MiB
+    ("mi", 1.0),                            # MiB -> MiB
+    ("ki", 1.0 / 1024.0),                   # KiB -> MiB
+    ("p",  1e15 / (1024.0 ** 2)),           # PB  -> MiB
+    ("t",  1e12 / (1024.0 ** 2)),           # TB  -> MiB
+    ("g",  1e9  / (1024.0 ** 2)),           # GB  -> MiB
+    ("m",  1e6  / (1024.0 ** 2)),           # MB  -> MiB
+    ("k",  1e3  / (1024.0 ** 2)),           # KB  -> MiB
+]
+
+
+def _k8s_parse_cpu(val):
+    """
+    Parse kubectl top CPU value to percentage (100% = one full core).
+    Accepts millicores: "250m" -> 25.0; or fractional cores: "2" -> 200.0.
+    """
+    s = (val or "").strip()
+    if not s or s == "<unknown>":
+        return None
+    if s.endswith("m"):
+        try:
+            return float(s[:-1]) / 10.0
+        except Exception:
+            return None
+    try:
+        return float(s) * 100.0
+    except Exception:
+        return None
+
+
+def _k8s_parse_mem(val):
+    """
+    Parse kubectl top memory value to MiB.
+    Handles IEC binary suffixes (Ki/Mi/Gi/…) and decimal (K/M/G/…).
+    Raw bytes (no suffix) are also accepted.
+    """
+    s = (val or "").strip()
+    if not s or s == "<unknown>":
+        return None
+    sl = s.lower()
+    for suffix, factor in _K8S_MEM_TO_MIB:
+        if sl.endswith(suffix):
+            try:
+                return float(s[: -len(suffix)]) * factor
+            except Exception:
+                return None
+    try:
+        return float(s) / (1024.0 ** 2)  # raw bytes -> MiB
+    except Exception:
+        return None
+
+
+def _has_kubectl_top(logger=None):
+    # Binary check — cached forever, one-time warning on missing kubectl
+    if hasattr(_has_kubectl_top, "_cached"):
+        return _has_kubectl_top._cached
+
+    ok = shutil.which("kubectl") is not None
+    _has_kubectl_top._cached = ok
+
+    if not ok and logger and not getattr(_has_kubectl_top, "_warned", False):
+        logger.warning("[stats] kubernetes stats collection disabled: 'kubectl' not found in PATH")
+        _has_kubectl_top._warned = True
+
+    return ok
+
+
+def _k8s_namespace_from_log(log_path):
+    """
+    Read the namespace from the .k8s.json manifest written to log_path.
+    Returns the namespace string, or None if absent or unset.
+    """
+    try:
+        for fname in os.listdir(log_path):
+            if not fname.endswith(".k8s.json"):
+                continue
+            with open(os.path.join(log_path, fname)) as fh:
+                manifest = json.load(fh)
+            for item in manifest.get("items", []):
+                if item.get("kind") == "Job":
+                    ns = (item.get("metadata") or {}).get("namespace")
+                    if ns:
+                        return str(ns)
+    except Exception:
+        pass
+    return None
+
+
+def _kubectl_top_sample(job_name, namespace, logger=None, timeout_s=5.0):
+    """
+    Run:  kubectl top pods -l job-name=<job_name> --containers --no-headers [-n <ns>]
+
+    Returns (cpu_pct_total, rss_mib_total) summed across all containers, or None.
+    CPU convention: 100% = one full core (matches local and slurm collectors).
+    Returns None when:
+      - Metrics Server is not available (marks _has_kubectl_top._metrics_gone, warns once)
+      - No pods are running yet (pod still pending)
+      - Any subprocess error
+    """
+    cmd = [
+        "kubectl", "top", "pods",
+        "-l", f"job-name={job_name}",
+        "--containers",
+        "--no-headers",
+    ]
+    if namespace:
+        cmd.extend(["-n", namespace])
+
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
+    except Exception:
+        return None
+
+    stderr = (r.stderr or "").strip()
+    if stderr and (
+        "Metrics API not available" in stderr
+        or "metrics.k8s.io" in stderr
+        or "server is currently unable" in stderr
+    ):
+        if not getattr(_has_kubectl_top, "_metrics_warned", False):
+            if logger:
+                logger.warning(
+                    "[stats] kubernetes stats collection disabled: Metrics Server not available. "
+                    "Install the Kubernetes Metrics Server to enable K8s CPU/memory stats."
+                )
+            _has_kubectl_top._metrics_warned = True
+        _has_kubectl_top._metrics_gone = True
+        return None
+
+    if not r.stdout:
+        return None  # pod not yet scheduled / running
+
+    cpu_total = 0.0
+    rss_total = 0.0
+    found = False
+
+    for line in r.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        # columns: POD  CONTAINER  CPU(cores)  MEMORY(bytes)
+        cpu = _k8s_parse_cpu(parts[2])
+        mem = _k8s_parse_mem(parts[3])
+        if cpu is not None:
+            cpu_total += cpu
+            found = True
+        if mem is not None:
+            rss_total += mem
+            found = True
+
+    return (cpu_total, rss_total) if found else None
+
+
+def _collect_stats_kubernetes(items, logger):
+    """
+    items: { "<job_name>": "<log_path>", ... }
+    Writes: <log_path>/stats.json
+    CPU convention: 100% = one full core (same as local and slurm).
+    Best-effort: silently skips if kubectl or the Metrics Server is unavailable,
+    or if the pod has not yet started.
+    """
+    if not items:
+        return
+    if not _has_kubectl_top(logger):
+        return
+    if getattr(_has_kubectl_top, "_metrics_gone", False):
+        return
+
+    for job_name, log_path in items.items():
+        if not job_name or not log_path:
+            continue
+
+        namespace = _k8s_namespace_from_log(log_path)
+        sample = _kubectl_top_sample(job_name, namespace, logger=logger)
+
+        if sample is None:
+            continue
+
+        cpu_pct, rss_mib = sample
+
+        stats_path = os.path.join(log_path, "stats.json")
+
+        try:
+            with open(stats_path, "r") as f:
+                s = json.load(f)
+        except Exception:
+            s = {
+                "poll_count": 0,
+                "cpu_sum_pct": 0.0,
+                "cpu_peak_pct": 0.0,
+                "cpu_avg_pct": 0.0,
+                "rss_sum_mib": 0.0,
+                "rss_peak_mib": 0.0,
+                "rss_avg_mib": 0.0,
+            }
+
+        s["poll_count"] = int(s.get("poll_count", 0)) + 1
+        s["cpu_sum_pct"] = float(s.get("cpu_sum_pct", 0.0)) + float(cpu_pct)
+        s["cpu_peak_pct"] = max(float(s.get("cpu_peak_pct", 0.0)), float(cpu_pct))
+        s["cpu_avg_pct"] = s["cpu_sum_pct"] / float(s["poll_count"])
+        s["rss_sum_mib"] = float(s.get("rss_sum_mib", 0.0)) + float(rss_mib)
+        s["rss_peak_mib"] = max(float(s.get("rss_peak_mib", 0.0)), float(rss_mib))
+        s["rss_avg_mib"] = s["rss_sum_mib"] / float(s["poll_count"])
+
+        try:
+            os.makedirs(log_path, exist_ok=True)
+            _atomic_write_json(stats_path, s, logger=logger)
+        except Exception as e:
+            logger.debug("[stats] kubernetes write failed for %s: %s", stats_path, e)
+
+
 ########## Collection of additional sacct field retrival at the end ##########
 
 def _get_slurm_additional_fields():
