@@ -302,6 +302,21 @@ Resource data is recorded in two places:
 - **`:::SUMMARY:::` blocks** in run transcripts (`jawm_runs/*.log`) — aggregate stats across all processes in a run; used by the bare command and `--runs`
 - **`stats.json`** in individual process log directories — per-process CPU and memory measurements; used by `--process` and `--show`
 
+### Collection requirements
+
+Stats collection is backend-specific. Each backend has its own dependency:
+
+| Backend | Mechanism | Requirement |
+|---------|-----------|-------------|
+| `local` | `ps` | Available on all Linux and macOS systems |
+| `slurm` | `sstat` | `sstat` must be in `PATH` on the submission host |
+| `kubernetes` | `kubectl top` | [Kubernetes Metrics Server](https://github.com/kubernetes-sigs/metrics-server) must be installed on the cluster |
+
+If a dependency is missing, jawm logs a one-time warning and skips stats collection for that backend. All other run behaviour is unaffected.
+
+!!! note
+    The Metrics Server is not installed by default on all clusters. Managed clusters (GKE, EKS, AKS) typically include it; local clusters (kind, minikube) require a one-time setup. See your cluster's documentation for installation instructions. For kind, the deployment also requires the `--kubelet-insecure-tls` flag due to self-signed kubelet certificates.
+
 ### Flags
 
 | Flag | Default | Description |
