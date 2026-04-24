@@ -4229,6 +4229,89 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 56: jawm-monitor — ps, logs (--ls / --show / --errors), stats, clean")
+_jm_tmpdir = tempfile.mkdtemp(prefix="jm_test_", dir=base_tmp)
+try:
+    _JM_LOGS = os.path.join(_jm_tmpdir, "logs")
+    _JM_MON  = os.path.join(_jm_tmpdir, "monitoring")
+
+    def _mon_cmd(args):
+        if shutil.which("jawm-monitor"):
+            return ["jawm-monitor"] + args
+        return [sys.executable, "-m", "jawm.cli_monitor"] + args
+
+    def _run_mon(args, timeout=30):
+        r = subprocess.run(_mon_cmd(args), capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+    # Fixture: one successful + one failing local process (manager="local" is explicit so
+    # a global -p parameter file targeting slurm/k8s does not affect these processes)
+    jm_ok = Process(
+        name="jm_ok",
+        script="#!/bin/bash\necho 'jm_ok_output'\n",
+        manager="local",
+        logs_directory=_JM_LOGS,
+        monitoring_directory=_JM_MON,
+        error_summary_file=os.path.join(_JM_LOGS, "error.log"),
+    )
+    jm_fail = Process(
+        name="jm_fail",
+        script="#!/bin/bash\necho 'jm_fail_stderr' >&2\nexit 2\n",
+        manager="local",
+        logs_directory=_JM_LOGS,
+        monitoring_directory=_JM_MON,
+        error_summary_file=os.path.join(_JM_LOGS, "error.log"),
+    )
+    jm_ok.execute()
+    jm_fail.execute()
+    Process.wait(["jm_ok", "jm_fail"], allowed_exit="all")
+    Process.reset_stop()
+
+    # ps: completed processes appear in the monitoring table
+    rc, out = _run_mon(["ps", "-d", _JM_MON, "-c", "--no-color"])
+    print(f"  [ps]\n{out}")
+    assert rc == 0, f"ps exit code {rc}"
+    assert "jm_ok" in out or "jm_fail" in out, "ps: expected process names not in output"
+
+    # logs --ls: both process log directories are listed
+    rc, out = _run_mon(["logs", "-l", _JM_LOGS, "--ls", "--no-color"])
+    print(f"  [logs --ls]\n{out}")
+    assert rc == 0, f"logs --ls exit code {rc}"
+    assert "jm_ok" in out, "logs --ls: jm_ok not listed"
+    assert "jm_fail" in out, "logs --ls: jm_fail not listed"
+
+    # logs --show: detail view resolves a process by name
+    rc, out = _run_mon(["logs", "-l", _JM_LOGS, "--show", "jm_ok", "--no-color"])
+    print(f"  [logs --show jm_ok]\n{out}")
+    assert rc == 0, f"logs --show exit code {rc}"
+    assert "jm_ok" in out, "logs --show: process name not in output"
+
+    # logs --errors: error.log entry written for jm_fail (exit 2)
+    rc, out = _run_mon(["logs", "-l", _JM_LOGS, "--errors", "--no-color"])
+    print(f"  [logs --errors]\n{out}")
+    assert rc == 0, f"logs --errors exit code {rc}"
+    assert "jm_fail" in out, "logs --errors: failed process not in output"
+
+    # stats --process: exits 0 gracefully when no stats.json files exist
+    rc, out = _run_mon(["stats", "-l", _JM_LOGS, "--process", "--no-color"])
+    print(f"  [stats --process]\n{out}")
+    assert rc == 0, f"stats --process exit code {rc}"
+
+    # clean --dry-run: preview exits 0, nothing deleted
+    rc, out = _run_mon(["clean", "-d", _JM_MON, "--completed", "--dry-run", "--no-color"])
+    print(f"  [clean --dry-run]\n{out}")
+    assert rc == 0, f"clean --dry-run exit code {rc}"
+
+    print("✅ Passed: jawm-monitor ps / logs / stats / clean")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(_jm_tmpdir, ignore_errors=True)
+    Process.reset_stop()
+
+
 # -----------------------------
 # Cleanup created directories
 # -----------------------------
