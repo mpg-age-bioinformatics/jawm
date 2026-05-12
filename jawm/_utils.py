@@ -106,32 +106,34 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
     return merged_vars
 
 
-def hash_content(paths, hash_func=hashlib.sha256, 
+def hash_content(paths, hash_func=hashlib.sha256,
                  exclude_dirs=None, exclude_files=None,
                  allowed_extensions=None, recursive=True,
                  consider_name=False):
     """
     Return a combined hash digest for multiple files and/or folders,
     including their contents and structure, excluding specified directories
-    and files, optionally consider only allowed extention in case of directory .
+    and files, optionally considering only allowed extensions for directories.
+
+    The traversal order is deterministic across platforms and filesystems:
+    top-level paths are processed in the order given, and within each
+    directory both subdirectories and files are visited in sorted order.
+    When `consider_name=True`, path separators are normalized to '/' so
+    the same tree hashes identically on Windows and POSIX systems.
 
     Args:
-        paths (str or Path or list[str | Path]): A single file/folder path or 
+        paths (str or Path or list[str | Path]): A single file/folder path or
             a list of paths to include in the hash.
         hash_func (callable, optional): Hash function from hashlib (default: sha256).
         exclude_dirs (list[str], optional): List of directory name patterns to exclude.
         exclude_files (list[str], optional): List of file name patterns to exclude.
-        allowed_extensions (list[str], optional): Only consider allowed files if a directory provided.
+        allowed_extensions (list[str], optional): Only consider allowed files if a directory is provided.
         recursive (bool, optional): Whether to descend into subdirectories (default: True).
-        consider_name (bool, optional): Whether to consider the file names while hashing (default: False).
+        consider_name (bool, optional): Whether to consider file names while hashing (default: False).
 
     Returns:
         str: Hex digest representing the combined hash of all provided files
             and folder contents/structure.
-
-    Example:
-        >>> hash_content(["/data/folder1", "/data/file.txt"])
-        '5d41402abc4b2a76b9719d911017c592'
     """
     if exclude_dirs is None:
         exclude_dirs = []
@@ -141,10 +143,32 @@ def hash_content(paths, hash_func=hashlib.sha256,
     if isinstance(paths, (str, Path)):
         paths = [paths]
 
-    # Normalize ext list
+    # Normalize extension list
     allowed_exts = None
     if allowed_extensions:
-        allowed_exts = set(e.lower() if e.startswith(".") else "." + e.lower() for e in allowed_extensions)
+        allowed_exts = {
+            (e if e.startswith(".") else "." + e).lower()
+            for e in allowed_extensions
+        }
+
+    def _file_excluded(name):
+        return any(fnmatch.fnmatch(name, pat) for pat in exclude_files)
+
+    def _dir_excluded(name):
+        return any(fnmatch.fnmatch(name, pat) for pat in exclude_dirs)
+
+    def _ext_allowed(name):
+        if allowed_exts is None:
+            return True
+        return os.path.splitext(name)[1].lower() in allowed_exts
+
+    def _hash_file(h, fpath, name_to_record=None):
+        if name_to_record is not None and consider_name:
+            # Normalize separators so the hash is stable across OSes
+            h.update(name_to_record.replace(os.sep, "/").encode("utf-8"))
+        with open(fpath, "rb") as f:
+            while chunk := f.read(8192):
+                h.update(chunk)
 
     h = hash_func()
 
@@ -152,53 +176,39 @@ def hash_content(paths, hash_func=hashlib.sha256,
         path = os.path.abspath(path)
 
         if os.path.isfile(path):
-            # Handle individual file
             fname = os.path.basename(path)
-            if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
+            if _file_excluded(fname):
                 continue
-            
-            if consider_name:
-                h.update(fname.encode())
-
-            with open(path, "rb") as f:
-                while chunk := f.read(8192):
-                    h.update(chunk)
+            _hash_file(h, path, name_to_record=fname)
 
         elif os.path.isdir(path):
-            # Handle folder
             if recursive:
                 walker = os.walk(path)
             else:
-                # Top-level only: mimic os.walk but with no subdirs
-                walker = [(path, [], os.listdir(path))]
+                # Top-level only: list entries and keep just the files
+                entries = os.listdir(path)
+                files_only = [
+                    e for e in entries
+                    if os.path.isfile(os.path.join(path, e))
+                ]
+                walker = [(path, [], files_only)]
 
             for root, dirs, files in walker:
                 if recursive:
-                    dirs[:] = [d for d in dirs 
-                               if not any(fnmatch.fnmatch(d, pat) for pat in exclude_dirs)]
+                    # Sort AND filter in place — os.walk relies on this list
+                    # being modified to control traversal order and pruning.
+                    dirs[:] = sorted(d for d in dirs if not _dir_excluded(d))
 
                 for fname in sorted(files):
-                    # Skip excluded files
-                    if any(fnmatch.fnmatch(fname, pat) for pat in exclude_files):
+                    if _file_excluded(fname):
                         continue
-
-                    # If extensions are restricted, keep only matching ones
-                    if allowed_exts is not None:
-                        ext = os.path.splitext(fname)[1].lower()
-                        if ext not in allowed_exts:
-                            continue
+                    if not _ext_allowed(fname):
+                        continue
 
                     fpath = os.path.join(root, fname)
                     relpath = os.path.relpath(fpath, path)
+                    _hash_file(h, fpath, name_to_record=relpath)
 
-                    if consider_name:
-                        # Include relative path
-                        h.update(relpath.encode())
-
-                    # Include file content
-                    with open(fpath, "rb") as f:
-                        while chunk := f.read(8192):
-                            h.update(chunk)
         else:
             # Skip non-existent paths
             continue
