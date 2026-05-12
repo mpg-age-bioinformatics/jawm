@@ -112,14 +112,16 @@ def hash_content(paths, hash_func=hashlib.sha256,
                  consider_name=False):
     """
     Return a combined hash digest for multiple files and/or folders,
-    including their contents and structure, excluding specified directories
-    and files, optionally considering only allowed extensions for directories.
+    including their contents and (optionally) their basenames.
 
-    The traversal order is deterministic across platforms and filesystems:
-    top-level paths are processed in the order given, and within each
-    directory both subdirectories and files are visited in sorted order.
-    When `consider_name=True`, path separators are normalized to '/' so
-    the same tree hashes identically on Windows and POSIX systems.
+    The traversal order is deterministic across platforms: top-level paths
+    are processed in the order given, and within each directory both
+    subdirectories and files are visited in sorted order.
+
+    When `consider_name=True`, only the file's basename is included in the
+    hash — never its parent directories or absolute path. This means hashing
+    a file directly and hashing it as part of a containing directory record
+    the same name for that file.
 
     Args:
         paths (str or Path or list[str | Path]): A single file/folder path or
@@ -129,11 +131,11 @@ def hash_content(paths, hash_func=hashlib.sha256,
         exclude_files (list[str], optional): List of file name patterns to exclude.
         allowed_extensions (list[str], optional): Only consider allowed files if a directory is provided.
         recursive (bool, optional): Whether to descend into subdirectories (default: True).
-        consider_name (bool, optional): Whether to consider file names while hashing (default: False).
+        consider_name (bool, optional): Whether to consider file basenames while hashing (default: False).
 
     Returns:
         str: Hex digest representing the combined hash of all provided files
-            and folder contents/structure.
+            and folder contents.
     """
     if exclude_dirs is None:
         exclude_dirs = []
@@ -164,8 +166,7 @@ def hash_content(paths, hash_func=hashlib.sha256,
 
     def _hash_file(h, fpath, name_to_record=None):
         if name_to_record is not None and consider_name:
-            # Normalize separators so the hash is stable across OSes
-            h.update(name_to_record.replace(os.sep, "/").encode("utf-8"))
+            h.update(name_to_record.encode("utf-8"))
         with open(fpath, "rb") as f:
             while chunk := f.read(8192):
                 h.update(chunk)
@@ -185,7 +186,6 @@ def hash_content(paths, hash_func=hashlib.sha256,
             if recursive:
                 walker = os.walk(path)
             else:
-                # Top-level only: list entries and keep just the files
                 entries = os.listdir(path)
                 files_only = [
                     e for e in entries
@@ -195,8 +195,6 @@ def hash_content(paths, hash_func=hashlib.sha256,
 
             for root, dirs, files in walker:
                 if recursive:
-                    # Sort AND filter in place — os.walk relies on this list
-                    # being modified to control traversal order and pruning.
                     dirs[:] = sorted(d for d in dirs if not _dir_excluded(d))
 
                 for fname in sorted(files):
@@ -206,11 +204,10 @@ def hash_content(paths, hash_func=hashlib.sha256,
                         continue
 
                     fpath = os.path.join(root, fname)
-                    relpath = os.path.relpath(fpath, path)
-                    _hash_file(h, fpath, name_to_record=relpath)
+                    # Record the basename only — matches the standalone-file branch
+                    _hash_file(h, fpath, name_to_record=fname)
 
         else:
-            # Skip non-existent paths
             continue
 
     return h.hexdigest()
