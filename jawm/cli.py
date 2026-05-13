@@ -731,10 +731,10 @@ def _collect_hash_cfg_from_param_sources_cli(param_sources):
     if not merged["include"]:
         return {}
 
-    # Expand globs
+    # Expand globs — sort each glob's matches so the hash is filesystem-order-independent
     expanded, seen = [], set()
     for pat in _as_list(merged["include"]):
-        hits = glob.glob(pat, recursive=True) or [pat]
+        hits = sorted(glob.glob(pat, recursive=True)) or [pat]
         for h in hits:
             if h not in seen:
                 expanded.append(h); seen.add(h)
@@ -822,7 +822,10 @@ def _enumerate_hash_inputs_cli(paths, *, allowed_extensions=None, exclude_dirs=N
             if recursive:
                 for root, dirs, files in os.walk(p):
                     # apply dir excludes (by name pattern)
-                    dirs[:] = [d for d in dirs if not any(fnmatch.fnmatch(d, pat) for pat in (exclude_dirs or []))]
+                    dirs[:] = sorted(
+                        d for d in dirs
+                        if not any(fnmatch.fnmatch(d, pat) for pat in (exclude_dirs or []))
+                    )
                     for f in files:
                         fp = os.path.join(root, f)
                         if _file_ok(fp):
