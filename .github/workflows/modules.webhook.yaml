@@ -5,10 +5,15 @@ name: Reference Test Module
 
 on:
   workflow_call:
+    inputs:
+      runner:
+        required: false
+        type: string
+        default: ubuntu-latest
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
 
     steps:
       - name: Checkout current repository
