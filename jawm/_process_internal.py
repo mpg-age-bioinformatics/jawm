@@ -902,10 +902,15 @@ def _elog_path(self):
 
 
 @register
-def _tail_error(self, max_lines=5, full=False, slurm=False):
+def _tail_error(self, full=False, slurm=False):
     """
     Return a concise or full snippet from the process stderr log (for logging).
+    The number of lines shown can be controlled via the JAWM_ERROR_LINES env var (default: 5).
     """
+    try:
+        max_lines = int(os.getenv("JAWM_ERROR_LINES", "5"))
+    except ValueError:
+        max_lines = 5
     try:
         err = self.get_error()
         if err:

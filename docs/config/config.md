@@ -122,6 +122,19 @@ JAWM_MODULES_PATH=/shared/jawm_modules
 
 ---
 
+### `JAWM_ERROR_LINES`
+
+- **Type:** `int`
+- **Default:** `5`
+
+Number of trailing stderr lines shown when a process fails. Increase this to get more context from long error outputs.
+
+```text
+JAWM_ERROR_LINES=20
+```
+
+---
+
 ## Path Expansion
 
 ---
