@@ -62,7 +62,7 @@ jobs:
 
       - name: Run jawm
         run: |
-          jawm-test -p system -j local 
+          JAWM_ERROR_LINES=50 jawm-test -p system -j local 
 
       - name: Succeeded
         if: success()
