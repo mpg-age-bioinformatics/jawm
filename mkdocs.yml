@@ -102,7 +102,8 @@ nav:
     - Log Structure: debug/logs.md
     - Errors Debugging: debug/errors.md
     - Stats & Performance: debug/stats.md 
-  - Examples & Use Cases: examples.md
+  - Examples & Use Cases:
+      - Overview: module/overview.md
   - How-To Guides: howto.md
   - Advanced Development: development.md
   - Version Log: version-log.md
