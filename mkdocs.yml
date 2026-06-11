@@ -73,6 +73,9 @@ nav:
     - Your First Process: get_started/run_process.md
     - Running a Workflow: get_started/run_workflow.md
     - Developing a Workflow: get_started/develop_workflow.md
+  - Examples:
+      - Overview: module/overview.md
+      - FastQC: examples/fastqc.md
   - Process: 
     - Overview: process/overview.md
     - Configuration & Precedence: process/conf_precedence.md
@@ -102,8 +105,6 @@ nav:
     - Log Structure: debug/logs.md
     - Errors Debugging: debug/errors.md
     - Stats & Performance: debug/stats.md 
-  - Examples & Use Cases:
-      - Overview: module/overview.md
   - How-To Guides: howto.md
   - Advanced Development: development.md
   - Version Log: version-log.md
