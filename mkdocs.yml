@@ -74,7 +74,7 @@ nav:
     - Running a Workflow: get_started/run_workflow.md
     - Developing a Workflow: get_started/develop_workflow.md
   - Examples:
-      - Overview: module/overview.md
+      - Overview: examples/overview.md
       - FastQC: examples/fastqc.md
   - Process: 
     - Overview: process/overview.md
