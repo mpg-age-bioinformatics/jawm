@@ -200,7 +200,7 @@ fastqc {{extra_args}} -t {{cpus}} -o {{fastqc_output}} {{f}}
 
   # image and respective environment
   container="mpgagebioinformatics/fastqc:0.11.9", # defaults to docker://mpgagebioinformatics/fastqc:0.11.9
-  environment="docker", # docker or apptainer
+  environment="docker", # docker or apptainer, defaults to docker
 
   # slurm default arguments
   manager_slurm={
@@ -270,7 +270,7 @@ fastqc {{extra_args}} -t {{cpus}} -o {{fastqc_output}} {{f}}
 
   # image and respective environment
   container="mpgagebioinformatics/fastqc:0.11.9", # defaults to docker://mpgagebioinformatics/fastqc:0.11.9
-  environment="docker", # docker or apptainer
+  environment="docker", # docker or apptainer, defaults to docker
 
   # slurm default arguments
   manager_slurm={
@@ -281,20 +281,30 @@ fastqc {{extra_args}} -t {{cpus}} -o {{fastqc_output}} {{f}}
 
 )
 
-# list all the fastq files in the input folder
-fastq_files = [
-    os.path.join( fastqc.var["input_folder"], f )
-    for f in os.listdir( fastqc.var["input_folder"] )
-    if f.endswith((".fastq.gz", ".fq.gz"))
-]
-
-for f in fastq_files :
-  # for each fastq file clone the fastqc process
+# handle single file calls
+if "f" in fastqc.var:
+  # clone the fastqc process
   fastqc_=fastqc.clone()
-  # attribute the input file
-  fastqc_.var["map.f"]=f
   # execute the process
   fastqc_.execute()
+
+# handle folder calls
+if "input_folder" in fastqc.var :
+ 
+  # list all the fastq files in the input folder
+  fastq_files = [
+      os.path.join( fastqc.var["input_folder"], f )
+      for f in os.listdir( fastqc.var["input_folder"] )
+      if f.endswith( (".fastq.gz", ".fq.gz") )
+  ]
+
+  for f in fastq_files :
+    # for each fastq file clone the fastqc process
+    fastqc_=fastqc.clone()
+    # attribute the input file
+    fastqc_.var["map.f"]=f
+    # execute the process
+    fastqc_.execute()
 
 # Wait for all processes to complete
 jawm.Process.wait()
@@ -380,11 +390,190 @@ cpus set for SLURM jobs in our process definition `manager_slurm={ "-c":"4" }`.
 When working with containers and nfs volumes it can sometimes be useful to disable the automated mounting of volumes that
 is triggered by variables with `mk.<variable>` and `map.<variable>`. This can be achieved with `automated_mount: False`.
 
----
+--- 
 
 ## Workflows
 
+Workflows allow you build command line callable tasks or group of tasks. 
+While workflows usage can be better understood for more complex tools (eg. kallisto where genome indexing processes might be called 
+independently of mapping processes) or [multi-module](multimodule.md) usage, we will here give a short example for demo purposes 
+which we can further use downstream for our CI/CD tests.
+
+```python
+import jawm
+import sys
+import os
+
+# define our fastqc process
+fastqc=jawm.Process(
+
+  # Logical statement to be validated prior to execution
+  when=lambda p: not os.path.isfile(
+                        os.path.join(
+                          p.var["fastqc_output"],
+                          os.path.basename( str(p.var["f"]).lstrip().split(" ")[0].split( ".fastq.gz"  )[0].split( ".fq.gz"  )[0] )+"_fastqc.html"
+                        )
+                      ),
+
+  # Process name
+  name="fastqc",
+
+  # Script to be run when process is executed
+  script="""#!/bin/bash
+fastqc {{extra_args}} -t {{cpus}} -o {{fastqc_output}} {{f}}
+""",
+
+  # Description of the variables
+  desc={
+    "extra_args":"Any fastqc argument with its respective value.",
+    "cpus":"Number of cpus to be used.",
+    "fastqc_output":"Output dir.",
+    "f":"Input fastq file."
+  },
+
+  # Default variable values
+  var={
+    "extra_args":"",
+    "cpus":1
+  },
+
+  # image and respective environment
+  container="mpgagebioinformatics/fastqc:0.11.9", # defaults to docker://mpgagebioinformatics/fastqc:0.11.9
+  environment="docker", # docker or apptainer
+
+  # slurm default arguments
+  manager_slurm={
+    "--mem":"20GB",
+    "-t":"1:00:00",
+    "-c":"4"
+  }
+
+)
+
+if __name__ == "__main__":
+
+  from jawm.utils import workflow
+
+  # parse the command line jawm call
+  # if no workflow was called, workflows will default to 'main' 
+  workflows, var, args, unknown_args = jawm.utils.parse_arguments(["main","fastqc","test"])
+
+  # check which workflow was called from the command line
+  if workflow( ["main","fastqc","test"], workflows ) :
+
+    # handle single file calls
+    if "f" in fastqc.var:
+      # clone the fastqc process
+      fastqc_=fastqc.clone()
+      # execute the process
+      fastqc_.execute()
+
+    # handle folder calls
+    if "input_folder" in fastqc.var :
+    
+      # list all the fastq files in the input folder
+      fastq_files = [
+          os.path.join( fastqc.var["input_folder"], f )
+          for f in os.listdir( fastqc.var["input_folder"] )
+          if f.endswith( (".fastq.gz", ".fq.gz") )
+      ]
+
+      for f in fastq_files :
+        # for each fastq file clone the fastqc process
+        fastqc_=fastqc.clone()
+        # attribute the input file
+        fastqc_.var["map.f"]=f
+        # execute the process
+        fastqc_.execute()
+
+  # Wait for all processes to complete
+  jawm.Process.wait()
+
+  # when running the test workflow we do also unzip the output file
+  if workflow( ["test"], workflows ) :
+
+    from pathlib import Path
+    from zipfile import ZipFile
+
+    # unzip the output file
+    zip_path=os.path.join( fastqc.var["fastqc_output"], os.path.basename( str( fastqc.var["f"] ).lstrip().split(" ")[0].split( ".fastq.gz"  )[0].split( ".fq.gz"  )[0] )+"_fastqc.zip" )
+
+    zip_path = Path(zip_path)
+    destination = zip_path.parent
+    destination.mkdir(parents=True, exist_ok=True)
+
+    with ZipFile(zip_path, "r") as zip_ref:
+      for member in zip_ref.infolist():
+        target_path = destination / member.filename
+        if not target_path.resolve().is_relative_to(destination.resolve()):
+          raise ValueError(f"Unsafe zip entry: {member.filename}")
+      zip_ref.extractall(destination)
+
+    print("Test completed")
+    sys.stdout.flush()
+
+sys.exit(0)
+```
+
+We can now call our test workflow with:
+
+```bash
+jawm ./jawm_fastqc test \
+  --process.fastqc.var.mk.fastqc_output=./demo_output \
+  --process.fastqc.var.map.f=./test_data/my_test_file_1.fastq.gz
+```
+
+--- 
+
+## Logs
 
 ---
 
 ## CI/CD tests
+
+jawm was build with Coninuous Integration & Continuous Deployment in mind.
+
+For this we start by creating a test folder as well as all the required files:
+
+```bash
+mkdir ./jawm_fastqc/test
+
+# test related yaml files will be kept here
+mkdir ./jawm_fastqc/test/yaml
+
+# test associated yaml file
+touch ./jawm_fastqc/test/test.yaml
+
+# defines the tests to be run
+touch ./jawm_fastqc/test/tests.txt
+
+# source of raw input data
+touch ./jawm_fastqc/test/data.txt
+```
+
+Let's start by populating our `test.yaml` file:
+
+```yaml
+# ./jawm_fastqc/test/test.yaml
+- scope: process
+  name: fastqc
+  parallel: False
+  var:
+    mk.fastqc_output: "./test/test-output"
+    map.f: "./test/test-input/my_test_file_1.fastq.gz"
+
+# files to be used for SHA-256 hash generation     
+- scope: hash
+  include: ./test/test-output/my_test_file_1_fastqc/fastqc_data.txt
+  # overwrite any existing hash in the logs folder
+  overwrite: true
+```
+
+The `tests.txt` file will contain one line per command line call that will be tested:
+```txt
+#jawm_file.py;workflow;parameters.file1.yaml,parameters.file2.yaml;"Test name";test_hash
+fastqc.py;test;./test/yaml/fastqc.yaml;"Main workflow test";8081eb3945c0631419ed3125da729d926b092ca6ea76329e3a21c50efb4689c6
+```
+
+--- 
+
