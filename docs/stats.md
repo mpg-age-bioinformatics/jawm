@@ -1,4 +1,4 @@
-# Stats & Performance
+# Resources Profiling
 
 jawm can record per-process resource usage — CPU and memory — while processes run. This is useful for understanding how much a workflow actually consumed, identifying memory-hungry steps, and right-sizing resource requests for Slurm or Kubernetes jobs.
 
@@ -158,7 +158,7 @@ Resource stats are not yet collected for Kubernetes processes. `stats.json` will
 - **Right-sizing Slurm jobs:** Run your workflow once with `--stats` on representative data. The `rss_peak_mib` value in each process's `stats.json` tells you the actual peak memory — use it to set `--mem` in `manager_slurm` with a small safety margin.
 - **Identifying bottlenecks:** The end-of-run summary shows which process used the most CPU and memory. Use this to prioritise where optimisation effort will have the most impact.
 - **Stats for short processes:** If a process completes before the first poll, `stats.json` will either not exist or show `poll_count=0`. Lower `JAWM_STATS_INTERVAL` or accept that very short steps won't have reliable stats.
-- **jawm-monitor integration:** Use [`jawm-monitor stats`](../cli/jawm-monitor.md#stats) to view resource usage across all processes and runs without opening individual `stats.json` files. A bare `jawm-monitor stats` prints the aggregate summary from the last run; `--process` shows a per-process table sortable by CPU or memory peak; `--show <name>` gives full detail for one process:
+- **jawm-monitor integration:** Use [`jawm-monitor stats`](cli/jawm-monitor.md#stats) to view resource usage across all processes and runs without opening individual `stats.json` files. A bare `jawm-monitor stats` prints the aggregate summary from the last run; `--process` shows a per-process table sortable by CPU or memory peak; `--show <name>` gives full detail for one process:
 
     ```bash
     jawm-monitor stats                              # last run summary
@@ -170,6 +170,6 @@ Resource stats are not yet collected for Kubernetes processes. `stats.json` will
 
 ### See also
 
-- [Log Structure](logs.md) — where `stats.json` lives within the log directory layout
-- [jawm CLI reference](../cli/jawm.md) — `--stats` flag
-- [`jawm-monitor stats`](../cli/jawm-monitor.md#stats) — view resource usage across processes and runs from the terminal
+- [Log Structure](debug/logs.md) — where `stats.json` lives within the log directory layout
+- [jawm CLI reference](cli/jawm.md) — `--stats` flag
+- [`jawm-monitor stats`](cli/jawm-monitor.md#stats) — view resource usage across processes and runs from the terminal

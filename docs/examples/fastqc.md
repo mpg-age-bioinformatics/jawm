@@ -651,7 +651,7 @@ This folder contains all the relevant files regarding an executed process. These
     2026-06-12T09:32:49     7917a4d3132ce4a712102651a73d5255406383502173e8f3224fb00f54e34b15        /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/logs/jawm_runs/jawm_fastqc_20260612_093249.log       /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/build.nexus.yaml,/nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/jawm_fastqc/fastqc.py
     ```
 
-    The `hash` is generated on the basis of the hashes of all run processes. More information can be found under [module_input.history](../debug/logs/#module_inputhistory).
+    The `hash` is generated on the basis of the hashes of all run processes. More information can be found under [jawm_hashes](../debug/logs.md).
 
 ---
 

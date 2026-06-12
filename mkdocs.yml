@@ -76,6 +76,8 @@ nav:
   - Examples:
       - Overview: examples/overview.md
       - FastQC: examples/fastqc.md
+      - Reproducibility: examples/reproducibility.md
+
   - Process: 
     - Overview: process/overview.md
     - Configuration & Precedence: process/conf_precedence.md
@@ -101,11 +103,11 @@ nav:
     - jawm-monitor: cli/jawm-monitor.md
     - jawm-dev: cli/jawm-dev.md
     - jawm-test: cli/jawm-test.md
-  - Debugging & Stats:
+  - Debugging:
     - Log Structure: debug/logs.md
     - Errors Debugging: debug/errors.md
-    - Stats & Performance: debug/stats.md 
-  - How-To Guides: howto.md
-  - Advanced Development: development.md
+  - Resources Profiling: stats.md 
+  # - How-To Guides: howto.md
+  # - Advanced Development: development.md
   - Version Log: version-log.md
   - Support: support.md

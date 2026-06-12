@@ -103,7 +103,7 @@ jawm.utils.get_image([p1.container, p2.container])
 
 ### `load_modules()`
 
-Dynamically import Python modules or whole repositories — including remote ones from a Git host. This is the mechanism behind jawm's reusable [modules](module.md): a workflow can import shared code from a Git repository without manually cloning it.
+Dynamically import Python modules or whole repositories — including remote ones from a Git host. This is the mechanism behind jawm's reusable [modules](module/overview.md): a workflow can import shared code from a Git repository without manually cloning it.
 
 - **Signature:** `jawm.utils.load_modules(paths, *, address="github.com", user="mpg-age-bioinformatics", modules_root=None, strict=True)`
 - **Returns:** `list[str]` — the names of successfully imported modules.
@@ -494,4 +494,4 @@ samples = jawm.utils.id_files(
 - [Process Overview](process/overview.md) — the core abstraction these utilities operate on.
 - [YAML Config](config/yaml.md) — the file format consumed by `read_variables()` and `script_to_yaml()`.
 - [JAWM Variable Config](config/config.md) — environment variables such as `JAWM_MODULES_PATH` used by `load_modules()`.
-- [Module](module.md) — building reusable workflow modules with `load_modules()` and `parse_arguments()`.
+- [Module](module/overview.md) — building reusable workflow modules with `load_modules()` and `parse_arguments()`.

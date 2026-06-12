@@ -238,7 +238,7 @@ The `always_run` flag does not affect whether a process waits for its `depends_o
 ### See also
 
 - [Log Structure](logs.md) — where every file lives and what it contains
-- [Stats & Performance](stats.md) — CPU and memory tracking per process
+- [Resources Profiling](../stats.md) — CPU and memory tracking per process
 - [`error_summary_file` parameter](../process/parameters.md#error_summary_file) — configure the error summary path per process
-- [`Process.wait()` method](../process/methods.md#wait) — full parameter reference including `tail` options
+- [`Process.wait()` method](../process/cls_methods.md#wait) — full parameter reference including `tail` options
 - [`jawm-monitor logs`](../cli/jawm-monitor.md#logs) — browse errors, process details, and run transcripts from the terminal

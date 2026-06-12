@@ -266,12 +266,12 @@ When `--stats` is enabled (or `JAWM_RECORD_STAT=1`), a `stats.json` file is writ
 }
 ```
 
-CPU is reported as a percentage where 100% = one full core (so 800% = 8 cores fully utilised). See [Stats & Performance](stats.md) for how to read and use this.
+CPU is reported as a percentage where 100% = one full core (so 800% = 8 cores fully utilised). See [Resources Profiling](../stats.md) for how to read and use this.
 
 ---
 
 ### See also
 
 - [Errors & Debugging](errors.md) — how to work through failures step by step
-- [Stats & Performance](stats.md) — CPU and memory tracking per process
+- [Resources Profiling](../stats.md) — CPU and memory tracking per process
 - [`jawm-monitor`](../cli/jawm-monitor.md) — CLI for browsing logs, errors, run transcripts, and stats without manual `cat`
