@@ -198,13 +198,32 @@ jawm-monitor logs --run -f        # follow the current run as it writes (like ta
 
 ### `jawm_hashes/` — output hashes and history
 
-After every `jawm` run, hash files are written here for reproducibility tracking:
+After every `jawm` run, hash files are written here for reproducibility tracking.
 
-| File | Description |
-|------|-------------|
-| `<module>.hash` | Composite hash of the run's output files — compared by `jawm-test` |
-| `<module>_input.history` | Record of input parameters used in this run |
-| `<module>_user_defined.history` | Written when `scope: hash` is defined in a YAML config |
+---
+
+#### `<module>.hash`
+
+Written only when a `scope: hash` entry is present in a parameter YAML. Contains a single SHA-256 hex digest computed from the files, directories, or glob patterns listed under `include:`. This is the hash compared by `jawm-test` to detect whether outputs have changed between runs. See [YAML Config](../config/yaml.md) for the full `scope: hash` schema.
+
+---
+
+#### `<module>_input.history`
+
+Written automatically after every `jawm` run, regardless of whether `scope: hash` is present. Each line records the timestamp, hash, and log file for that run.
+
+The hash is computed in two modes:
+
+- **Process prefix mode**: After the workflow completes, jawm takes the first 6 characters of each executed Process's internal hash, sorts and deduplicates them, and computes a SHA-256 hash of the result. This produces a lightweight run signature that reflects which processes actually executed.
+- **Content mode (fallback)**: If no processes were found, jawm computes a SHA-256 hash of the module script and all files passed via `-p` and `-v`, recursively (excluding `.git`, `__pycache__`, `*.tmp`, `*.swp`).
+
+---
+
+#### `<module>_user_defined.history`
+
+Written only when `scope: hash` is present. An append-only log that records the user-defined hash value from each run alongside the timestamp and log file. Useful for tracking how output content changes over time across multiple runs.
+
+---
 
 These files are used by `jawm-test` to detect whether a module's outputs have changed between runs. See [Test a Module](../module/test.md) for details.
 

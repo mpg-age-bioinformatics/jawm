@@ -321,7 +321,7 @@ When `scope: hash` is present, jawm writes two files under `<logs_directory>/jaw
 - **`<workflow>.hash`** — the computed SHA-256 content hash
 - **`<workflow>_user_defined.history`** — an append-only log of hash values from each run
 
-_**Note**_: jawm also always writes `<workflow>_input.history` (an automatic run hash) regardless of whether `scope: hash` is present. The `scope: hash` feature provides additional user-defined content hashing on top of that.
+_**Note**_: jawm also always writes `<workflow>_input.history` (an automatic run hash) regardless of whether `scope: hash` is present. The `scope: hash` feature provides additional user-defined content hashing on top of that. See [Log Structure](../debug/logs.md) for details on how all three hash files are computed.
 
 ---
 
