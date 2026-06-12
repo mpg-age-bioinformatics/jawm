@@ -1,6 +1,8 @@
 # FastQC
 
-In this example we will stepwise build a production-grade FastQC jawm module.
+## Intro
+
+In this example we will stepwise build a production-grade FastQC jawm module. A final production mirror of this example can be found on [github.com/mpg-age-bioinformatics/jawm_fastqc](https://github.com/mpg-age-bioinformatics/jawm_fastqc).
 
 Before starting let's take a look at FastQC's synopsis:
 ```bash
@@ -289,12 +291,12 @@ if "f" in fastqc.var:
   fastqc_.execute()
 
 # handle folder calls
-if "input_folder" in fastqc.var :
+if "fastq_folder" in fastqc.var :
  
   # list all the fastq files in the input folder
   fastq_files = [
-      os.path.join( fastqc.var["input_folder"], f )
-      for f in os.listdir( fastqc.var["input_folder"] )
+      os.path.join( fastqc.var["fastq_folder"], f )
+      for f in os.listdir( fastqc.var["fastq_folder"] )
       if f.endswith( (".fastq.gz", ".fq.gz") )
   ]
 
@@ -315,7 +317,7 @@ sys.exit(0)
 ```bash
 jawm ./jawm_fastqc \
   --process.fastqc.var.mk.fastqc_output=./demo_output \
-  --process.fastqc.var.map.input_folder=./test_data
+  --process.fastqc.var.map.fastq_folder=./test_data
 ```
 
 ---
@@ -450,6 +452,21 @@ fastqc {{extra_args}} -t {{cpus}} -o {{fastqc_output}} {{f}}
 
 )
 
+def unzip(zip_path):
+  from pathlib import Path
+  from zipfile import ZipFile
+
+  zip_path = Path(zip_path)
+  destination = zip_path.parent
+  destination.mkdir(parents=True, exist_ok=True)
+
+  with ZipFile(zip_path, "r") as zip_ref:
+    for member in zip_ref.infolist():
+      target_path = destination / member.filename
+      if not target_path.resolve().is_relative_to(destination.resolve()):
+        raise ValueError(f"Unsafe zip entry: {member.filename}")
+    zip_ref.extractall(destination)
+
 if __name__ == "__main__":
 
   from jawm.utils import workflow
@@ -469,12 +486,12 @@ if __name__ == "__main__":
       fastqc_.execute()
 
     # handle folder calls
-    if "input_folder" in fastqc.var :
+    if "fastq_folder" in fastqc.var :
     
       # list all the fastq files in the input folder
       fastq_files = [
-          os.path.join( fastqc.var["input_folder"], f )
-          for f in os.listdir( fastqc.var["input_folder"] )
+          os.path.join( fastqc.var["fastq_folder"], f )
+          for f in os.listdir( fastqc.var["fastq_folder"] )
           if f.endswith( (".fastq.gz", ".fq.gz") )
       ]
 
@@ -492,22 +509,9 @@ if __name__ == "__main__":
   # when running the test workflow we do also unzip the output file
   if workflow( ["test"], workflows ) :
 
-    from pathlib import Path
-    from zipfile import ZipFile
-
     # unzip the output file
     zip_path=os.path.join( fastqc.var["fastqc_output"], os.path.basename( str( fastqc.var["f"] ).lstrip().split(" ")[0].split( ".fastq.gz"  )[0].split( ".fq.gz"  )[0] )+"_fastqc.zip" )
-
-    zip_path = Path(zip_path)
-    destination = zip_path.parent
-    destination.mkdir(parents=True, exist_ok=True)
-
-    with ZipFile(zip_path, "r") as zip_ref:
-      for member in zip_ref.infolist():
-        target_path = destination / member.filename
-        if not target_path.resolve().is_relative_to(destination.resolve()):
-          raise ValueError(f"Unsafe zip entry: {member.filename}")
-      zip_ref.extractall(destination)
+    unzip(zip_path)
 
     print("Test completed")
     sys.stdout.flush()

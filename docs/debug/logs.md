@@ -1,4 +1,4 @@
-# Log Structure
+# Logs
 
 Every jawm run produces a predictable set of log files. Knowing where they live and what they contain is the foundation for debugging anything that goes wrong. This page is a reference map — it would give the idea where to look.
 

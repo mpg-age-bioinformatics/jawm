@@ -1,4 +1,4 @@
-# Errors Debugging
+# Error Tracing
 
 When a process fails, jawm gives you several layers of information to work with. Start with the broadest view — the aggregated error summary — and drill down from there. This page walks through every tool available, in the order you should reach for them.
 

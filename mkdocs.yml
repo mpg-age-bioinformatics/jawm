@@ -106,8 +106,8 @@ nav:
     - jawm-dev: cli/jawm-dev.md
     - jawm-test: cli/jawm-test.md
   - Debugging:
-    - Log Structure: debug/logs.md
-    - Errors Debugging: debug/errors.md
+    - Logs: debug/logs.md
+    - Error Tracing: debug/errors.md
   - Resources Profiling: stats.md 
   # - How-To Guides: howto.md
   # - Advanced Development: development.md
