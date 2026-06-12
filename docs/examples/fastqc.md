@@ -80,6 +80,13 @@ jawm ./jawm_fastqc \
 
 As we try to build a more multipurpose reproducible module we want to:
 
+- make use of jawm's logger:
+
+    ```python
+    import logging
+    logger = logging.getLogger("jawm_fastqc")
+    ```
+
 - increase the number of arguments including adding any possible argument:
 
     `{{extra_args}} -t {{cpus}}`
@@ -90,7 +97,7 @@ As we try to build a more multipurpose reproducible module we want to:
 
 - set the default arguments for SLURM-based execution:
 
-    ```
+    ```python
     manager_slurm={
       "--mem":"20GB",
       "-t":"1:00:00",
@@ -103,6 +110,8 @@ Leading to the following changes:
 ```python
 import jawm
 import sys
+import logging
+logger = logging.getLogger("jawm_fastqc")
 
 # define our fastqc process
 fastqc=jawm.Process(
@@ -166,6 +175,8 @@ make sure we only run the process if the output file does not already exist:
 import jawm
 import sys
 import os
+import logging
+logger = logging.getLogger("jawm_fastqc")
 
 # define our fastqc process
 fastqc=jawm.Process(
@@ -236,6 +247,8 @@ While this module now works well for one file, we might want to expand it to run
 import jawm
 import sys
 import os
+import logging
+logger = logging.getLogger("jawm_fastqc")
 
 # define our fastqc process
 fastqc=jawm.Process(
@@ -405,6 +418,8 @@ which we can further use downstream for our CI/CD tests.
 import jawm
 import sys
 import os
+import logging
+logger = logging.getLogger("jawm_fastqc")
 
 # define our fastqc process
 fastqc=jawm.Process(
@@ -513,8 +528,7 @@ if __name__ == "__main__":
     zip_path=os.path.join( fastqc.var["fastqc_output"], os.path.basename( str( fastqc.var["f"] ).lstrip().split(" ")[0].split( ".fastq.gz"  )[0].split( ".fq.gz"  )[0] )+"_fastqc.zip" )
     unzip(zip_path)
 
-    print("Test completed")
-    sys.stdout.flush()
+    logger.info("Test completed.")
 
 sys.exit(0)
 ```
@@ -662,7 +676,24 @@ This folder contains all the relevant files regarding an executed process. These
 
 ## Version control
 
-jawm looks for a `.git` folder in your module's directory to report on the current used version and how it differs from the remote. Thus, for version control all you need to do is to initialize the repo in your local folder and push it to the remote:
+jawm looks for a `.git` folder in your module's directory to report on the current used version and how it differs from the remote. 
+
+To avoid unncessary data from being uploaded to your git server add the following to your `.gitignore`:
+
+```bash
+# jawm_fastqc/.gitignore
+__pycache__
+logs
+test-input
+test-output
+.ipynb_checkpoints
+__init__.py
+.submodules
+*.txt.tmp
+```
+
+Thus, for version control all you need to do is to initialize the repo in your local folder and push it to the remote:
+
 ```bash
 cd ./jawm_fastqc
 git init
@@ -673,6 +704,7 @@ git branch -M main
 git push -u origin main
 cd ..
 ```
+
 For instructions on how to run your module directly from a remote repository, check [Run a remote module](../get_started/run_module.md#run-a-remote-module).
 
 ---
