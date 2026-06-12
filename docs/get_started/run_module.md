@@ -1,4 +1,4 @@
-# Running a Workflow
+# Running a module
 
 Once jawm is installed, a module can be run either from a local Python module or directly from a shared remote module.
 

@@ -548,7 +548,9 @@ logs/
 
 In the logs folder you will find
 
-1. **fastqc_20260612_093249_e4c18enh5s**: One folder for each executed jawm process in the form `<process_name>_<date>_<time>_<short_hash>`. This folder contains all the relevant files regarging an executed process. These files can be extremely useful during debuging.  Each file is prefixed with the process name.
+1. **fastqc_20260612_093249_e4c18enh5s**: One folder for each executed jawm process in the form `<process_name>_<date>_<time>_<short_hash>`. The `hash` is generated based on the process definition and all
+it's associated values, eg. values passed to a process from the command line or through yaml files.
+This folder contains all the relevant files regarging an executed process. These files can be extremely useful during debuging.  Each file is prefixed with the process name.
 
     ***fastqc.script***: the script generated from the `Process` definetion `script` argument after replacement of variables.
 
@@ -649,6 +651,8 @@ In the logs folder you will find
     2026-06-12T09:32:49     7917a4d3132ce4a712102651a73d5255406383502173e8f3224fb00f54e34b15        /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/logs/jawm_runs/jawm_fastqc_20260612_093249.log       /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/build.nexus.yaml,/nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/jawm_fastqc/fastqc.py
     ```
 
+    The `hash` is generated on the basis of the hashes of all run processes. More information can be found under [module_input.history](../debug/logs/#module_inputhistory).
+
 ---
 
 ## Version control
@@ -664,6 +668,7 @@ git branch -M main
 git push -u origin main
 cd ..
 ```
+For instructions on how to run your module directly from a remote check [Run a remote module](../get_started/run_module.md#run-a-remote-module).
 
 ---
 
@@ -741,6 +746,31 @@ You will now see the `tests.txt` file populated with the respective md5sums valu
 #jawm_file.py;workflow;parameters.file1.yaml,parameters.file2.yaml;"Test name";test_hash
 fastqc.py;test;./test/yaml/test.yaml;"Main workflow test";903c31655306e9af2c208b47f520e07c0aa8ad106fd1e934ad6ff5ceee614d07
 ```
+
+Check the output of `jawm-test --help` to learn how to test your module against different Python versions as well as different jawm versions.
+
+You can now automate your module's testing by making use of GitHub actions.
+
+```yaml
+# ./github/workflows/test.yaml
+name: Test
+
+on:
+  workflow_dispatch:
+  push:
+    # test on every push to the main branch
+    branches: ["main"]
+  schedule:
+      # test every Monday at app. 6 AM Berlin time.
+      - cron: "30 4 * * 1"
+
+jobs:
+  build:
+    # the build test uses jawm's default testing workflow 
+    uses: mpg-age-bioinformatics/jawm/.github/workflows/modules.yaml@main
+```
+
+After pushing these changes you should be able to see the testing taking place under the "Actions" tab in your GitHub repo.
 
 --- 
 
