@@ -139,7 +139,7 @@ jobs:
         {
           cat << EOF
         {
-          "text": "✅ *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest Passed! (${COMMIT_MSG}) ✅"
+          "text": "✅ *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest Passed! (${COMMIT_MSG})"
         }
         EOF
         }
@@ -156,7 +156,7 @@ jobs:
         {
           cat << EOF
         {
-          "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest FAILED! (${COMMIT_MSG}) 🚫\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
+          "text": "🚫 *${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8)* Smoketest FAILED! (${COMMIT_MSG})\n<https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|View Run>"
         }
         EOF
         }
