@@ -1,33 +1,33 @@
 # Running a Workflow
 
-Once jawm is installed, a workflow can be run either from a local Python module or directly from a shared remote workflow module.
+Once jawm is installed, a module can be run either from a local Python module or directly from a shared remote module.
 
 ---
 
-### Run a local workflow module
+### Run a local module
 
-You can develop your own workflow as a simple Python file and run it directly with `jawm`.
-Alternatively, a quick way to test is to clone a demo workflow repository and run one of its modules.
+You can develop your own module as a simple Python file and run it directly with `jawm`.
+Alternatively, a quick way to test is to clone a demo module repository and run one of its modules.
 
 ```bash
 # clone the demo module
 git clone git@github.com:mpg-age-bioinformatics/jawm_demo.git
 
-# run a simple workflow from the jawm demo
+# run a simple module from the jawm demo
 cd jawm_demo
 jawm simple.py
 ```
 
-You can also run the same workflow using python:
+You can also run the same module using python:
 
 ```bash
 python simple.py
 ```
 
 
-In addition to the command line, `jawm` workflows can also be launched directly from Python using `jawm.cli.run()`.
+In addition to the command line, `jawm` module can also be launched directly from Python using `jawm.cli.run()`.
 
-**Example with a local workflow file:**
+**Example with a local module file:**
 ```python
 import jawm
 
@@ -45,9 +45,9 @@ jawm simple.py
 
 ---
 
-### Run a remote workflow module
+### Run a remote module
 
-`jawm` can run shared workflow modules directly from remote Git repositories without requiring you to clone them manually.
+`jawm` can run shared modules directly from remote Git repositories without requiring you to clone them manually.
 
 For example, using the [jawm_git_test](https://github.com/mpg-age-bioinformatics/jawm_git_test) repository:
 

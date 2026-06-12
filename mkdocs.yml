@@ -71,8 +71,8 @@ nav:
   - Getting Started:
     - Installation: get_started/install.md
     - Your First Process: get_started/run_process.md
-    - Running a Workflow: get_started/run_workflow.md
-    - Developing a Workflow: get_started/develop_workflow.md
+    - Running a module: get_started/run_module.md
+    - Developing a module: get_started/develop_module.md
   - Examples:
       - Overview: examples/overview.md
       - FastQC: examples/fastqc.md

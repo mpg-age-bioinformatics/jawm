@@ -527,11 +527,149 @@ jawm ./jawm_fastqc test \
 
 ## Logs
 
+By default jawm creates logs on the current working directory. You can change this with `-l </path/to/my/logs/>`. Below an example of the logs folder for our previous run:
+
+```bash
+logs/
+├── fastqc_20260612_093249_e4c18enh5s
+│   ├── fastqc.command
+│   ├── fastqc.error
+│   ├── fastqc.exitcode
+│   ├── fastqc.id
+│   ├── fastqc.output
+│   └── fastqc.script
+├── jawm_hashes
+│   └── fastqc_input.history
+└── jawm_runs
+    └── jawm_fastqc_20260612_093249.log
+
+4 directories, 8 files
+```
+
+In the logs folder you will find
+
+1. **fastqc_20260612_093249_e4c18enh5s**: One folder for each executed jawm process in the form `<process_name>_<date>_<time>_<short_hash>`. This folder contains all the relevant files regarging an executed process. These files can be extremely useful during debuging.  Each file is prefixed with the process name.
+
+    ***fastqc.script***: the script generated from the `Process` definetion `script` argument after replacement of variables.
+
+    ```bash
+    #!/bin/bash
+    fastqc -t 1 \
+      -o /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/demo_output \
+      /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/test_data/my_test_file_1.fastq.gz
+    ```
+
+    ***fastqc.command***: the command that calls the script.
+
+    ```bash
+    docker run --rm -v /nexus:/nexus -u 60504:17600 mpgagebioinformatics/fastqc:0.11.9 /bin/bash -c /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/logs/fastqc_20260612_093249_e4c18enh5s/fastqc.script
+    ```
+
+    ***fastqc.output***: standard output
+
+    ```
+    Analysis complete for my_test_file_1.fastq.gz
+    ```
+
+    ***fastqc.error***: standard error
+
+    ```
+    Started analysis of my_test_file_1.fastq.gz
+    Approx 5% complete for my_test_file_1.fastq.gz
+    Approx 10% complete for my_test_file_1.fastq.gz
+    Approx 15% complete for my_test_file_1.fastq.gz
+    Approx 20% complete for my_test_file_1.fastq.gz
+    Approx 25% complete for my_test_file_1.fastq.gz
+    Approx 30% complete for my_test_file_1.fastq.gz
+    Approx 35% complete for my_test_file_1.fastq.gz
+    Approx 40% complete for my_test_file_1.fastq.gz
+    Approx 45% complete for my_test_file_1.fastq.gz
+    Approx 50% complete for my_test_file_1.fastq.gz
+    Approx 55% complete for my_test_file_1.fastq.gz
+    Approx 60% complete for my_test_file_1.fastq.gz
+    Approx 65% complete for my_test_file_1.fastq.gz
+    Approx 70% complete for my_test_file_1.fastq.gz
+    Approx 75% complete for my_test_file_1.fastq.gz
+    Approx 80% complete for my_test_file_1.fastq.gz
+    Approx 85% complete for my_test_file_1.fastq.gz
+    Approx 90% complete for my_test_file_1.fastq.gz
+    Approx 95% complete for my_test_file_1.fastq.gz
+    Approx 100% complete for my_test_file_1.fastq.gz
+    ```
+
+    ***fastqc.exitcode***: script exit code
+    ```
+    0
+    ```
+
+    ***fastqc.id***: jawm's internal job id
+    
+    ```
+    120424
+    ```
+
+2. **jawm_runs**: A folder contain the log for each run `jawm_runs`. Each of this files logs the same std output and std error you see in your screen when running jawm. Each file has the form `jawm_<executed_python_file_name>_<date>_<time>.log`.
+
+    ```bash
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: Initiating jawm module script from jawm command
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: Logging terminal output to: /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/logs/jawm_runs/jawm_fastqc_20260612_093249.log
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: Override param_file set to: /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/build.nexus.yaml
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: [sys] jawm: 0.1.0
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: [sys] Python: 3.10.12
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: [sys] OS: Linux-5.15.0-177-generic-x86_64-with-glibc2.35
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: [sys] Machine/Arch: x86_64
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: [sys] Docker: Docker version 25.0.5, build 5dc9bcc
+    [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: Running jawm module: /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/jawm_fastqc/fastqc.py
+    [2026-06-12 09:32:49] - INFO - fastqc|e4c18enh5s :: Launching process fastqc using Local executor.
+    [2026-06-12 09:32:49] - INFO - fastqc|e4c18enh5s :: Log folder for process fastqc: /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/logs/fastqc_20260612_093249_e4c18enh5s
+    [2026-06-12 09:32:49] - INFO - fastqc|e4c18enh5s :: Preparing base script for process fastqc
+    [2026-06-12 09:32:49] - INFO - fastqc|e4c18enh5s :: mk.* created directory /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/demo_output
+    [2026-06-12 09:32:49] - INFO - fastqc|e4c18enh5s :: Executing process fastqc with docker container mpgagebioinformatics/fastqc:0.11.9
+    [2026-06-12 09:32:49] - INFO - fastqc|e4c18enh5s :: Process fastqc started with PID: 120424
+    [2026-06-12 09:32:49] - INFO - fastqc|e4c18enh5s :: Process fastqc (PID: 120424) is still running...
+    [2026-06-12 09:33:09] - INFO - fastqc|e4c18enh5s :: Process fastqc completed with exit code: 0
+    [2026-06-12 09:33:09] - INFO - fastqc|e4c18enh5s :: Process.wait → fastqc [e4c18enh5s] already completed
+    [2026-06-12 09:33:09] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+    Test completed
+    [2026-06-12 09:33:09] - INFO - jawm.cli|jawm_fastqc :: Module ended with exitcode (0); Initiating post run procedures.
+    [2026-06-12 09:33:11] - INFO - jawm.cli|jawm_fastqc :: Ending jawm module script from jawm command
+    ```
+    
+    Please take time to notice how the information in this log file for the fastqc process matches the information on the log for the respective process and how it points you to the respective process log folder.
+
+3. **jawm_hashes**: A folder containing hashes, `jawm_hashes`. By default this folder is populated with one file of the form `<python_file_name>_input.history`. It's content has the form:
+
+    ```
+    <date>T<time>     <hash>        <run log file>       <input file>
+    ```
+
+    eg.
+
+    ```
+    2026-06-12T09:32:49     7917a4d3132ce4a712102651a73d5255406383502173e8f3224fb00f54e34b15        /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/logs/jawm_runs/jawm_fastqc_20260612_093249.log       /nexus/posix0/MAGE-flaski/service/posit/home/jboucas/build.nexus.yaml,/nexus/posix0/MAGE-flaski/service/posit/home/jboucas/tutorial_demo/jawm_fastqc/fastqc.py
+    ```
+
+---
+
+## Version control
+
+jawm looks for `./git` folder in your module's directory to report on the current used version and how it differs from the remote. Thus, for version control all you need to do is to initiate the repo in your local folder and push it to the remote:
+```
+cd ./jawm_fastqc
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin git@github.com:username/my-project.git
+git branch -M main
+git push -u origin main
+cd ..
+```
+
 ---
 
 ## CI/CD tests
 
-jawm was build with Coninuous Integration & Continuous Deployment in mind.
+jawm was build with Continuous Integration & Continuous Deployment in mind.
 
 For this we start by creating a test folder as well as all the required files:
 
@@ -542,7 +680,7 @@ mkdir ./jawm_fastqc/test
 mkdir ./jawm_fastqc/test/yaml
 
 # test associated yaml file
-touch ./jawm_fastqc/test/test.yaml
+touch ./jawm_fastqc/test/yaml/test.yaml
 
 # defines the tests to be run
 touch ./jawm_fastqc/test/tests.txt
@@ -551,10 +689,10 @@ touch ./jawm_fastqc/test/tests.txt
 touch ./jawm_fastqc/test/data.txt
 ```
 
-Let's start by populating our `test.yaml` file:
+Let's now populate our `test.yaml` file:
 
 ```yaml
-# ./jawm_fastqc/test/test.yaml
+# ./jawm_fastqc/test/yaml/test.yaml
 - scope: process
   name: fastqc
   parallel: False
@@ -572,7 +710,36 @@ Let's start by populating our `test.yaml` file:
 The `tests.txt` file will contain one line per command line call that will be tested:
 ```txt
 #jawm_file.py;workflow;parameters.file1.yaml,parameters.file2.yaml;"Test name";test_hash
-fastqc.py;test;./test/yaml/fastqc.yaml;"Main workflow test";8081eb3945c0631419ed3125da729d926b092ca6ea76329e3a21c50efb4689c6
+fastqc.py;test;./test/yaml/test.yaml;"Main workflow test";
+```
+
+with `"Test name"` being an arbitrary name given by you to the test. `test_hash` can be left empty for now and will be filled by the SHA-256 hash generated from the file(s) you added in
+```
+# files to be used for SHA-256 hash generation     
+- scope: hash
+  include: ./test/test-output/my_test_file_1_fastqc/fastqc_data.txt
+  # overwrite any existing hash in the logs folder
+  overwrite: true
+```
+If you need to input data for your tests you can make them available online and add them for download to the `data.txt` file:
+```bash
+13fb536154e7cf36a394d9b09ff99b7a  my_test_file_1.fastq.gz  https://ndownloader.figshare.com/files/57999445
+```
+which has the from:
+```
+<md5sums value>  <file name>  <download link>
+```
+
+You can now test your pipeline:
+```
+cd jawm_fastqc
+jawm-test 
+```
+
+You will now see the `tests.txt` file populated with the respective md5sums value:
+```bash
+#jawm_file.py;workflow;parameters.file1.yaml,parameters.file2.yaml;"Test name";test_hash
+fastqc.py;test;./test/yaml/test.yaml;"Main workflow test";903c31655306e9af2c208b47f520e07c0aa8ad106fd1e934ad6ff5ceee614d07
 ```
 
 --- 

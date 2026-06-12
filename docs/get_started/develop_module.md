@@ -1,12 +1,14 @@
-# Developing a Workflow
+# Developing a Module
 
-In jawm, a workflow is simply a Python module that defines one or more `Process` objects and executes them.
+In jawm, a module is simply a Python file that defines one or more `Process` objects and executes them.
 
 There is no separate DSL or framework layer — you write normal Python code and use `jawm.Process` to describe each step.
 
+While the instructions below detail the minimal steps for module development, step-by-step examples can be found [here](../examples/overview.md).
+
 ---
 
-### A basic workflow
+### A basic module
 
 You can define multiple steps (with `jawm.Process`) in a workflow:
 
@@ -34,21 +36,21 @@ p2.execute()
 This will execute `step1` and `step2`.
 
 
-**Running the workflow**
+**Running the module**
 
-Once your workflow file is ready, you can run it using `jawm my_workflow.py`.
+Once your module file is ready, you can run it using `jawm my_workflow.py`.
 
 ---
 
-### Bootstrap a new workflow project
+### Bootstrap a new module project
 
-`jawm` also provides the `jawm-dev` helper CLI to quickly bootstrap a new workflow project from the demo template.
+`jawm` also provides the `jawm-dev` helper CLI to quickly bootstrap a new module project from the demo template.
 
 ```bash
 jawm-dev init my_first_wf -s local
 ```
 
-This creates a new workflow project directory based on the `jawm_demo` template, using the default `jawm_` prefix.
+This creates a new module project directory based on the `jawm_demo` template, using the default `jawm_` prefix.
 
 For example, the command above creates:
 
@@ -56,18 +58,18 @@ For example, the command above creates:
 jawm_my_first_wf/
 ```
 
-You can then test the generated workflow:
+You can then test the generated module:
 
 ```bash
 cd jawm_my_first_wf
 jawm my_first_wf.py -p ./yaml/docker.yaml
 ```
 
-**Note:** the demo workflow uses Docker, so Docker must be installed and accessible for this test run to work.
+**Note:** the demo module uses Docker, so Docker must be installed and accessible for this test run to work.
 
-The `jawm-dev init` command can also target remote Git hosting when needed, but using `-s local` is the simplest way to start developing your first workflow locally.
+The `jawm-dev init` command can also target remote Git hosting when needed, but using `-s local` is the simplest way to start developing your first module locally.
 
-Followings are the basic functionalities of bootstrap a new workflow project with `jawm-dev init`:
+Followings are the basic functionalities of bootstrap a new module project with `jawm-dev init`:
 
 ```bash
 positional arguments:
@@ -87,6 +89,7 @@ options:
 
 ### Next steps
 
+- [**Examples**](../examples/overview.md)
 - Explore [**Process parameters**](process/parameters.md) to customize execution behavior
 - Learn about [**configuration and precedence**](process/conf_precedence.md)
 - Try running workflows on different backends
