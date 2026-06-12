@@ -89,7 +89,7 @@ options:
 
 ### Next steps
 
-- [**Examples**](../examples/overview.md)
+- [**Examples**](../examples.md)
 - Explore [**Process parameters**](../process/parameters.md) to customize execution behavior
 - Learn about [**configuration and precedence**](../process/conf_precedence.md)
 - Try running workflows on different backends

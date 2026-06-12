@@ -1,17 +1,17 @@
 # Multi-module workflows
 
-jawm is modular allwoing you to use modules across different workflows.
+jawm is modular, allowing you to use modules across different workflows.
 
-In this example we will learn how to create a workflow that uses 3 publicly available modules, [jawm_genomes](https://github.com/mpg-age-bioinformatics/jawm_genomes) and [jawm_kallisto](https://github.com/mpg-age-bioinformatics/jawm_kallisto). 
+In this example we will learn how to create a workflow that uses 2 publicly available modules, [jawm_genomes](https://github.com/mpg-age-bioinformatics/jawm_genomes) and [jawm_kallisto](https://github.com/mpg-age-bioinformatics/jawm_kallisto). 
 We will also add some level of automation which can be practical for complex workflows. For a more complex example please visit 
 [github.com/mpg-age-bioinformatics/jawm_rnaseq](https://github.com/mpg-age-bioinformatics/jawm_rnaseq).
 
-The main relevant function for multi-module workflows is [`jawm.utils.load_modules`](../utils.md/#load_modules) here used as:
+The main relevant function for multi-module workflows is [`jawm.utils.load_modules`](../utils.md#load_modules) here used as:
 
 ```python
 load_modules([
     "submodules",
-    "jawm_genomes@697ce30",
+    "jawm_genomes@c03d80e",
     "jawm_kallisto@ceaba6c",
 ] )
 ```
@@ -51,6 +51,9 @@ We now start creating our workflow:
 # jawm_multi/multi.py
 import jawm
 import logging
+import os
+from pathlib import Path
+
 logger = logging.getLogger("jawm_multi")
 
 if __name__ == "__main__":
@@ -60,7 +63,7 @@ if __name__ == "__main__":
   # load external modules
   load_modules([
       "submodules",
-      "jawm_genomes@697ce30",
+      "jawm_genomes@c03d80e",
       "jawm_kallisto@ceaba6c",
   ] )
 
@@ -117,7 +120,7 @@ if __name__ == "__main__":
     jawm.Process.wait( kallisto.indexer.hash )
 
     # list read1 and read2 files
-    read1_files = list(Path( fastqc.fastqc.var["raw_data"] ).glob(f'*{fastqc.fastqc.var["read1_suffix"]}'))
+    read1_files = list(Path( var["raw_data"] ).glob(f'*{var["read1_suffix"]}'))
     read1_files=[ str(s) for s in read1_files if not str(s).startswith("tmp.") ]
     read2_files = [ str(s).split( var["read1_suffix"] )[0] +var["read2_suffix"] for s in read1_files  ]
     read2_files = [ s for s in read2_files if Path(s).is_file() ]
@@ -208,12 +211,30 @@ Populate the `docker.yaml` file:
 
 ```yaml
 # jawm_multi/yaml/docker.yaml
+- scope: global
+  environment: "docker"
+  parallel: false
+  docker_run_as_user: true
+  var:
+    organism: "caenorhabditis_elegans"
+    release: "115"
+    seq_type: "toplevel"
+    cpus: "1"
 
+    mk.project_folder: "./test/test-output"
+    mk.genomes_folder: "./test/test-output/genomes"
+    map.raw_data: "./test/test-input"
 
+    read1_suffix: ".READ_1.fastq.gz"
+    read2_suffix: ".READ_2.fastq.gz"
+
+    ercc_label: ""
+    url_ercc_gtf: ""
+    url_ercc_fa: ""
 ```
 
 Try the workflow with: 
 
-```
-jawm -p yaml/docker.yaml
+```bash
+jawm multi.py -p yaml/docker.yaml
 ```
