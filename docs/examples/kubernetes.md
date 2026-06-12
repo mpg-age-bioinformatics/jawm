@@ -1,4 +1,4 @@
-# Multi-module workflows
+# Kubernetes
 
 !!! note
     Meaningful examples and use cases will be added gradually.

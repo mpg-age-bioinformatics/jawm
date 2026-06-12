@@ -1,4 +1,4 @@
-# Multi-module workflows
+# GxP
 
 !!! note
     Meaningful examples and use cases will be added gradually.

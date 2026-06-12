@@ -652,6 +652,7 @@ This folder contains all the relevant files regarding an executed process. These
     ```
 
     The `hash` is generated on the basis of the hashes of all run processes. More information can be found under [jawm_hashes](../debug/logs.md).
+    Please visit [Log Structure](../debug/logs.md) and [Errors Debugging](../debug/errors.md) for more information.
 
 ---
 

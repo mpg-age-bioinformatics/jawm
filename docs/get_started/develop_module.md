@@ -4,7 +4,7 @@ In jawm, a module is simply a Python file that defines one or more `Process` obj
 
 There is no separate DSL or framework layer — you write normal Python code and use `jawm.Process` to describe each step.
 
-While the instructions below detail the minimal steps for module development, step-by-step examples can be found [here](../examples/overview.md).
+While the instructions below detail the minimal steps for module development, a complete step-by-step example can be found [here](../examples/fastqc.md).
 
 ---
 

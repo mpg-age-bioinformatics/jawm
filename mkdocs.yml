@@ -74,10 +74,12 @@ nav:
     - Running a module: get_started/run_module.md
     - Developing a module: get_started/develop_module.md
   - Examples:
-      - Overview: examples/overview.md
+      # - Overview: examples/overview.md
       - FastQC: examples/fastqc.md
+      - Multi-module Workflows: examples/multimodule.md
+      - Jupyter Notebook: examples/jupyter.md
       - Reproducibility: examples/reproducibility.md
-
+      - Kubernetes: examples/kubernetes.md
   - Process: 
     - Overview: process/overview.md
     - Configuration & Precedence: process/conf_precedence.md
