@@ -10,7 +10,7 @@ fastqc [-o output dir] [--(no)extract] [-f fastq|bam|sam]
 
 We will start by defaulting our use case to:
 ```bash
-fastqc -o output dir seqfile1
+fastqc -o output_dir seqfile1
 ```
 
 Now let's create a folder for our module and our python file:
@@ -82,7 +82,7 @@ As we try to build a more multipurpose reproducible module we want to:
 
     `{{extra_args}} -t {{cpus}}`
 
-- use a container system to run a Docker image:
+- use a container image to run FastQC:
 
     `container="mpgagebioinformatics/fastqc:0.11.9"`
 
@@ -302,7 +302,7 @@ if "input_folder" in fastqc.var :
     # for each fastq file clone the fastqc process
     fastqc_=fastqc.clone()
     # attribute the input file
-    fastqc_.var["map.f"]=f
+    fastqc_.var["map.f"] = f
     # execute the process
     fastqc_.execute()
 
@@ -322,8 +322,8 @@ jawm ./jawm_fastqc \
 
 ## Parameters file
 
-For good working practices let's create a folder where we store our parameters files.
-```
+For good working practices let's create a folder where we store our parameter files.
+```bash
 mkdir jawm_fastqc/yaml
 touch jawm_fastqc/yaml/demo.yaml
 ```
@@ -394,7 +394,7 @@ is triggered by variables with `mk.<variable>` and `map.<variable>`. This can be
 
 ## Workflows
 
-Workflows allow you build command line callable tasks or group of tasks. 
+Workflows allow you to build command line callable tasks or groups of tasks. 
 While workflows usage can be better understood for more complex tools (eg. kallisto where genome indexing processes might be called 
 independently of mapping processes) or [multi-module](multimodule.md) usage, we will here give a short example for demo purposes 
 which we can further use downstream for our CI/CD tests.
@@ -482,7 +482,7 @@ if __name__ == "__main__":
         # for each fastq file clone the fastqc process
         fastqc_=fastqc.clone()
         # attribute the input file
-        fastqc_.var["map.f"]=f
+        fastqc_.var["map.f"] = f
         # execute the process
         fastqc_.execute()
 
@@ -527,7 +527,7 @@ jawm ./jawm_fastqc test \
 
 ## Logs
 
-By default jawm creates logs on the current working directory. You can change this with `-l </path/to/my/logs/>`. Below an example of the logs folder for our previous run:
+By default jawm creates logs in the current working directory. You can change this with `-l </path/to/my/logs/>`. Below is an example of the logs folder for our previous run:
 
 ```bash
 logs/
@@ -549,10 +549,10 @@ logs/
 In the logs folder you will find
 
 1. **fastqc_20260612_093249_e4c18enh5s**: One folder for each executed jawm process in the form `<process_name>_<date>_<time>_<short_hash>`. The `hash` is generated based on the process definition and all
-it's associated values, eg. values passed to a process from the command line or through yaml files.
-This folder contains all the relevant files regarging an executed process. These files can be extremely useful during debuging.  Each file is prefixed with the process name.
+its associated values, e.g. values passed to a process from the command line or through YAML files.
+This folder contains all the relevant files regarding an executed process. These files can be extremely useful during debugging. Each file is prefixed with the process name.
 
-    ***fastqc.script***: the script generated from the `Process` definetion `script` argument after replacement of variables.
+    ***fastqc.script***: the script generated from the `Process` definition `script` argument after replacement of variables.
 
     ```bash
     #!/bin/bash
@@ -610,7 +610,7 @@ This folder contains all the relevant files regarging an executed process. These
     120424
     ```
 
-2. **jawm_runs**: A folder contain the log for each run `jawm_runs`. Each of this files logs the same std output and std error you see in your screen when running jawm. Each file has the form `jawm_<executed_python_file_name>_<date>_<time>.log`.
+2. **jawm_runs**: A folder containing the log for each run. Each of these files logs the same stdout and stderr you see on your screen when running jawm. Each file has the form `jawm_<executed_python_file_name>_<date>_<time>.log`.
 
     ```bash
     [2026-06-12 09:32:49] - INFO - jawm.cli|jawm_fastqc :: Initiating jawm module script from jawm command
@@ -657,8 +657,8 @@ This folder contains all the relevant files regarging an executed process. These
 
 ## Version control
 
-jawm looks for `./git` folder in your module's directory to report on the current used version and how it differs from the remote. Thus, for version control all you need to do is to initiate the repo in your local folder and push it to the remote:
-```
+jawm looks for a `.git` folder in your module's directory to report on the current used version and how it differs from the remote. Thus, for version control all you need to do is to initialize the repo in your local folder and push it to the remote:
+```bash
 cd ./jawm_fastqc
 git init
 git add .
@@ -668,13 +668,13 @@ git branch -M main
 git push -u origin main
 cd ..
 ```
-For instructions on how to run your module directly from a remote check [Run a remote module](../get_started/run_module.md#run-a-remote-module).
+For instructions on how to run your module directly from a remote repository, check [Run a remote module](../get_started/run_module.md#run-a-remote-module).
 
 ---
 
 ## CI/CD tests
 
-jawm was build with Continuous Integration & Continuous Deployment in mind.
+jawm was built with Continuous Integration & Continuous Deployment in mind.
 
 For this we start by creating a test folder as well as all the required files:
 
@@ -718,8 +718,8 @@ The `tests.txt` file will contain one line per command line call that will be te
 fastqc.py;test;./test/yaml/test.yaml;"Main workflow test";
 ```
 
-with `"Test name"` being an arbitrary name given by you to the test. `test_hash` can be left empty for now and will be filled by the SHA-256 hash generated from the file(s) you added in
-```
+with `"Test name"` being an arbitrary name given by you to the test. `test_hash` can be left empty for now and will be filled by the SHA-256 hash generated from the file(s) you added in:
+```yaml
 # files to be used for SHA-256 hash generation     
 - scope: hash
   include: ./test/test-output/my_test_file_1_fastqc/fastqc_data.txt
@@ -730,9 +730,9 @@ If you need to input data for your tests you can make them available online and 
 ```bash
 13fb536154e7cf36a394d9b09ff99b7a  my_test_file_1.fastq.gz  https://ndownloader.figshare.com/files/57999445
 ```
-which has the from:
-```
-<md5sums value>  <file name>  <download link>
+which has the form:
+```txt
+<md5sum value>  <file name>  <download link>
 ```
 
 You can now test your pipeline:
@@ -741,7 +741,7 @@ cd jawm_fastqc
 jawm-test 
 ```
 
-You will now see the `tests.txt` file populated with the respective md5sums value:
+You will now see the `tests.txt` file populated with the respective output hash:
 ```bash
 #jawm_file.py;workflow;parameters.file1.yaml,parameters.file2.yaml;"Test name";test_hash
 fastqc.py;test;./test/yaml/test.yaml;"Main workflow test";903c31655306e9af2c208b47f520e07c0aa8ad106fd1e934ad6ff5ceee614d07
@@ -752,7 +752,7 @@ Check the output of `jawm-test --help` to learn how to test your module against 
 You can now automate your module's testing by making use of GitHub actions.
 
 ```yaml
-# ./github/workflows/test.yaml
+# ./.github/workflows/test.yaml
 name: Test
 
 on:
@@ -773,4 +773,3 @@ jobs:
 After pushing these changes you should be able to see the testing taking place under the "Actions" tab in your GitHub repo.
 
 --- 
-
