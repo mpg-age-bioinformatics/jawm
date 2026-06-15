@@ -241,10 +241,10 @@ Written only when `scope: hash` is present. Contains the per-file SHA-256 hash f
 }
 ```
 
-When a hash mismatch is detected, jawm automatically diffs the current per-file hashes against this manifest and logs exactly which files changed:
+When a hash mismatch is detected, jawm automatically diffs the current per-file hashes against this manifest and logs exactly which files changed. The diff header names the baseline manifest by its own recorded timestamp and hash — important because with `overwrite: false` the baseline is the original pinned run, not necessarily the previous one:
 
 ```
-[hash] Per-file diff (files that changed since last run):
+[hash] Per-file diff vs baseline manifest (recorded 2024-03-15T14:23:01, hash a3f9bc12):
 [hash]   CHANGED  /path/to/results.tsv
 [hash]            was: e3b0c4...
 [hash]            now: 9f86d0...

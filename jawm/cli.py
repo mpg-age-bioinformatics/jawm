@@ -924,6 +924,15 @@ def _diff_hash_manifest(logger, manifest_path, current_file_hashes):
         logger.warning(f"[hash] Could not read previous manifest for diff: {e}")
         return
 
+    # Describe exactly which baseline we are comparing against. The manifest may be
+    # the previous run (overwrite: true) or a frozen baseline (overwrite: false), so
+    # we name it by its own recorded timestamp/hash rather than assuming "last run".
+    base_ts = stored.get("timestamp") or "unknown time"
+    base_hash = stored.get("combined_hash") or ""
+    base_desc = f"recorded {base_ts}"
+    if base_hash:
+        base_desc += f", hash {base_hash[:8]}"
+
     current_keys = set(current_file_hashes)
     prev_keys = set(prev_files)
 
@@ -932,10 +941,10 @@ def _diff_hash_manifest(logger, manifest_path, current_file_hashes):
     removed = sorted(prev_keys - current_keys)
 
     if not (changed or added or removed):
-        logger.warning("[hash] Per-file diff: all individual file hashes match — combined hash mismatch may be due to file ordering.")
+        logger.warning(f"[hash] Per-file diff vs baseline manifest ({base_desc}): all individual file hashes match — combined hash mismatch may be due to file ordering.")
         return
 
-    logger.warning("[hash] Per-file diff (files that changed since last run):")
+    logger.warning(f"[hash] Per-file diff vs baseline manifest ({base_desc}):")
     for f in changed:
         logger.warning(f"[hash]   CHANGED  {f}")
         logger.warning(f"[hash]            was: {prev_files[f]}")
