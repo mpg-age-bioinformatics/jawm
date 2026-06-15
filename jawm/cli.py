@@ -875,6 +875,77 @@ def _user_defined_history_path_cli(logs_dir, module_path):
     return os.path.join(out_dir, f"{wf_stem}_user_defined.history")
 
 
+def _manifest_path_cli(logs_dir, module_path):
+    """
+    Written whenever scope: hash is present:
+    <logs_dir>/jawm_hashes/<module>_hash_manifest.json
+    """
+    wf_stem = os.path.splitext(os.path.basename(module_path))[0]
+    out_dir = os.path.join(os.path.abspath(logs_dir), "jawm_hashes")
+    os.makedirs(out_dir, exist_ok=True)
+    return os.path.join(out_dir, f"{wf_stem}_hash_manifest.json")
+
+
+def _compute_file_hashes(file_list):
+    """Return {absolute_path: sha256_hex} for each file in file_list."""
+    result = {}
+    for fpath in file_list:
+        h = hashlib.sha256()
+        try:
+            with open(fpath, "rb") as f:
+                while chunk := f.read(8192):
+                    h.update(chunk)
+            result[fpath] = h.hexdigest()
+        except OSError:
+            pass
+    return result
+
+
+def _write_hash_manifest(manifest_path, timestamp, combined_hash, file_hashes):
+    """Write <module>_hash_manifest.json, always overwriting."""
+    data = {
+        "timestamp": timestamp,
+        "combined_hash": combined_hash,
+        "files": file_hashes,
+    }
+    Path(manifest_path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def _diff_hash_manifest(logger, manifest_path, current_file_hashes):
+    """Read previous manifest and log per-file CHANGED / NEW / REMOVED diff on mismatch."""
+    mp = Path(manifest_path)
+    if not mp.exists():
+        logger.info("[hash] No previous manifest — cannot show per-file diff (first run).")
+        return
+    try:
+        stored = json.loads(mp.read_text(encoding="utf-8"))
+        prev_files = stored.get("files", {})
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"[hash] Could not read previous manifest for diff: {e}")
+        return
+
+    current_keys = set(current_file_hashes)
+    prev_keys = set(prev_files)
+
+    changed = sorted(f for f in current_keys & prev_keys if current_file_hashes[f] != prev_files[f])
+    added   = sorted(current_keys - prev_keys)
+    removed = sorted(prev_keys - current_keys)
+
+    if not (changed or added or removed):
+        logger.warning("[hash] Per-file diff: all individual file hashes match — combined hash mismatch may be due to file ordering.")
+        return
+
+    logger.warning("[hash] Per-file diff (files that changed since last run):")
+    for f in changed:
+        logger.warning(f"[hash]   CHANGED  {f}")
+        logger.warning(f"[hash]            was: {prev_files[f]}")
+        logger.warning(f"[hash]            now: {current_file_hashes[f]}")
+    for f in added:
+        logger.warning(f"[hash]   NEW      {f}")
+    for f in removed:
+        logger.warning(f"[hash]   REMOVED  {f}")
+
+
 def _append_history_line_cli(logger, history_path, ts, hash_value, log_file, files_csv="-", user_provided=False):
     """
     Append: "<timestamp>\t<hash>\t<cli_log_file>\t<comma_separated_files>"
@@ -2846,6 +2917,7 @@ def main():
                 _errlog_exit(EXIT_HASH_REFERENCE_MISMATCH)
 
             userdef_files_csv = "-"
+            userdef_files_considered = []
             if paths:
                 userdef_files_considered = _enumerate_hash_inputs_cli(
                     paths,
@@ -2872,6 +2944,21 @@ def main():
             hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_module_path)
             logger.info(f"[hash] Generated hash from user definitions → {userdef_hash}")
             matched, new = _write_and_compare_hash_cli(logger, userdef_hash, hash_out_path, overwrite=overwrite)
+
+            # Manifest: diff against the previous baseline, then write — entirely non-fatal.
+            # The manifest is kept in lockstep with <wf>.hash: it follows the same `overwrite`
+            # policy, so the per-file baseline always corresponds to the run that produced the
+            # stored hash (otherwise a pinned hash mismatch could pair with an empty "no changes" diff).
+            try:
+                manifest_path = _manifest_path_cli(logs_dir, resolved_module_path)
+                current_file_hashes = _compute_file_hashes(userdef_files_considered)
+                if not matched:
+                    _diff_hash_manifest(logger, manifest_path, current_file_hashes)
+                if not os.path.exists(manifest_path) or overwrite:
+                    _write_hash_manifest(manifest_path, timestamp_iso, userdef_hash, current_file_hashes)
+                    logger.info(f"[hash] Manifest written → {manifest_path}")
+            except Exception as _manifest_err:
+                logger.warning(f"[hash] Manifest operation failed (non-fatal): {_manifest_err}")
 
             # status logging only for user-defined hash
             if matched:
