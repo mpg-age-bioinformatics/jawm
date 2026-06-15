@@ -64,6 +64,11 @@ jobs:
         run: |
           JAWM_ERROR_LINES=50 jawm-test -p system -j local 
 
+      # Fix/reclaim ownership of the workspace so the next self-hosted checkout has no issue 
+      - name: Reclaim ownership of workspace
+        if: always()
+        run: docker run --rm -v "$PWD:/w" busybox chown -R "$(id -u):$(id -g)" /w
+
       - name: Succeeded
         if: success()
         run: echo "✅ Test succeeded with ${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm@$(echo $JAWM_COMMIT_HASH | cut -c 1-8)" 
