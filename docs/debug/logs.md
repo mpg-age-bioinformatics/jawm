@@ -1,4 +1,4 @@
-# Logs
+# Log Structure
 
 Every jawm run produces a predictable set of log files. Knowing where they live and what they contain is the foundation for debugging anything that goes wrong. This page is a reference map — it would give the idea where to look.
 
@@ -27,7 +27,8 @@ logs/
 └── jawm_hashes/
     ├── <module>.hash                   # output hash for jawm-test comparison
     ├── <module>_input.history          # input parameter history
-    └── <module>_user_defined.history   # user-defined hash history (scope: hash)
+    ├── <module>_user_defined.history   # user-defined hash history (scope: hash)
+    └── <module>_hash_manifest.json     # per-file hashes for mismatch diagnosis (scope: hash)
 ```
 
 ---
@@ -225,6 +226,36 @@ Written only when `scope: hash` is present. An append-only log that records the 
 
 ---
 
+#### `<module>_hash_manifest.json`
+
+Written only when `scope: hash` is present. Contains the per-file SHA-256 hash for every file that contributed to the combined hash, alongside the combined hash and a timestamp. The manifest follows the same `overwrite` policy as `<module>.hash`: with `overwrite: true` it is rewritten every run; with `overwrite: false` (default) the first run's manifest is kept as a fixed baseline, so the per-file diff always reflects changes relative to the run that produced the stored hash. (The full combined-hash history is tracked separately in `_user_defined.history`.)
+
+```json
+{
+  "timestamp": "2024-03-15T14:23:01",
+  "combined_hash": "a3f9bc...",
+  "files": {
+    "/abs/path/to/results.tsv": "e3b0c4...",
+    "/abs/path/to/summary.txt": "9f86d0..."
+  }
+}
+```
+
+When a hash mismatch is detected, jawm automatically diffs the current per-file hashes against this manifest and logs exactly which files changed. The diff header names the baseline manifest by its own recorded timestamp and hash — important because with `overwrite: false` the baseline is the original pinned run, not necessarily the previous one:
+
+```
+[hash] Per-file diff vs baseline manifest (recorded 2024-03-15T14:23:01, hash a3f9bc12):
+[hash]   CHANGED  /path/to/results.tsv
+[hash]            was: e3b0c4...
+[hash]            now: 9f86d0...
+[hash]   NEW      /path/to/extra_output.tsv
+[hash]   REMOVED  /path/to/old_file.txt
+```
+
+If all per-file hashes match but the combined hash still differs, jawm logs a note that the mismatch may be due to file ordering — this should not happen in practice since file ordering is deterministic, but it helps distinguish content changes from ordering bugs.
+
+---
+
 These files are used by `jawm-test` to detect whether a module's outputs have changed between runs. See [Test a Module](../module/test.md) for details.
 
 ---
@@ -266,12 +297,12 @@ When `--stats` is enabled (or `JAWM_RECORD_STAT=1`), a `stats.json` file is writ
 }
 ```
 
-CPU is reported as a percentage where 100% = one full core (so 800% = 8 cores fully utilised). See [Resources Profiling](../stats.md) for how to read and use this.
+CPU is reported as a percentage where 100% = one full core (so 800% = 8 cores fully utilised). See [Stats & Performance](stats.md) for how to read and use this.
 
 ---
 
 ### See also
 
 - [Errors & Debugging](errors.md) — how to work through failures step by step
-- [Resources Profiling](../stats.md) — CPU and memory tracking per process
+- [Stats & Performance](stats.md) — CPU and memory tracking per process
 - [`jawm-monitor`](../cli/jawm-monitor.md) — CLI for browsing logs, errors, run transcripts, and stats without manual `cat`

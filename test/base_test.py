@@ -8,6 +8,7 @@ import re
 import json
 import copy
 import uuid
+import hashlib
 from glob import glob
 from jawm import Process, utils
 
@@ -4310,6 +4311,108 @@ except Exception as e:
 finally:
     shutil.rmtree(_jm_tmpdir, ignore_errors=True)
     Process.reset_stop()
+
+
+print("\n>>> Test 57: scope: hash manifest — per-file hashes + mismatch diff (CHANGED / NEW)")
+try:
+    _clear_params()
+
+    # --- Setup workspace ---
+    tmpdir = tempfile.mkdtemp(prefix="test_hash_manifest_", dir=base_tmp)
+    logs_dir = os.path.join(tmpdir, "logs")
+    out_dir = os.path.join(tmpdir, "out")
+    os.makedirs(out_dir, exist_ok=True)
+
+    a_txt = os.path.join(out_dir, "a.txt")
+    b_txt = os.path.join(out_dir, "b.txt")
+    with open(a_txt, "w") as f:
+        f.write("AAA")
+    with open(b_txt, "w") as f:
+        f.write("BBB")
+
+    # Trivial module — the manifest is driven by scope: hash, independent of processes
+    module_path = os.path.join(tmpdir, "hm_mod.py")
+    with open(module_path, "w") as f:
+        f.write("print('hm module ran')\n")
+
+    # scope: hash over a glob so a newly added file is auto-picked up (exercises NEW)
+    yaml_path = os.path.join(tmpdir, "hash.yaml")
+    with open(yaml_path, "w") as f:
+        f.write(
+            "- scope: hash\n"
+            f"  include: {os.path.join(out_dir, '*.txt')}\n"
+            "  overwrite: true\n"
+        )
+
+    hashes_dir = os.path.join(logs_dir, "jawm_hashes")
+    hash_file = os.path.join(hashes_dir, "hm_mod.hash")
+    manifest_file = os.path.join(hashes_dir, "hm_mod_hash_manifest.json")
+
+    def cli_cmd(args):
+        if shutil.which("jawm"):
+            return ["jawm", *args]
+        return [sys.executable, "-m", "jawm.cli", *args]
+
+    def run_cli():
+        return subprocess.run(
+            cli_cmd([module_path, "-p", yaml_path, "-l", logs_dir]),
+            capture_output=True, text=True, timeout=60, cwd=tmpdir,
+        )
+
+    # --- Run 1: baseline — manifest is created with per-file hashes ---
+    r1 = run_cli()
+    out1 = (r1.stdout or "") + (r1.stderr or "")
+    print(out1)
+    assert r1.returncode == 0, f"❌ Run 1 failed rc={r1.returncode}"
+    assert os.path.isfile(manifest_file), "❌ Manifest was not created on first run"
+
+    with open(manifest_file) as f:
+        man1 = json.load(f)
+    combined1 = open(hash_file).read().strip()
+
+    assert man1["combined_hash"] == combined1, "❌ Manifest combined_hash != <module>.hash"
+    assert set(os.path.basename(p) for p in man1["files"]) == {"a.txt", "b.txt"}, \
+        "❌ Manifest should list exactly a.txt and b.txt"
+    # per-file hash must be the plain SHA-256 of the file content
+    assert man1["files"][b_txt] == hashlib.sha256(b"BBB").hexdigest(), \
+        "❌ Per-file hash for b.txt does not match its content SHA-256"
+    assert "NEW" in out1, "❌ Run 1 should report STATUS NEW"
+
+    # --- Run 2: change b.txt, add c.txt — mismatch + per-file diff ---
+    with open(b_txt, "w") as f:
+        f.write("BBB-CHANGED")
+    c_txt = os.path.join(out_dir, "c.txt")
+    with open(c_txt, "w") as f:
+        f.write("CCC")
+
+    r2 = run_cli()
+    out2 = (r2.stdout or "") + (r2.stderr or "")
+    print(out2)
+    assert r2.returncode == 0, f"❌ Run 2 failed rc={r2.returncode}"
+    assert "Per-file diff" in out2, "❌ Run 2 did not emit a per-file diff on mismatch"
+    assert "CHANGED" in out2 and "b.txt" in out2, "❌ Diff should flag b.txt as CHANGED"
+    assert "NEW" in out2 and "c.txt" in out2, "❌ Diff should flag c.txt as NEW"
+
+    with open(manifest_file) as f:
+        man2 = json.load(f)
+    assert man2["combined_hash"] != combined1, "❌ Manifest combined_hash should change after edit"
+    assert set(os.path.basename(p) for p in man2["files"]) == {"a.txt", "b.txt", "c.txt"}, \
+        "❌ Run 2 manifest should include the newly added c.txt"
+    assert man2["files"][b_txt] == hashlib.sha256(b"BBB-CHANGED").hexdigest(), \
+        "❌ Run 2 per-file hash for b.txt not updated to new content"
+    assert man2["files"][a_txt] == man1["files"][a_txt], \
+        "❌ Unchanged a.txt hash should stay identical between runs"
+
+    print("✅ Passed: scope: hash manifest — per-file hashes, CHANGED + NEW diff")
+    passed += 1
+
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    _restore_params(bak_default, bak_override)
 
 
 # -----------------------------
