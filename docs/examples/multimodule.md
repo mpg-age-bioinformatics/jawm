@@ -24,19 +24,19 @@ We will call this module "multi" and start by generating the required files and 
 NAME="multi"
 
 mkdir -p jawm_${NAME} \
-  jawm_multi/submodules \ 
-  jawm_${NAME}/yaml \
-  jawm_${NAME}/test \
-  jawm_${NAME}/test/yaml \
-  jawm_${NAME}/.github/workflows
+jawm_${NAME}/submodules \
+jawm_${NAME}/yaml \
+jawm_${NAME}/test \
+jawm_${NAME}/test/yaml \
+jawm_${NAME}/.github/workflows
 
 touch jawm_${NAME}/${NAME}.py \
-  jawm_${NAME}/yaml/docker.yaml \
-  jawm_${NAME}/test/tests.txt \
-  jawm_${NAME}/test/data.txt \
-  jawm_${NAME}/test/yaml/test.yaml \
-  jawm_${NAME}/.gitignore \
-  jawm_${NAME}/.github/workflows/test.yaml
+jawm_${NAME}/yaml/docker.yaml \
+jawm_${NAME}/test/tests.txt \
+jawm_${NAME}/test/data.txt \
+jawm_${NAME}/test/yaml/test.yaml \
+jawm_${NAME}/.gitignore \
+jawm_${NAME}/.github/workflows/test.yaml
 ```
 
 The folder `jawm_multi/submodules` should contain any helper functions or processes you might want to build for this multi-module workflow. This is specially important when having long workflows and wanting to keep your main python file (here `multi.py`) as clean and workflow oriented as possible:
@@ -169,10 +169,9 @@ if __name__ == "__main__":
 exit(0)
 ```
 
-Populate `.gitignore` and initiate repo:
+Populate `.jawm_${NAME}/.gitignore.gitignore`:
 
 ```bash
-cat > jawm_${NAME}/myfile.txt <<EOF
 __pycache__
 logs
 test-input
@@ -181,8 +180,11 @@ test-output
 __init__.py
 .submodules
 *.txt.tmp
-EOF
+```
 
+and initiate repo:
+
+```bash
 cd ./jawm_${NAME}
 git init
 git add .
@@ -192,25 +194,26 @@ git commit -m "Initial commit"
 We have added `.submodules` to our `.gitignore` as this is where cloned modules live.
 
 For this example we will need to download 6 RNAseq samples, 2 groups, triplicates, for which we populate the 
-`data.txt` file and download the respective data:
+`test/data.txt` file:
 
-```
-cat > test/data.txt <<EOF
+```bash
 9c2b62a5b940a2cb9942f7413ce75f22  N2_treated.Rep_1.READ_1.fastq.gz  https://ndownloader.figshare.com/files/58690402
 b502103f640be7f10b32b0754355e130  N2_treated.Rep_2.READ_1.fastq.gz  https://ndownloader.figshare.com/files/58690396
 0d5aa56947877744b4409a032a03b953  N2_treated.Rep_3.READ_1.fastq.gz  https://ndownloader.figshare.com/files/58690390  
 4f8e2a955b9d1f15506e6143cb13c6ca  N2.Rep_1.READ_1.fastq.gz  https://ndownloader.figshare.com/files/58690420
 b1cc365dc6b967e42cf5296a2c741442  N2.Rep_2.READ_1.fastq.gz  https://ndownloader.figshare.com/files/58690414
 a6518ef73e3dbcb37f8a59fe705077f2  N2.Rep_3.READ_1.fastq.gz  https://ndownloader.figshare.com/files/58690408
-EOF
+```
 
+and download the respective data:
+
+```
 jawm-test -r download
 ```
 
-Populate the `docker.yaml` file:
+Populate the `./jawm_multi/yaml/docker.yaml` file:
 
 ```yaml
-# jawm_multi/yaml/docker.yaml
 - scope: global
   environment: "docker"
   parallel: false

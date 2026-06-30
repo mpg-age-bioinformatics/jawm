@@ -78,8 +78,8 @@ nav:
       - FastQC: examples/fastqc.md
       - Multi-module Workflows: examples/multimodule.md
       - Jupyter Notebook: examples/jupyter.md
-      - Reproducibility: examples/reproducibility.md
       - Kubernetes: examples/kubernetes.md
+      - Reproducibility: examples/reproducibility.md
   - Process: 
     - Overview: process/overview.md
     - Configuration & Precedence: process/conf_precedence.md
