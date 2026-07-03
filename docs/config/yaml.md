@@ -690,7 +690,7 @@ call = jawm.Process(
     script="""#!/bin/bash
 {{CALLER}} HaplotypeCaller -R {{REFERENCE}} -I aligned.bam --min-base-quality-score {{MIN_QUAL}} -O variants.vcf
 """,
-    depends_on=[align]
+    depends_on=[align.hash]
 )
 
 align.execute()

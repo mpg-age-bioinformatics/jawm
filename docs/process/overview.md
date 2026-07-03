@@ -79,7 +79,7 @@ step2 = jawm.Process(
     script="""#!/bin/bash
 echo "Dependent Process"
 """,
-    depends_on=[step1]
+    depends_on=[step1.hash]
 )
 
 step1.execute()
