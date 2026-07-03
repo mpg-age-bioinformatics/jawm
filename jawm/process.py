@@ -326,9 +326,6 @@ class Process:
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
             and can override YAML-defined values.
 
-        To view detailed documentation for a specific parameter, run:
-        >>> jawm.jhelp("Process", "<parameter_name>")
-
         """
         # Register cleanup hooks on first process creation
         self.__class__._init_cleanup_hooks()
