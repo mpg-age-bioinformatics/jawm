@@ -358,7 +358,7 @@ def _generate_k8s_manifest(self, attempt_i=None):
 
     container_command = [
         "/bin/sh", "-c",
-        f'[ -x /bin/bash ]&&exec /bin/bash -lc {shlex.quote(cmd_str_bash)}'
+        f'[ -x /bin/bash ]&&exec /bin/bash -c {shlex.quote(cmd_str_bash)}'
         f'||exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
     ]
 
