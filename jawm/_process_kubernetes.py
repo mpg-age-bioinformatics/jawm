@@ -40,7 +40,80 @@ def _k8s_sanitize_label(self, s, max_len=60, fallback_suffix="jawm-process", tai
 
 
 @register
-def _k8s_mk_dirs_for_mounts(self, volume_mounts, working_dir, volumes=None):
+def _k8s_mk_path_is_pvc_backed(self, value):
+    """Return whether an mk.* value resolves onto a declared Kubernetes PVC."""
+    mk = dict(self.manager_kubernetes or {})
+    if mk.get(
+        "automated_mount",
+        os.environ.get("JAWM_K8S_AUTOMOUNT", "0").strip().lower() in ("1", "true", "yes", "on")
+    ):
+        # Automatic hostPath mounts depend on host-side directory creation.
+        return False
+
+    volumes = mk.get("volumes") or []
+    pvc_names = {
+        volume.get("name") for volume in volumes
+        if isinstance(volume, dict) and volume.get("persistentVolumeClaim")
+    } if isinstance(volumes, list) else set()
+    candidates = []
+    for mount in mk.get("volumeMounts") or []:
+        if isinstance(mount, dict) and str(mount.get("mountPath", "")).startswith("/"):
+            candidates.append((
+                posixpath.normpath(mount["mountPath"]),
+                mount.get("name") in pvc_names,
+            ))
+
+    workspace = mk.get("workspace")
+    if isinstance(workspace, str):
+        workspace = {"claimName": workspace}
+    workspace = workspace if isinstance(workspace, dict) else {}
+    workspace_mount = workspace.get("mountPath", "/work")
+    if workspace.get("claimName") and str(workspace_mount).startswith("/"):
+        candidates.append((posixpath.normpath(workspace_mount), True))
+        working_dir = workspace_mount
+    else:
+        candidates.append(("/work", False))
+        working_dir = "/work"
+
+    for mount in mk.get("mounts") or []:
+        if not isinstance(mount, dict):
+            continue
+        mode = (mount.get("mode") or "pvc").lower()
+        mount_path = mount.get("mountPath")
+        if not isinstance(mount_path, str) or not mount_path.startswith("/"):
+            continue
+        if mode == "pvc" and mount.get("claimName"):
+            candidates.append((posixpath.normpath(mount_path), True))
+        elif mode == "s3sync":
+            candidates.append((posixpath.normpath(mount_path), False))
+
+    if not isinstance(value, (str, os.PathLike)) or not str(value).strip():
+        return False
+    raw_path = str(value).strip()
+    if raw_path.startswith("~/") or "\x00" in raw_path:
+        return False
+    if posixpath.isabs(raw_path):
+        pod_path = posixpath.normpath(raw_path)
+    else:
+        pod_path = posixpath.normpath(posixpath.join(working_dir, raw_path))
+
+    matching = []
+    for mount_path, is_pvc in candidates:
+        try:
+            if posixpath.commonpath([pod_path, mount_path]) == mount_path:
+                matching.append((mount_path, is_pvc))
+        except (TypeError, ValueError):
+            continue
+    if not matching:
+        return False
+
+    deepest = max(len(path) for path, _ in matching)
+    deepest_types = {is_pvc for path, is_pvc in matching if len(path) == deepest}
+    return deepest_types == {True}
+
+
+@register
+def _k8s_mk_dirs_for_mounts(self, volume_mounts, working_dir, volumes=None, parameters=None):
     """
     Return mk.* directories that can be created safely inside the pod.
 
@@ -80,7 +153,10 @@ def _k8s_mk_dirs_for_mounts(self, volume_mounts, working_dir, volumes=None):
             return False
 
     directories, seen = [], set()
-    for key, value in (self.var or {}).items():
+    if parameters is None:
+        parameters = self.var or {}
+
+    for key, value in parameters.items():
         if not isinstance(key, str) or not key.startswith("mk."):
             continue
         if not isinstance(value, (str, os.PathLike)) or not str(value).strip():
@@ -721,12 +797,12 @@ def _generate_k8s_manifest(self, attempt_i=None):
 
     # Volumes are attached before the main container starts. Create mk.*
     # directories there, using the workload's own user and permissions, before
-    # any user hooks or the process script run. Existing host-side mk.*
-    # behavior remains unchanged.
+    # any user hooks or the process script run.
     k8s_mk_dirs = self._k8s_mk_dirs_for_mounts(
         volumeMounts,
         ws_mount_for_workdir,
         volumes=volumes,
+        parameters=getattr(self, "_resolved_execution_parameters", None),
     )
     if k8s_mk_dirs:
         pre_parts.insert(

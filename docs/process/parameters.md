@@ -265,16 +265,17 @@ Keys starting with `mk.` or `map.` are treated specially. jawm also adds a short
 
 **map.\*** variables are treated as paths that jawm can automatically mount into containerized execution environments.
 
-For Kubernetes, the existing host-side `mk.*` behavior is preserved, so jawm
-may also create the corresponding directory on the machine that submits the
-job. For a PVC-backed path, that local directory is separate from the PVC and
-may remain empty: output written by the pod stays on the PVC and is not copied
-back to the submitting machine automatically.
+For Kubernetes, when an `mk.*` path is backed by a PVC, jawm does not create a
+separate directory on the machine that submits the job. Instead, for paths
+inside a writable pod mount (`workspace`, `mounts`, or raw `volumeMounts`),
+jawm runs `mkdir -p` in the main container before any process hooks or scripts.
+Output written by the pod stays on the PVC and is not copied back to the
+submitting machine automatically.
 
-In addition, when an `mk.*` path is inside a writable pod mount (`workspace`,
-`mounts`, or raw `volumeMounts`), jawm runs `mkdir -p` for that path in the
-main container before any process hooks or scripts. Paths outside declared
-mounts, or below read-only mounts, are skipped in the pod with a warning.
+Host-side directory creation remains unchanged for non-PVC paths (including
+Kubernetes automatic `hostPath` mounts) and for other execution managers.
+Paths outside declared pod mounts, or below read-only mounts, are skipped in
+the pod with a warning.
 
 Example:
 

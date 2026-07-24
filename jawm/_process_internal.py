@@ -343,6 +343,9 @@ def _script_placeholders_and_mkdir(self, script_content):
         except Exception as e:
             self.logger.warning(f"Failed to load var_file '{str(self.var_file)}': {e}")
 
+    # Keep the execution-time values available to manager-specific preparation.
+    self._resolved_execution_parameters = dict(parameters)
+
     # Ensure mk.* directories exist once per process instance ---
     try:
         created = getattr(self, "_mk_dirs_created", set())
@@ -356,6 +359,21 @@ def _script_placeholders_and_mkdir(self, script_content):
 
         for k, v in (parameters or {}).items():
             if isinstance(k, str) and k.startswith("mk.") and v:
+                if self.manager == "kubernetes":
+                    try:
+                        if self._k8s_mk_path_is_pvc_backed(v):
+                            self.logger.info(
+                                f"mk.* skipped local directory creation for Kubernetes PVC-backed path: {v}"
+                            )
+                            continue
+                    except Exception as e:
+                        # Preserve the previous host-side behavior if a custom
+                        # or malformed Kubernetes mount cannot be classified.
+                        self.logger.warning(
+                            f"Could not classify Kubernetes mk.* path '{v}'; "
+                            f"preserving local directory creation: {e}"
+                        )
+
                 path = _abs_path(v)
                 try:
                     if not os.path.exists(path):
