@@ -5,6 +5,7 @@ import shlex
 import subprocess
 import threading
 import re
+import posixpath
 from datetime import datetime
 
 # Setup method registration for dynamic injection into the main Process class
@@ -36,6 +37,92 @@ def _k8s_sanitize_label(self, s, max_len=60, fallback_suffix="jawm-process", tai
             # keep tail (hash) and truncate head to fit, with a '-' separator
             s = (s[: max_len - (tail + 1)].rstrip("-") + "-" + s[-tail:]).strip("-")
     return s or f"{fallback_suffix}-{self.hash}"
+
+
+@register
+def _k8s_mk_dirs_for_mounts(self, volume_mounts, working_dir, volumes=None):
+    """
+    Return mk.* directories that can be created safely inside the pod.
+
+    A path must be covered by a writable volumeMount. Relative paths are
+    resolved against the container working directory. When mounts overlap,
+    the deepest mount controls writability, matching Kubernetes behavior.
+    """
+    volume_read_only = {}
+    for volume in volumes or []:
+        if not isinstance(volume, dict) or not volume.get("name"):
+            continue
+        pvc = volume.get("persistentVolumeClaim") or {}
+        volume_read_only[volume["name"]] = (
+            bool(pvc.get("readOnly", False))
+            or any(key in volume for key in ("configMap", "secret", "projected", "downwardAPI"))
+        )
+
+    mount_points = []
+    for mount in volume_mounts or []:
+        if not isinstance(mount, dict):
+            continue
+        mount_path = mount.get("mountPath")
+        if not isinstance(mount_path, str) or not mount_path.startswith("/"):
+            continue
+        mount_points.append({
+            "path": posixpath.normpath(mount_path),
+            "read_only": (
+                bool(mount.get("readOnly", False))
+                or volume_read_only.get(mount.get("name"), False)
+            ),
+        })
+
+    def _is_within(path, parent):
+        try:
+            return posixpath.commonpath([path, parent]) == parent
+        except (TypeError, ValueError):
+            return False
+
+    directories, seen = [], set()
+    for key, value in (self.var or {}).items():
+        if not isinstance(key, str) or not key.startswith("mk."):
+            continue
+        if not isinstance(value, (str, os.PathLike)) or not str(value).strip():
+            continue
+
+        raw_path = str(value).strip()
+        if raw_path.startswith("~/") or "\x00" in raw_path:
+            self.logger.warning(
+                f"Kubernetes mk.* path for '{key}' cannot be resolved safely in the pod: {raw_path!r}"
+            )
+            continue
+
+        if posixpath.isabs(raw_path):
+            pod_path = posixpath.normpath(raw_path)
+        else:
+            base = working_dir if isinstance(working_dir, str) and working_dir.startswith("/") else "/"
+            pod_path = posixpath.normpath(posixpath.join(base, raw_path))
+
+        matching = [
+            mount for mount in mount_points
+            if _is_within(pod_path, mount["path"])
+        ]
+        if not matching:
+            self.logger.warning(
+                f"Kubernetes mk.* path for '{key}' is outside declared pod mounts and "
+                f"will not be created in the pod: {pod_path}"
+            )
+            continue
+
+        active_mount = max(matching, key=lambda mount: len(mount["path"]))
+        if active_mount["read_only"]:
+            self.logger.warning(
+                f"Kubernetes mk.* path for '{key}' is under read-only mount "
+                f"{active_mount['path']} and will not be created in the pod: {pod_path}"
+            )
+            continue
+
+        if pod_path not in seen:
+            seen.add(pod_path)
+            directories.append(pod_path)
+
+    return directories
 
 
 @register
@@ -206,8 +293,10 @@ def _generate_k8s_manifest(self, attempt_i=None):
             would_mount = self._auto_mounts_from_vars()
             if would_mount:
                 self.logger.warning(
-                    "Kubernetes automount is disabled . `mk./map.` paths will NOT be mounted into the pod. "
-                    "Can enable with manager_kubernetes={'automated_mount': True} or setting JAWM_K8S_AUTOMOUNT=1"
+                    "Kubernetes automatic hostPath mounting is disabled; `mk./map.` paths will not "
+                    "be mounted as hostPath volumes automatically. Explicit `workspace`, `mounts`, "
+                    "and `volumeMounts` configuration is unaffected. Enable hostPath automount with "
+                    "manager_kubernetes={'automated_mount': True} or JAWM_K8S_AUTOMOUNT=1"
                 )
         except Exception:
             pass
@@ -349,18 +438,28 @@ def _generate_k8s_manifest(self, attempt_i=None):
         'fi'
     )
 
-    # Compose final strings for each shell (compact)
-    cmd_core_bash = " && ".join(pre_parts + [wrap_bash] + post_parts) if (pre_parts or post_parts) else wrap_bash
-    cmd_core_sh   = " && ".join(pre_parts + [wrap_sh]   + post_parts) if (pre_parts or post_parts) else wrap_sh
+    command_post_parts = list(post_parts)
 
-    cmd_str_bash = f"set -euo pipefail;{cmd_core_bash}"
-    cmd_str_sh   = f"set -eu;{cmd_core_sh}"
+    def _compose_container_command():
+        cmd_core_bash = (
+            " && ".join(pre_parts + [wrap_bash] + command_post_parts)
+            if (pre_parts or command_post_parts) else wrap_bash
+        )
+        cmd_core_sh = (
+            " && ".join(pre_parts + [wrap_sh] + command_post_parts)
+            if (pre_parts or command_post_parts) else wrap_sh
+        )
 
-    container_command = [
-        "/bin/sh", "-c",
-        f'[ -x /bin/bash ]&&exec /bin/bash -c {shlex.quote(cmd_str_bash)}'
-        f'||exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
-    ]
+        cmd_str_bash = f"set -euo pipefail;{cmd_core_bash}"
+        cmd_str_sh = f"set -eu;{cmd_core_sh}"
+
+        return [
+            "/bin/sh", "-c",
+            f'[ -x /bin/bash ]&&exec /bin/bash -c {shlex.quote(cmd_str_bash)}'
+            f'||exec /bin/sh -c {shlex.quote(cmd_str_sh)}'
+        ]
+
+    container_command = _compose_container_command()
 
     # ---------------------------
     # Phase 1: workspace + mounts (PVC)
@@ -619,6 +718,26 @@ def _generate_k8s_manifest(self, attempt_i=None):
                 continue
 
             self.logger.warning(f"mount '{name}': unknown mode '{mode}'. Skipping.")
+
+    # Volumes are attached before the main container starts. Create mk.*
+    # directories there, using the workload's own user and permissions, before
+    # any user hooks or the process script run. Existing host-side mk.*
+    # behavior remains unchanged.
+    k8s_mk_dirs = self._k8s_mk_dirs_for_mounts(
+        volumeMounts,
+        ws_mount_for_workdir,
+        volumes=volumes,
+    )
+    if k8s_mk_dirs:
+        pre_parts.insert(
+            0,
+            "mkdir -p " + " ".join(shlex.quote(path) for path in k8s_mk_dirs),
+        )
+        container_command = _compose_container_command()
+        self.logger.info(
+            "Kubernetes mk.* directories will be created in the pod before execution: "
+            + ", ".join(k8s_mk_dirs)
+        )
 
     # 5) Build the Job manifest (unchanged structure; only command/volumes/mounts changed)
     job = {
