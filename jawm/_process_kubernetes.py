@@ -369,9 +369,8 @@ def _generate_k8s_manifest(self, attempt_i=None):
             would_mount = self._auto_mounts_from_vars()
             if would_mount:
                 self.logger.warning(
-                    "Kubernetes automatic hostPath mounting is disabled; `mk./map.` paths will not "
-                    "be mounted as hostPath volumes automatically. Explicit `workspace`, `mounts`, "
-                    "and `volumeMounts` configuration is unaffected. Enable hostPath automount with "
+                    "Kubernetes hostPath automount is disabled. Explicit `workspace`, `mounts` "
+                    "(including PVC mounts), and `volumeMounts` still work. Enable it with "
                     "manager_kubernetes={'automated_mount': True} or JAWM_K8S_AUTOMOUNT=1"
                 )
         except Exception:
