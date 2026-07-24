@@ -3870,8 +3870,8 @@ echo "[k8_ws_test_write] wrote+verified $JAWM_WORKSPACE/$FNAME"
         )
 
         ws_cfg = (getattr(p_ws, "manager_kubernetes", None) or {}).get("workspace")
-        if not ws_cfg:
-            print("   ⏭️  Skipped workspace test: p_ws.manager_kubernetes.workspace is empty/not provided")
+        if p_ws.manager != "kubernetes" or not ws_cfg:
+            print("   ⏭️  Skipped workspace test: Kubernetes manager/workspace is not configured")
             k8s_test_skip = True
         else:
             p_ws.execute()
@@ -3938,8 +3938,8 @@ echo "[k8_mount_test_write] wrote+verified /ref/$REF and /scratch/$SCR"
         )
 
         mounts_cfg = (getattr(p_m, "manager_kubernetes", None) or {}).get("mounts") or []
-        if not mounts_cfg:
-            print("   ⏭️  Skipped mounts test: p_m.manager_kubernetes.mounts is empty/not provided")
+        if p_m.manager != "kubernetes" or not mounts_cfg:
+            print("   ⏭️  Skipped mounts test: Kubernetes manager/mounts are not configured")
         else:
             p_m.execute()
             p_m.wait()
@@ -3975,6 +3975,94 @@ echo "[k8_mount_test_readback] found+verified /ref/$REF and /scratch/$SCR"
             else:
                 p_m_rb.execute()
                 p_m_rb.wait()
+
+            # ---------------------------------------------------------
+            # C) PVC-backed mk.* creation + map.* readback regression
+            # ---------------------------------------------------------
+            writable_pvc = next(
+                (
+                    mount for mount in mounts_cfg
+                    if (mount.get("mode") or "pvc").lower() == "pvc"
+                    and mount.get("claimName")
+                    and not mount.get("readOnly", False)
+                ),
+                None,
+            )
+
+            if p_m.manager == "kubernetes" and writable_pvc:
+                feature_token = uuid.uuid4().hex
+                feature_mount = os.path.abspath(
+                    os.path.join(base_tmp, f"k8_pvc_mk_mount_{feature_token}")
+                )
+                feature_output = os.path.join(feature_mount, "output")
+                feature_file = os.path.join(feature_output, "result.txt")
+
+                # Reuse the configured namespace/resources, but expose one
+                # existing writable PVC at a host-writable path. This makes
+                # accidental local mk.* creation observable in CI.
+                feature_k8s = copy.deepcopy(p_m.manager_kubernetes)
+                feature_k8s.pop("workspace", None)
+                feature_k8s["automated_mount"] = False
+                feature_k8s["mounts"] = [{
+                    "name": "mk-feature",
+                    "mode": "pvc",
+                    "claimName": writable_pvc["claimName"],
+                    "mountPath": feature_mount,
+                    "readOnly": False,
+                }]
+
+                assert not os.path.exists(feature_mount), \
+                    "❌ Kubernetes PVC mk.* test path unexpectedly exists on the host before execution"
+
+                p_mk = Process(
+                    name="k8_pvc_mk_feature_writer",
+                    manager="kubernetes",
+                    manager_kubernetes=feature_k8s,
+                    container="busybox:1.36",
+                    parallel=False,
+                    script="""#!/bin/sh
+set -eu
+test -d "{{output}}"
+printf '%s\\n' '{{TOKEN}}' > "{{output}}/result.txt"
+grep -qF '{{TOKEN}}' "{{output}}/result.txt"
+""".replace("{{TOKEN}}", token),
+                    var={"mk.output": feature_output},
+                    logs_directory="logs_k8s",
+                )
+                p_mk.execute()
+                assert p_mk.is_successful(), \
+                    f"❌ Kubernetes PVC mk.* writer failed: {p_mk.get_error()}"
+                assert not os.path.exists(feature_mount), \
+                    "❌ PVC-backed mk.* created a directory on the submitting host"
+
+                p_map = Process(
+                    name="k8_pvc_mk_feature_reader",
+                    manager="kubernetes",
+                    manager_kubernetes=feature_k8s,
+                    container="busybox:1.36",
+                    parallel=False,
+                    script="""#!/bin/sh
+set -eu
+test -f "{{input}}"
+grep -qF '{{TOKEN}}' "{{input}}"
+rm -f "{{input}}"
+rmdir "{{run_dir}}"
+""".replace("{{TOKEN}}", token),
+                    var={
+                        "map.input": feature_file,
+                        "run_dir": feature_output,
+                    },
+                    logs_directory="logs_k8s",
+                )
+                p_map.execute()
+                assert p_map.is_successful(), \
+                    f"❌ Kubernetes PVC map.* reader failed: {p_map.get_error()}"
+                assert not os.path.exists(feature_mount), \
+                    "❌ Kubernetes PVC test unexpectedly created a host directory"
+
+                print("✅ Passed: Kubernetes PVC-backed mk.* creation + map.* readback")
+            else:
+                print("   ⏭️  Skipped PVC mk.*/map.* regression: no writable Kubernetes PVC mount configured")
 
             print("✅ Passed: Kubernetes mounts write + readback")
             passed += 1
