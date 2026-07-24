@@ -80,6 +80,8 @@ nav:
       - Jupyter Notebook: examples/jupyter.md
       - Kubernetes: examples/kubernetes.md
       - Reproducibility: examples/reproducibility.md
+      - Codex: examples/codex.md
+
   - Process: 
     - Overview: process/overview.md
     - Configuration & Precedence: process/conf_precedence.md
