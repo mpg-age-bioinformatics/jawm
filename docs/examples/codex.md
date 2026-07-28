@@ -1,4 +1,0 @@
-# Codex
-
-!!! note
-    Comming soon!
