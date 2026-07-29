@@ -8,19 +8,15 @@ The workflow has three parts:
 2. Start a temporary loader pod and copy input data into the shared volume.
 3. Run `kube_jawm_demo.py`, which asks JAWM to create a Kubernetes FastQC job in the same namespace with the shared PVC mounted at `/data`.
 
-## Repository Contents
+## Files list
 
 | Path | Purpose |
 | --- | --- |
-| `kubernetes.md` | This documentation. |
 | `jawm-data-pvc.yaml` | Defines the shared Kubernetes PVC named `jawm-data`. |
 | `volume-loader.yaml` | Defines a temporary BusyBox pod used to copy files into the PVC. |
 | `kube_jawm_demo.py` | Defines and executes the JAWM FastQC process. |
 | `fastqc_demo.py` | Optional split version containing only the reusable FastQC process definition. |
 | `k8.yaml` | Optional split version containing the Kubernetes backend, PVC mount, and demo variables. |
-| `raw_data/my_test_file_1.fastq.gz` | Example input FASTQ copied into the PVC. |
-| `my_test_file_1.fastq.gz` | Example FASTQ at the repository root. |
-| `logs/` | JAWM-generated command, manifest, script, output, error, exit-code, and run logs. |
 
 ## Prerequisites
 
