@@ -1,6 +1,10 @@
-# Reproducing a Remote FastQC Workflow
+# Reproducivility
 
-This example runs `jawm_fastqc` without manually cloning its repository.
+This example demos how you can always reproduced your analyis while making use of your log folders.
+
+For reproducibility it is important that you write all your functional code inside a `jawm.Process` and that all processes make use of a predefined `container`. 
+
+We will use a [`jawm_fastqc`](https://github.com/mpg-age-bioinformatics/jawm_fastqc/tree/main) run as example without manually cloning its repository.
 
 The workflow is identified by an exact Git commit:
 
@@ -300,7 +304,7 @@ Each successful FastQC process should have exit code `0`.
 
 ## Summary
 
-By storing your log folders in a safe space you will always be able to reproduce your workflows.
+By making use of containers for your `jawm.Process`, Git versioned remote workflows, and storing your log folders in a safe space you will always be able to reproduce your analysis.
 
 Both runs use exactly the same command:
 
@@ -323,6 +327,18 @@ The second run validates its new output against that reference because `fastqc.y
   include: ./fastqc_output/my_test_file_1_fastqc/fastqc_data.txt
   overwrite: false
   reference: ./logs/jawm_hashes/fastqc.hash
+```
+
+A Python virtual environment - https://docs.python.org/3/library/venv.html - can be used to keep the packages for an analysis separate from other projects. After activating the environment used for the run, save its installed packages alongside the JAWM logs:
+
+```bash
+pip freeze > ./logs/python-packages-run_1.txt
+```
+
+This file records the installed Python packages and their resolved versions. It can later be inspected or passed to `pip install -r` when rebuilding the environment:
+
+```bash
+pip install -r ./logs/python-packages-run_1.txt
 ```
 
 For more detail, see [Remote Modules](../module/run.md#running-remote-modules), [YAML Config](../config/yaml.md), [Log Structure](../debug/logs.md), and [FastQC](fastqc.md).
