@@ -1275,6 +1275,16 @@ def _list_run_files(log_dir):
     return files
 
 
+def _run_module_name(path):
+    """Return the module portion of a <module>_YYYYMMDD_HHMMSS.log filename."""
+    fname = os.path.basename(path)
+    base = fname[:-4] if fname.endswith(".log") else fname
+    parts = base.rsplit("_", 2)
+    if len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit():
+        return parts[0]
+    return base
+
+
 def _find_proc_dirs(log_dir, query):
     """
     Find process log dirs matching query (case-insensitive).
@@ -1337,7 +1347,7 @@ def _cmd_logs_overview(log_dir, use_color):
     print(f"  Errors:     {err_label}")
 
     print()
-    print(f"{dim}  Flags: --runs  --run [-f]  --errors [N]  --ls [-n N]  --show <name|hash>{rst}")
+    print(f"{dim}  Flags: --runs  --run [MODULE] [-f]  --errors [N]  --ls [-n N]  --show <name|hash>{rst}")
     return 0
 
 
@@ -1358,11 +1368,7 @@ def _cmd_logs_runs(log_dir, last_n, no_header, use_color):
     rows = []
     for mtime, fpath in runs:
         started = _fmt_dt(datetime.fromtimestamp(mtime))
-        fname   = os.path.basename(fpath)
-        base    = fname[:-4] if fname.endswith(".log") else fname
-        # Strip trailing _YYYYMMDD_HHMMSS from module name if present
-        parts   = base.rsplit("_", 2)
-        module  = parts[0] if (len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit()) else base
+        module  = _run_module_name(fpath)
         size    = _fmt_size(os.path.getsize(fpath))
         rows.append([started, module, size, fpath])   # fpath kept for footer, not displayed
 
@@ -1415,16 +1421,29 @@ def _tail_file(path, follow):
         print(f"jawm-monitor logs: error reading {path}: {exc}", file=sys.stderr)
 
 
-def _cmd_logs_run(log_dir, follow):
-    """Print (and optionally follow) the most recent run transcript."""
+def _cmd_logs_run(log_dir, follow, module=None, show_all=False):
+    """Print run transcripts, optionally filtered by exact module name."""
     runs = _list_run_files(log_dir)
     if not runs:
         print(f"jawm-monitor logs: no run transcripts found in {log_dir}/jawm_runs/")
         return 1
-    _, fpath = runs[-1]   # most recent
-    # Print the file path as a dim annotation on stderr so it doesn't pollute pipes
-    print(f"# {fpath}", file=sys.stderr)
-    _tail_file(fpath, follow)
+
+    if module:
+        wanted = module.casefold()
+        runs = [run for run in runs if _run_module_name(run[1]).casefold() == wanted]
+        if not runs:
+            print(
+                f"jawm-monitor logs: no run transcripts found for the requested module "
+                f"in {log_dir}/jawm_runs/",
+                file=sys.stderr,
+            )
+            return 1
+
+    selected = runs if show_all else [runs[-1]]
+    for _, fpath in selected:
+        # Keep path annotations on stderr so stdout remains safe for pipelines.
+        print(f"# {fpath}", file=sys.stderr)
+        _tail_file(fpath, follow)
     return 0
 
 
@@ -1724,8 +1743,22 @@ def _cmd_logs(args):
                               no_header=getattr(args, "no_header", False),
                               use_color=use_color)
 
-    if getattr(args, "run", False):
-        return _cmd_logs_run(log_dir, follow=getattr(args, "follow", False))
+    run_module = getattr(args, "run", None)
+    if run_module is not None:
+        show_all = getattr(args, "all", False)
+        if show_all and not run_module:
+            print("jawm-monitor logs: --run --all requires a module name", file=sys.stderr)
+            return 2
+        if show_all and getattr(args, "follow", False):
+            print("jawm-monitor logs: --follow cannot be used with --run MODULE --all",
+                  file=sys.stderr)
+            return 2
+        return _cmd_logs_run(
+            log_dir,
+            follow=getattr(args, "follow", False),
+            module=run_module or None,
+            show_all=show_all,
+        )
 
     if getattr(args, "errors", None) is not None:
         return _cmd_logs_errors(log_dir, last_n=args.errors, use_color=use_color)
@@ -2426,6 +2459,8 @@ def _build_parser():
             "  jawm-monitor logs --runs                  list all run transcripts\n"
             "  jawm-monitor logs --runs -n 10            last 10 run transcripts\n"
             "  jawm-monitor logs --run                   print last run transcript\n"
+            "  jawm-monitor logs --run mymodule          print latest transcript for a module\n"
+            "  jawm-monitor logs --run mymodule --all    print all transcripts for a module\n"
             "  jawm-monitor logs --run -f                follow last run as it writes\n"
             "  jawm-monitor logs --errors                last 10 errors from error.log\n"
             "  jawm-monitor logs --errors 20             last 20 errors\n"
@@ -2452,8 +2487,8 @@ def _build_parser():
        help=f"Logs directory to inspect (default: {_DEFAULT_LOG_DIR})")
     _c("--runs",           action="store_true", default=False,
        help="List run transcripts in jawm_runs/ (oldest-first; use -n to limit)")
-    _c("--run",            action="store_true", default=False,
-       help="Print the most recent run transcript to stdout")
+    _c("--run",            nargs="?", const="", default=None, metavar="MODULE",
+       help="Print the most recent run transcript, optionally for an exact module name")
     _c("-f", "--follow",   action="store_true", default=False,
        help="Follow the run transcript as new lines are written (use with --run)")
     _c("--errors",         nargs="?", const=10, type=int, metavar="N",
@@ -2487,7 +2522,7 @@ def _build_parser():
     _c("-n", "--last",     type=int, default=20, metavar="N",
        help="Number of entries to show with --ls or --runs (default: 20)")
     _c("-a", "--all",      action="store_true", default=False,
-       help="Show all entries — overrides -n/--last (applies to --ls)")
+       help="Show all entries (applies to --ls or --run MODULE)")
     _c("--fmt",            metavar="COL:WIDTH[,COL:WIDTH...]",
        help="Override column widths for --ls. Pairs are col:width or col=width. "
             "Columns: status, name, hash, started, ended, elapsed, exit, dir. "
