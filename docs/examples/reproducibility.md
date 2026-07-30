@@ -1,6 +1,6 @@
 # Reproducivility
 
-This example demos how you can always reproduce your analyis while making use of your log folders.
+This example demos how you can always reproduce your analysis while making use of your log folders.
 
 For reproducibility it is important that you write all your functional code inside a `jawm.Process` and that all processes make use of a predefined `container`. 
 
