@@ -1,4 +1,4 @@
-# Reproducivility
+# Reproducibility
 
 This example demos how you can always reproduce your analysis while making use of your log folders.
 
