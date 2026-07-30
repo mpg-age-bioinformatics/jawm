@@ -78,7 +78,6 @@ Create `fastqc.yaml`:
 ```yaml
 - scope: process
   name: fastqc
-  parallel: false
   var:
     mk.fastqc_output: "./fastqc_output"
     map.f: "./raw_data/my_test_file_1.fastq.gz"
@@ -114,7 +113,7 @@ JAWM may create a local resolved-module directory as part of its normal remote-m
 Run a pinned `test` workflow:
 
 ```bash
-jawm jawm_fastqc@6c73866090e035efa2ac39b88e3b67a22e463ffb test \
+jawm jawm_fastqc@6c73866 test \
   -p ./fastqc.yaml \
   -l ./logs
 ```
@@ -173,10 +172,62 @@ fastqc-remote-reproducibility/
 
 ## 6. Run the Same Workflow Again
 
+Before reproducing a run, the user can inspect its previous CLI transcript to see which workflow commit and execution system were used. JAWM records this information under:
+
+```text
+logs/jawm_runs/
+```
+
+Find the transcript from the first run:
+
+```bash
+previous_log="$(
+  find ./logs/jawm_runs \
+    -maxdepth 1 \
+    -type f \
+    -name 'fastqc_*.log' \
+    -print \
+    | sort \
+    | tail -1
+)"
+
+echo "$previous_log"
+```
+
+Display the workflow, JAWM, Python, operating-system, architecture, and execution-tool information:
+
+```bash
+grep -E '\[git\]|\[sys\]|Running jawm module:' \
+  "$previous_log"
+```
+
+A FastQC transcript contains a section similar to:
+
+```text
+[2026-07-29 12:31:58] - INFO - jawm.cli|fastqc :: [git] Found git stamp commit: 6c73866
+[2026-07-29 12:31:58] - INFO - jawm.cli|fastqc :: [sys] jawm: 0.1.0
+[2026-07-29 12:31:58] - INFO - jawm.cli|fastqc :: [sys] Python: 3.10.12
+[2026-07-29 12:31:58] - INFO - jawm.cli|fastqc :: [sys] OS: Linux-5.15.0-177-generic-x86_64-with-glibc2.35
+[2026-07-29 12:31:58] - INFO - jawm.cli|fastqc :: [sys] Machine/Arch: x86_64
+[2026-07-29 12:31:58] - INFO - jawm.cli|fastqc :: [sys] Docker: Docker version 25.0.5, build 5dc9bcc
+[2026-07-29 12:31:58] - INFO - jawm.cli|fastqc :: Running jawm module: /path/to/jawm_fastqc/fastqc.py
+```
+
+From this part of the log, the user can recover:
+
+- the workflow commit: `6c73866`
+- the JAWM release: `0.1.0`
+- the Python release: `3.10.12`
+- the operating system and architecture
+- the execution tool used for the container
+- the resolved workflow module path
+
+The commit printed in the transcript is abbreviated, but it can be reused in the `jawm_fastqc@<commit>` workflow target. Keeping the log directory therefore provides a record of the main software and system information needed when repeating the run.
+
 Repeat the exact same JAWM call:
 
 ```bash
-jawm jawm_fastqc@6c73866090e035efa2ac39b88e3b67a22e463ffb test \
+jawm jawm_fastqc@6c73866 test \
   -p ./fastqc.yaml \
   -l ./logs
 ```
@@ -249,10 +300,12 @@ Each successful FastQC process should have exit code `0`.
 
 ## Summary
 
+By storing your log folders in a safe space you will always be able to reproduce your workflows.
+
 Both runs use exactly the same command:
 
 ```bash
-jawm "jawm_fastqc@${workflow_commit}" test \
+jawm jawm_fastqc@6c73866 test \
   -p ./fastqc.yaml \
   -l ./logs
 ```
