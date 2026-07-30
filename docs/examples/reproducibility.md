@@ -138,10 +138,10 @@ JAWM writes the reference hash under:
 logs/jawm_hashes/fastqc.hash
 ```
 
-Display it:
+Display the stored hash information:
 
 ```bash
-cat ./logs/jawm_hashes/fastqc.hash
+jawm-monitor logs -l ./logs --hash fastqc
 ```
 
 The first transcript reports a new hash:
@@ -182,27 +182,17 @@ Before reproducing a run, the user can inspect its previous CLI transcript to se
 logs/jawm_runs/
 ```
 
-Find the transcript from the first run:
+Display the latest workflow transcript:
 
 ```bash
-previous_log="$(
-  find ./logs/jawm_runs \
-    -maxdepth 1 \
-    -type f \
-    -name 'fastqc_*.log' \
-    -print \
-    | sort \
-    | tail -1
-)"
-
-echo "$previous_log"
+jawm-monitor logs -l ./logs --run
 ```
 
 Display the workflow, JAWM, Python, operating-system, architecture, and execution-tool information:
 
 ```bash
-grep -E '\[git\]|\[sys\]|Running jawm module:' \
-  "$previous_log"
+jawm-monitor logs -l ./logs --run \
+  | grep -E '\[git\]|\[sys\]|Running jawm module:'
 ```
 
 A FastQC transcript contains a section similar to:
@@ -269,35 +259,24 @@ and exits with code `73`.
 Display the hash messages from both runs:
 
 ```bash
-grep '\[hash\]' ./logs/jawm_runs/fastqc_*.log
+jawm-monitor logs -l ./logs --run fastqc --all \
+  | grep '\[hash\]'
 ```
 
-Display the reference hash:
+Display the reference hash and its history:
 
 ```bash
-cat ./logs/jawm_hashes/fastqc.hash
-```
-
-Display the hash history:
-
-```bash
-cat ./logs/jawm_hashes/fastqc_user_defined.history
+jawm-monitor logs -l ./logs --hash fastqc
 ```
 
 The history contains an entry for each run. When reproduction succeeds, both entries contain the same SHA-256 value.
 
 ## 8. Check Both Process Exit Codes
 
-List the FastQC exit-code files in ascending path order:
+Display all process runs and their exit codes:
 
 ```bash
-find ./logs -name fastqc.exitcode -print \
-  | sort \
-  | while IFS= read -r exitcode_file; do
-  printf "%s: " "$exitcode_file"
-  cat "$exitcode_file"
-  printf "\n"
-done
+jawm-monitor logs -l ./logs --ls -a
 ```
 
 Each successful FastQC process should have exit code `0`.
