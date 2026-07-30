@@ -320,14 +320,7 @@ The first run creates the reference:
 logs/jawm_hashes/fastqc.hash
 ```
 
-The second run validates its new output against that reference because `fastqc.yaml` contains:
-
-```yaml
-- scope: hash
-  include: ./fastqc_output/my_test_file_1_fastqc/fastqc_data.txt
-  overwrite: false
-  reference: ./logs/jawm_hashes/fastqc.hash
-```
+The second run validates its new output against that reference.
 
 A Python virtual environment - [https://docs.python.org/3/library/venv.html](https://docs.python.org/3/library/venv.html) - can be used to keep you jawm installation separate from other projects. After activating the environment used for the run, save its installed packages alongside the JAWM logs:
 
