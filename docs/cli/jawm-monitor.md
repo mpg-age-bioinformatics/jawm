@@ -137,7 +137,7 @@ jawm-monitor logs [flags]
 
 ```
 jawm-monitor logs [-l DIR]
-                  [--runs | --run [-f] | --errors [N] | --ls | --hash MODULE]
+                  [--runs | --run [MODULE] [-f] | --errors [N] | --ls | --hash MODULE]
                   [--show NAME_OR_HASH [--error] [--output] [--script]
                    [--command] [--id] [--slurm] [--k8s] [--stats]]
                   [-n N] [-a] [--fmt COL:WIDTH[,...]] [--wide]
@@ -173,14 +173,14 @@ logs/
 |------|---------|-------------|
 | `-l`, `--log-dir` | `./logs` | Logs directory to inspect |
 | `--runs` | `False` | List run transcripts in `jawm_runs/` |
-| `--run` | `False` | Print the most recent run transcript to stdout |
+| `--run [MODULE]` | — | Print the most recent run transcript, optionally for a module |
 | `-f`, `--follow` | `False` | Follow the run transcript as it is written (use with `--run`) |
 | `--errors` | — | Print the last N errors from `error.log`. Pass the flag alone for 10, or supply a number (`--errors 20`) |
 | `--ls` | `False` | List process log directories in a table (like `ps`) |
 | `--hash` | — | Print hash and history files for a module from `jawm_hashes/` |
 | `--show` | — | Show details for a process — by name (all runs) or hash prefix (newest match) |
 | `-n`, `--last` | `20` | Number of entries to show with `--ls` or `--runs` |
-| `-a`, `--all` | `False` | Show all entries with `--ls` (overrides `-n`) |
+| `-a`, `--all` | `False` | Show all entries with `--ls`, or all transcripts with `--run MODULE` |
 | `--fmt` | — | Override column widths for `--ls`; see below |
 | `--wide` | `False` | Add a directory path column (with `--ls`) |
 | `--no-header` | `False` | Suppress column headers and footer |
@@ -229,6 +229,12 @@ jawm-monitor logs --runs -n 10
 
 # Print the most recent run transcript
 jawm-monitor logs --run
+
+# Print the most recent transcript for a module
+jawm-monitor logs --run fastqc
+
+# Print all transcripts for a module, oldest first
+jawm-monitor logs --run fastqc --all
 
 # Follow the current run as it writes (like tail -f)
 jawm-monitor logs --run -f
