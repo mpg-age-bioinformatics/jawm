@@ -304,7 +304,7 @@ Each successful FastQC process should have exit code `0`.
 
 ## Summary
 
-By making use of containers for your `jawm.Process`, Git versioned remote workflows, and storing your log folders in a safe space you will always be able to reproduce your analysis.
+By making use of containers for your `jawm.Process`, Git versioned modules and workflows, and storing your log folders in a safe space you will always be able to reproduce your analysis.
 
 Both runs use exactly the same command:
 
