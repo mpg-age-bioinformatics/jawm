@@ -329,7 +329,7 @@ The second run validates its new output against that reference because `fastqc.y
   reference: ./logs/jawm_hashes/fastqc.hash
 ```
 
-A Python virtual environment - [https://docs.python.org/3/library/venv.html](https://docs.python.org/3/library/venv.html) - can be used to keep the packages for an analysis separate from other projects. After activating the environment used for the run, save its installed packages alongside the JAWM logs:
+A Python virtual environment - [https://docs.python.org/3/library/venv.html](https://docs.python.org/3/library/venv.html) - can be used to keep you jawm installation separate from other projects. After activating the environment used for the run, save its installed packages alongside the JAWM logs:
 
 ```bash
 pip freeze > ./logs/python-packages-run_1.txt
