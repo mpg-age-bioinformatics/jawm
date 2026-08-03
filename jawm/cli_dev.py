@@ -12,6 +12,7 @@ import zipfile
 import io
 from pathlib import Path
 from importlib import resources
+from urllib.parse import unquote, urlsplit, urlunsplit
 import re
 from collections import OrderedDict
 
@@ -815,6 +816,7 @@ def _run_lsvar(path: str) -> int:
 # ----------------------------------------------------------
 
 _SENSITIVE_ENV_PARTS = ("CREDENTIAL", "PASSWORD", "SECRET", "TOKEN")
+_MASKED_ENV_VALUE = "**********"
 
 
 def _run_env_command(command, timeout=3):
@@ -874,14 +876,135 @@ def _installed_packages():
     ]
 
 
+def _safe_installation_url(value):
+    """Remove credentials and query values from an installation source URL."""
+    if not value:
+        return None
+    raw = str(value)
+    try:
+        parsed = urlsplit(raw)
+        if parsed.scheme == "file":
+            return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+        if not parsed.hostname:
+            return raw
+        host = parsed.hostname
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        netloc = host + (f":{parsed.port}" if parsed.port else "")
+        return urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
+    except (TypeError, ValueError):
+        return "<installation URL omitted>" if any(char in raw for char in ("@", "?", "#")) else raw
+
+
+def _local_path_from_url(value):
+    """Convert a local file URL to a path, otherwise return None."""
+    try:
+        parsed = urlsplit(value or "")
+        if parsed.scheme != "file":
+            return None
+        path = unquote(parsed.path)
+        if parsed.netloc and parsed.netloc != "localhost":
+            path = f"//{parsed.netloc}{path}"
+        if os.name == "nt" and re.match(r"^/[A-Za-z]:", path):
+            path = path[1:]
+        return Path(path)
+    except (TypeError, ValueError):
+        return None
+
+
+def _git_checkout_state(path):
+    """Read the commit and dirty state of a local checkout without modifying it."""
+    git = shutil.which("git")
+    if git is None or path is None:
+        return {}
+
+    environment = os.environ.copy()
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
+
+    def _git(*args):
+        try:
+            completed = subprocess.run(
+                [git, "-C", str(path), *args],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=2,
+                check=False,
+                env=environment,
+            )
+            if completed.returncode == 0:
+                return completed.stdout.strip()
+        except Exception:
+            pass
+        return None
+
+    commit = _git("rev-parse", "HEAD")
+    if not commit:
+        return {}
+    status = _git("status", "--porcelain")
+    return {
+        "commit": commit,
+        "source_dirty": bool(status) if status is not None else None,
+    }
+
+
+def _jawm_installation_provenance():
+    """Read PEP 610 installation metadata, with an editable-checkout fallback."""
+    source = None
+    requested_revision = None
+    commit = None
+    vcs = None
+    editable = None
+    source_dirty = None
+    direct = None
+
+    try:
+        distribution = md.distribution(_PKG_NAME)
+        raw = distribution.read_text("direct_url.json")
+        if raw:
+            direct = json.loads(raw)
+    except Exception:
+        direct = None
+
+    if isinstance(direct, dict):
+        raw_source = direct.get("url")
+        source = _safe_installation_url(raw_source)
+        vcs_info = direct.get("vcs_info") or {}
+        dir_info = direct.get("dir_info") or {}
+        vcs = vcs_info.get("vcs")
+        requested_revision = vcs_info.get("requested_revision")
+        commit = vcs_info.get("commit_id")
+        editable = bool(dir_info.get("editable", False))
+
+        # Editable installations execute the live checkout, so its current
+        # commit and dirty state are more informative than install-time data.
+        if editable:
+            checkout = _git_checkout_state(_local_path_from_url(raw_source))
+            commit = checkout.get("commit") or commit
+            source_dirty = checkout.get("source_dirty")
+    elif _VERSION == "dev":
+        checkout = _git_checkout_state(Path(__file__).resolve().parent.parent)
+        commit = checkout.get("commit")
+        source_dirty = checkout.get("source_dirty")
+
+    return OrderedDict([
+        ("installation_source", source),
+        ("vcs", vcs),
+        ("requested_revision", requested_revision),
+        ("commit", commit),
+        ("editable", editable),
+        ("source_dirty", source_dirty),
+    ])
+
+
 def _jawm_environment():
-    """Return defined JAWM_* variables, redacting only explicitly sensitive names."""
+    """Return defined JAWM_* variables, masking only explicitly sensitive names."""
     values = {}
     for key, value in sorted(os.environ.items()):
         if not key.startswith("JAWM_"):
             continue
         if any(part in key.upper() for part in _SENSITIVE_ENV_PARTS):
-            values[key] = "<redacted>"
+            values[key] = _MASKED_ENV_VALUE
         else:
             values[key] = value
     return values
@@ -892,6 +1015,7 @@ def _collect_environment_report():
     from datetime import datetime, timezone
 
     packages = _installed_packages()
+    installation = _jawm_installation_provenance()
     config_path = Path(
         os.environ.get("JAWM_CONFIG_FILE") or Path.home() / ".jawm" / "config"
     ).expanduser()
@@ -959,6 +1083,7 @@ def _collect_environment_report():
         ("jawm", OrderedDict([
             ("version", str(_VERSION)),
             ("package_directory", str(Path(__file__).resolve().parent)),
+            *installation.items(),
             ("config_file", str(config_path)),
             ("config_file_exists", config_path.is_file()),
         ])),

@@ -30,14 +30,18 @@ jawm-dev env
 
 The report includes:
 
-- jawm version, package location, config file location, and current working directory
+- jawm version, package location, installation source, Git revision when available, config file location, and current working directory
 - host, operating system, architecture, CPU, memory, user, and shell details
 - Python version, executable, environment, pip version, and installed packages
 - defined `JAWM_*` environment variables
 - versions and paths for available Git, Docker, Apptainer/Singularity, Slurm, and Kubernetes tools
 - best-effort Docker daemon, Slurm partition, and Kubernetes context, cluster, and node details
 
-Variable names containing `CREDENTIAL`, `PASSWORD`, `SECRET`, or `TOKEN` are shown as `<redacted>` so reports can be shared more safely.
+Variable names containing `CREDENTIAL`, `PASSWORD`, `SECRET`, or `TOKEN` remain visible, but their values are shown as `**********`. This lets users see that a setting exists without exposing its value. Credentials and query values are also removed from the reported jawm installation URL.
+
+For a direct Git installation, jawm reads the repository, requested revision, and resolved commit from pip's installation metadata. For an editable installation, it reads the current commit and dirty-worktree state from the local checkout. Installations from a package index or wheel may not contain commit information, in which case those fields are reported as `not set`.
+
+Environment reports still contain potentially identifying operational details such as the hostname, username, working directory, installed packages, Kubernetes context, and node names. Review a report before sharing it outside your organisation.
 
 ### Flags
 
