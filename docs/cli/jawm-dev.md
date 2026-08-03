@@ -1,12 +1,12 @@
 # jawm-dev
 
-`jawm-dev` is the developer companion to `jawm`. It provides utilities for module authors — scaffolding new modules from a template and inspecting what variables a module expects.
+`jawm-dev` is the developer companion to `jawm`. It provides utilities for module authors — inspecting the host environment, scaffolding new modules from a template, and inspecting what variables a module expects.
 
 ```bash
 jawm-dev <command> [args]
 ```
 
-Currently two commands are available: `init` and `lsvar` (there will be more devloper supporting commands soon).
+Three commands are available: `env`, `init`, and `lsvar`.
 
 ---
 
@@ -14,8 +14,49 @@ Currently two commands are available: `init` and `lsvar` (there will be more dev
 
 | Command | Description |
 |---------|-------------|
+| [`env`](#env) | Report the host, Python, jawm, package, and backend environment |
 | [`init`](#init) | Scaffold a new module from the `jawm_demo` template |
 | [`lsvar`](#lsvar) | Extract `{{variable}}` placeholders from a module file |
+
+---
+
+## `env`
+
+Reports the environment in which jawm is installed and would run. The command is best-effort: optional tools and unavailable cluster services are reported without failing or blocking the rest of the report.
+
+```bash
+jawm-dev env
+```
+
+The report includes:
+
+- jawm version, package location, config file location, and current working directory
+- host, operating system, architecture, CPU, memory, user, and shell details
+- Python version, executable, environment, pip version, and installed packages
+- defined `JAWM_*` environment variables
+- versions and paths for available Git, Docker, Apptainer/Singularity, Slurm, and Kubernetes tools
+- best-effort Docker daemon, Slurm partition, and Kubernetes context, cluster, and node details
+
+Variable names containing `CREDENTIAL`, `PASSWORD`, `SECRET`, or `TOKEN` are shown as `<redacted>` so reports can be shared more safely.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Render the same report as JSON. |
+| `-o`, `--output PATH` | Write the report to a file instead of standard output. |
+
+### Examples
+
+```bash
+# Print a human-readable report
+jawm-dev env
+
+# Save a machine-readable provenance report
+jawm-dev env --json --output jawm-environment.json
+```
+
+The contents do not change between the text and JSON forms; only their representation does.
 
 ---
 
