@@ -1,4 +1,9 @@
 import argparse
+import getpass
+import json
+import os
+import platform
+import socket
 import subprocess
 import sys
 import shutil
@@ -31,7 +36,7 @@ except md.PackageNotFoundError:
 #  Helper var and methods for jawm-dev command
 # ----------------------------------------------------------
 
-_VALID_CMDS = {"init", "lsvar"}
+_VALID_CMDS = {"env", "init", "lsvar"}
 
 _TEMPLATE_ZIP = "https://github.com/mpg-age-bioinformatics/jawm_demo/archive/refs/heads/main.zip"
 
@@ -804,13 +809,291 @@ def _run_lsvar(path: str) -> int:
 
     return 0
 
+
+# ----------------------------------------------------------
+#  Environment report helpers
+# ----------------------------------------------------------
+
+_SENSITIVE_ENV_PARTS = ("CREDENTIAL", "PASSWORD", "SECRET", "TOKEN")
+
+
+def _run_env_command(command, timeout=3):
+    """Run an optional host command without allowing it to block the report."""
+    executable = shutil.which(command[0])
+    if executable is None:
+        return {"available": False}
+
+    result = {"available": True, "path": executable}
+    try:
+        completed = subprocess.run(
+            command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            check=False,
+        )
+        result.update({
+            "returncode": completed.returncode,
+            "output": (completed.stdout or "").strip(),
+        })
+        if completed.stderr and completed.stderr.strip():
+            result["error"] = completed.stderr.strip()
+    except subprocess.TimeoutExpired:
+        result.update({"returncode": None, "output": "", "error": f"timed out after {timeout}s"})
+    except Exception as exc:
+        result.update({"returncode": None, "output": "", "error": str(exc)})
+    return result
+
+
+def _physical_memory_bytes():
+    """Return physical memory in bytes using portable sysconf values when available."""
+    try:
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        page_count = os.sysconf("SC_PHYS_PAGES")
+        if page_size > 0 and page_count > 0:
+            return int(page_size * page_count)
+    except (AttributeError, OSError, TypeError, ValueError):
+        pass
+    return None
+
+
+def _installed_packages():
+    """Collect installed Python distributions in a deterministic order."""
+    packages = {}
+    try:
+        for distribution in md.distributions():
+            name = distribution.metadata.get("Name") or getattr(distribution, "name", None)
+            if name:
+                packages[str(name)] = str(distribution.version)
+    except Exception:
+        return []
+    return [
+        {"name": name, "version": packages[name]}
+        for name in sorted(packages, key=str.lower)
+    ]
+
+
+def _jawm_environment():
+    """Return defined JAWM_* variables, redacting only explicitly sensitive names."""
+    values = {}
+    for key, value in sorted(os.environ.items()):
+        if not key.startswith("JAWM_"):
+            continue
+        if any(part in key.upper() for part in _SENSITIVE_ENV_PARTS):
+            values[key] = "<redacted>"
+        else:
+            values[key] = value
+    return values
+
+
+def _collect_environment_report():
+    """Collect a best-effort, JSON-serializable snapshot of the host environment."""
+    from datetime import datetime, timezone
+
+    packages = _installed_packages()
+    config_path = Path(
+        os.environ.get("JAWM_CONFIG_FILE") or Path.home() / ".jawm" / "config"
+    ).expanduser()
+
+    tools = OrderedDict()
+    version_commands = (
+        ("git", ["git", "--version"]),
+        ("docker", ["docker", "--version"]),
+        ("apptainer", ["apptainer", "--version"]),
+        ("singularity", ["singularity", "--version"]),
+        ("slurm", ["sbatch", "--version"]),
+        ("kubernetes", ["kubectl", "version", "--client=true", "--output=json"]),
+    )
+    for name, command in version_commands:
+        tools[name] = _run_env_command(command)
+
+    backend = OrderedDict()
+    if tools["docker"].get("available"):
+        backend["docker"] = _run_env_command([
+            "docker", "info", "--format",
+            "Server={{.ServerVersion}}; OS={{.OperatingSystem}}; "
+            "Arch={{.Architecture}}; CPUs={{.NCPU}}; Memory={{.MemTotal}}",
+        ])
+
+    if tools["slurm"].get("available"):
+        backend["slurm"] = _run_env_command([
+            "sinfo", "--noheader", "--format=%P|%a|%D|%l",
+        ])
+
+    if tools["kubernetes"].get("available"):
+        backend["kubernetes_context"] = _run_env_command([
+            "kubectl", "config", "current-context",
+        ])
+        namespace = _run_env_command([
+            "kubectl", "config", "view", "--minify",
+            "--output=jsonpath={..namespace}",
+        ])
+        if namespace.get("returncode") == 0 and not namespace.get("output"):
+            namespace["output"] = "default"
+        backend["kubernetes_namespace"] = namespace
+
+        cluster = _run_env_command([
+            "kubectl", "version", "--output=json",
+        ])
+        backend["kubernetes_cluster"] = cluster
+        if cluster.get("returncode") == 0 and not cluster.get("error"):
+            backend["kubernetes_nodes"] = _run_env_command([
+                "kubectl", "get", "nodes", "--no-headers",
+                "-o", "custom-columns=NAME:.metadata.name,OS:.status.nodeInfo.osImage,"
+                "ARCH:.status.nodeInfo.architecture,KUBELET:.status.nodeInfo.kubeletVersion",
+            ])
+        else:
+            backend["kubernetes_nodes"] = {
+                "available": True,
+                "returncode": None,
+                "output": "",
+                "error": "skipped because the Kubernetes cluster is unreachable",
+            }
+
+    return OrderedDict([
+        ("report", OrderedDict([
+            ("generated_at", datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")),
+            ("working_directory", os.getcwd()),
+        ])),
+        ("jawm", OrderedDict([
+            ("version", str(_VERSION)),
+            ("package_directory", str(Path(__file__).resolve().parent)),
+            ("config_file", str(config_path)),
+            ("config_file_exists", config_path.is_file()),
+        ])),
+        ("host", OrderedDict([
+            ("hostname", socket.gethostname()),
+            ("user", getpass.getuser()),
+            ("platform", platform.platform()),
+            ("system", platform.system()),
+            ("release", platform.release()),
+            ("machine", platform.machine()),
+            ("processor", platform.processor()),
+            ("cpu_count", os.cpu_count()),
+            ("physical_memory_bytes", _physical_memory_bytes()),
+            ("shell", os.environ.get("SHELL")),
+        ])),
+        ("python", OrderedDict([
+            ("version", platform.python_version()),
+            ("implementation", platform.python_implementation()),
+            ("executable", sys.executable),
+            ("prefix", sys.prefix),
+            ("base_prefix", getattr(sys, "base_prefix", sys.prefix)),
+            ("virtual_environment", sys.prefix != getattr(sys, "base_prefix", sys.prefix)),
+            ("pip_version", next((p["version"] for p in packages if p["name"].lower() == "pip"), None)),
+        ])),
+        ("jawm_environment", _jawm_environment()),
+        ("python_packages", packages),
+        ("tools", tools),
+        ("backend_details", backend),
+    ])
+
+
+def _format_bytes(value):
+    if value is None:
+        return "unknown"
+    return f"{value / (1024 ** 3):.2f} GiB ({value} bytes)"
+
+
+def _append_value(lines, label, value):
+    """Append a possibly multiline value to a human-readable report."""
+    if value in (None, ""):
+        value = "not set"
+    text = str(value)
+    parts = text.splitlines() or [text]
+    lines.append(f"{label}: {parts[0]}")
+    lines.extend(f"  {part}" for part in parts[1:])
+
+
+def _format_environment_report(report):
+    """Render the environment snapshot as stable, readable text."""
+    lines = ["jawm environment report", ""]
+
+    section_labels = (
+        ("Report", report["report"]),
+        ("jawm", report["jawm"]),
+        ("Host", report["host"]),
+        ("Python", report["python"]),
+    )
+    for title, values in section_labels:
+        lines.append(f"[{title}]")
+        for key, value in values.items():
+            if key == "physical_memory_bytes":
+                value = _format_bytes(value)
+            _append_value(lines, key, value)
+        lines.append("")
+
+    lines.append("[JAWM environment]")
+    if report["jawm_environment"]:
+        for key, value in report["jawm_environment"].items():
+            _append_value(lines, key, value)
+    else:
+        lines.append("No JAWM_* variables are defined.")
+    lines.append("")
+
+    lines.append("[External tools]")
+    for name, details in report["tools"].items():
+        if not details.get("available"):
+            lines.append(f"{name}: unavailable")
+            continue
+        status = "available" if details.get("returncode") == 0 and not details.get("error") else "unreachable"
+        lines.append(f"{name}: {status} ({details.get('path')})")
+        if details.get("output"):
+            for part in details["output"].splitlines():
+                lines.append(f"  {part}")
+        if details.get("error"):
+            for part in details["error"].splitlines():
+                lines.append(f"  {part}")
+    lines.append("")
+
+    lines.append("[Backend details]")
+    if not report["backend_details"]:
+        lines.append("No optional backend tools are available.")
+    for name, details in report["backend_details"].items():
+        if not details.get("available"):
+            lines.append(f"{name}: unavailable")
+            continue
+        status = "available" if details.get("returncode") == 0 and not details.get("error") else "unreachable"
+        lines.append(f"{name}: {status}")
+        if details.get("output"):
+            for part in details["output"].splitlines():
+                lines.append(f"  {part}")
+        if details.get("error"):
+            for part in details["error"].splitlines():
+                lines.append(f"  {part}")
+
+    lines.append("")
+    lines.append(f"[Python packages: {len(report['python_packages'])}]")
+    lines.extend(f"{package['name']}=={package['version']}" for package in report["python_packages"])
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _run_env(json_output=False, output=None):
+    report = _collect_environment_report()
+    if json_output:
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+    else:
+        rendered = _format_environment_report(report)
+
+    if output:
+        try:
+            Path(output).expanduser().write_text(rendered, encoding="utf-8")
+        except OSError as exc:
+            print(f"Could not write environment report to '{output}': {exc}", file=sys.stderr)
+            return 1
+    else:
+        print(rendered, end="")
+    return 0
+
 # ----------------------------------------------------------
 #  Main method for jawm-dev command
 # ----------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="jawm-dev - Developer CLI for the jawm workflow manager")
-    parser.add_argument("command", nargs="?", help="Developer command to execute (init, lsvar, help)")
+    parser.add_argument("command", nargs="?", help="Developer command to execute (env, init, lsvar, help)")
     parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments passed to the command")
     parser.add_argument("-V", "--version", action="version", version=f"jawm-dev {_VERSION}", help="Show jawm-dev version and exit")
 
@@ -821,6 +1104,24 @@ def main():
         parser.print_help()
         sys.exit(2)
     
+    elif args.command == "env":
+        env_parser = argparse.ArgumentParser(
+            prog="jawm-dev env",
+            description="Report host, Python, jawm, package, and optional backend environment details.",
+        )
+        env_parser.add_argument(
+            "--json",
+            action="store_true",
+            dest="json_output",
+            help="Write the same environment report as JSON.",
+        )
+        env_parser.add_argument(
+            "-o", "--output",
+            help="Write the report to a file instead of standard output.",
+        )
+        env_args = env_parser.parse_args(args.args)
+        sys.exit(_run_env(json_output=env_args.json_output, output=env_args.output))
+
     elif args.command == "init":
         # Subparser for the init command (positional module name)
         init_parser = argparse.ArgumentParser(
