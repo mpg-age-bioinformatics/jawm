@@ -819,9 +819,17 @@ _SENSITIVE_ENV_PARTS = ("CREDENTIAL", "PASSWORD", "SECRET", "TOKEN")
 _MASKED_ENV_VALUE = "**********"
 
 
+def _safe_env_value(callback, default=None):
+    """Return a best-effort environment value without interrupting the report."""
+    try:
+        return callback()
+    except Exception:
+        return default
+
+
 def _run_env_command(command, timeout=3):
     """Run an optional host command without allowing it to block the report."""
-    executable = shutil.which(command[0])
+    executable = _safe_env_value(lambda: shutil.which(command[0]))
     if executable is None:
         return {"available": False}
 
@@ -914,7 +922,7 @@ def _local_path_from_url(value):
 
 def _git_checkout_state(path):
     """Read the commit and dirty state of a local checkout without modifying it."""
-    git = shutil.which("git")
+    git = _safe_env_value(lambda: shutil.which("git"))
     if git is None or path is None:
         return {}
 
@@ -983,7 +991,9 @@ def _jawm_installation_provenance():
             commit = checkout.get("commit") or commit
             source_dirty = checkout.get("source_dirty")
     elif _VERSION == "dev":
-        checkout = _git_checkout_state(Path(__file__).resolve().parent.parent)
+        checkout = _git_checkout_state(
+            _safe_env_value(lambda: Path(__file__).resolve().parent.parent)
+        )
         commit = checkout.get("commit")
         source_dirty = checkout.get("source_dirty")
 
@@ -1016,9 +1026,9 @@ def _collect_environment_report():
 
     packages = _installed_packages()
     installation = _jawm_installation_provenance()
-    config_path = Path(
+    config_path = _safe_env_value(lambda: Path(
         os.environ.get("JAWM_CONFIG_FILE") or Path.home() / ".jawm" / "config"
-    ).expanduser()
+    ).expanduser())
 
     tools = OrderedDict()
     version_commands = (
@@ -1077,38 +1087,40 @@ def _collect_environment_report():
 
     return OrderedDict([
         ("report", OrderedDict([
-            ("generated_at", datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")),
-            ("working_directory", os.getcwd()),
+            ("generated_at", _safe_env_value(
+                lambda: datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+            )),
+            ("working_directory", _safe_env_value(os.getcwd)),
         ])),
         ("jawm", OrderedDict([
             ("version", str(_VERSION)),
-            ("package_directory", str(Path(__file__).resolve().parent)),
+            ("package_directory", _safe_env_value(lambda: str(Path(__file__).resolve().parent))),
             *installation.items(),
-            ("config_file", str(config_path)),
-            ("config_file_exists", config_path.is_file()),
+            ("config_file", str(config_path) if config_path is not None else None),
+            ("config_file_exists", _safe_env_value(config_path.is_file) if config_path is not None else None),
         ])),
         ("host", OrderedDict([
-            ("hostname", socket.gethostname()),
-            ("user", getpass.getuser()),
-            ("platform", platform.platform()),
-            ("system", platform.system()),
-            ("release", platform.release()),
-            ("machine", platform.machine()),
-            ("processor", platform.processor()),
-            ("cpu_count", os.cpu_count()),
+            ("hostname", _safe_env_value(socket.gethostname)),
+            ("user", _safe_env_value(getpass.getuser)),
+            ("platform", _safe_env_value(platform.platform)),
+            ("system", _safe_env_value(platform.system)),
+            ("release", _safe_env_value(platform.release)),
+            ("machine", _safe_env_value(platform.machine)),
+            ("processor", _safe_env_value(platform.processor)),
+            ("cpu_count", _safe_env_value(os.cpu_count)),
             ("physical_memory_bytes", _physical_memory_bytes()),
             ("shell", os.environ.get("SHELL")),
         ])),
         ("python", OrderedDict([
-            ("version", platform.python_version()),
-            ("implementation", platform.python_implementation()),
+            ("version", _safe_env_value(platform.python_version)),
+            ("implementation", _safe_env_value(platform.python_implementation)),
             ("executable", sys.executable),
             ("prefix", sys.prefix),
             ("base_prefix", getattr(sys, "base_prefix", sys.prefix)),
             ("virtual_environment", sys.prefix != getattr(sys, "base_prefix", sys.prefix)),
             ("pip_version", next((p["version"] for p in packages if p["name"].lower() == "pip"), None)),
         ])),
-        ("jawm_environment", _jawm_environment()),
+        ("jawm_environment", _safe_env_value(_jawm_environment, {})),
         ("python_packages", packages),
         ("tools", tools),
         ("backend_details", backend),
@@ -1196,7 +1208,11 @@ def _format_environment_report(report):
 
 
 def _run_env(json_output=False, output=None):
-    report = _collect_environment_report()
+    try:
+        report = _collect_environment_report()
+    except Exception as exc:
+        print(f"Could not collect the environment report: {exc}", file=sys.stderr)
+        return 1
     if json_output:
         rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
     else:
