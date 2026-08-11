@@ -39,4 +39,4 @@ include = ["jawm*"]
 jawm = ["data/*"]
 
 [tool.setuptools.data-files]
-"bin" = ["jawm/data/jawm-test", "jawm/data/nf2jm.py"]
+"bin" = ["jawm/data/jawm-test"]
