@@ -114,6 +114,8 @@ Stats are sampled periodically. The default interval is **30 seconds**, with a m
 export JAWM_STATS_INTERVAL=60   # poll every 60 seconds
 ```
 
+These statistics are periodic observations rather than continuous measurements. The interval can miss short-lived CPU or memory spikes, so averages and peaks should be treated as approximate profiling values. `poll_count` reports how many valid observations were recorded.
+
 For short processes (under a minute), the default 30-second interval may result in only one or zero polls — `poll_count` will be 0 or 1 and averages may be unreliable. Lower the interval if you need meaningful stats for fast processes.
 
 ---
@@ -149,7 +151,11 @@ jawm calls `sstat --jobs=<jobids> --parsable2` to query Slurm's accounting for r
 
 #### Kubernetes processes
 
-Resource stats are not yet collected for Kubernetes processes. `stats.json` will not be written for K8s jobs.
+jawm uses `kubectl top pods --containers` to collect CPU and memory working-set usage from the Kubernetes Metrics API. Values are summed across the containers belonging to the Job so that CPU follows the same convention as the other managers: 100% is one fully used core. The Kubernetes Metrics Server must be installed and accessible to the current `kubectl` context.
+
+Collection is strictly best-effort and read-only. A missing `kubectl`, unavailable Metrics API, timeout, malformed response, or incomplete CPU/memory response never changes Job execution or its exit status. Invalid samples are skipped, and query failures use bounded retry backoff. If no valid sample is ever returned, `stats.json` is not created for that Job.
+
+Kubernetes reports memory working set rather than the exact OS RSS measurement used by the other managers. The existing `rss_*` field names are retained for compatibility with `jawm-monitor`.
 
 ---
 
