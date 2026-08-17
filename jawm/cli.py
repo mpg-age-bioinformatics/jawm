@@ -1564,61 +1564,28 @@ def _has_kubectl_top(logger=None):
     return ok
 
 
-_K8S_STATS_RETRY_BASE_S = 30.0
-_K8S_STATS_RETRY_MAX_S = 300.0
-
-
 def _reset_k8s_stats_runtime_state():
-    """Reset per-run Kubernetes stats health state."""
-    _kubectl_top_sample._health = {
-        "failure_count": 0,
-        "retry_after": 0.0,
-        "warned": False,
-    }
+    """Reset per-run Kubernetes stats warning and availability state."""
+    _has_kubectl_top._metrics_gone = False
+    _has_kubectl_top._metrics_warned = False
+    _kubectl_top_sample._warned = False
     _kubectl_top_sample._last_outcome = None
 
 
-def _k8s_stats_health():
-    state = getattr(_kubectl_top_sample, "_health", None)
-    if not isinstance(state, dict):
-        _reset_k8s_stats_runtime_state()
-        state = _kubectl_top_sample._health
-    return state
-
-
-def _k8s_stats_backing_off():
-    return time.monotonic() < float(_k8s_stats_health().get("retry_after", 0.0) or 0.0)
-
-
-def _k8s_stats_note_success():
-    state = _k8s_stats_health()
-    state["failure_count"] = 0
-    state["retry_after"] = 0.0
-
-
-def _k8s_stats_note_failure(logger, detail):
-    """Apply bounded backoff without allowing stats failures to affect a run."""
-    state = _k8s_stats_health()
-    failure_count = int(state.get("failure_count", 0)) + 1
-    delay = min(
-        _K8S_STATS_RETRY_BASE_S * (2 ** min(4, max(0, failure_count - 1))),
-        _K8S_STATS_RETRY_MAX_S,
-    )
-    state["failure_count"] = failure_count
-    state["retry_after"] = time.monotonic() + delay
-
+def _k8s_stats_warn_once(logger, detail):
+    """Warn once for retryable query failures; collection remains best-effort."""
     message = str(detail or "unknown error").strip().replace("\n", " ")
     if len(message) > 300:
         message = message[:297] + "..."
 
-    if logger and not state.get("warned", False):
+    if logger and not getattr(_kubectl_top_sample, "_warned", False):
         logger.warning(
             "[stats] kubernetes stats query failed; sample skipped. "
-            "Collection will retry with backoff: %s", message
+            "Collection will retry on the next polling interval: %s", message
         )
-        state["warned"] = True
+        _kubectl_top_sample._warned = True
     elif logger:
-        logger.debug("[stats] kubernetes stats query failed; retrying in %.0fs: %s", delay, message)
+        logger.debug("[stats] kubernetes stats query failed; sample skipped: %s", message)
 
 
 def _k8s_namespace_from_log(log_path):
@@ -1649,15 +1616,11 @@ def _kubectl_top_sample(job_name, namespace, logger=None, timeout_s=5.0):
     Returns (cpu_pct_total, rss_mib_total) summed across all containers, or None.
     CPU convention: 100% = one full core (matches local and slurm collectors).
     Returns None when:
-      - Metrics Server is temporarily or permanently unavailable (retries with backoff)
+      - Metrics Server is unavailable
       - No pods are running yet (pod still pending)
       - Any subprocess error
     """
     _kubectl_top_sample._last_outcome = None
-
-    if _k8s_stats_backing_off():
-        _kubectl_top_sample._last_outcome = "backoff"
-        return None
 
     cmd = [
         "kubectl", "top", "pods",
@@ -1672,18 +1635,26 @@ def _kubectl_top_sample(job_name, namespace, logger=None, timeout_s=5.0):
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s, check=False)
     except Exception as e:
         _kubectl_top_sample._last_outcome = "error"
-        _k8s_stats_note_failure(logger, e)
+        _k8s_stats_warn_once(logger, e)
         return None
 
     stderr = (r.stderr or "").strip()
     if r.returncode != 0:
         _kubectl_top_sample._last_outcome = "error"
-        _k8s_stats_note_failure(logger, stderr or f"kubectl top exited with code {r.returncode}")
+        if "Metrics API not available" in stderr:
+            if logger and not getattr(_has_kubectl_top, "_metrics_warned", False):
+                logger.warning(
+                    "[stats] kubernetes stats collection disabled for this run: "
+                    "Metrics API not available. Install or enable Kubernetes Metrics Server."
+                )
+                _has_kubectl_top._metrics_warned = True
+            _has_kubectl_top._metrics_gone = True
+        else:
+            _k8s_stats_warn_once(logger, stderr or f"kubectl top exited with code {r.returncode}")
         return None
 
     if not r.stdout:
         # A successful empty response normally means the pod is not running yet.
-        _k8s_stats_note_success()
         _kubectl_top_sample._last_outcome = "no_data"
         return None  # pod not yet scheduled / running
 
@@ -1713,17 +1684,15 @@ def _kubectl_top_sample(job_name, namespace, logger=None, timeout_s=5.0):
 
     if not cpu_found and not rss_found:
         _kubectl_top_sample._last_outcome = "error"
-        _k8s_stats_note_failure(logger, "kubectl top returned no parseable CPU or memory values")
+        _k8s_stats_warn_once(logger, "kubectl top returned no parseable CPU or memory values")
         return None
 
     if incomplete_sample or not cpu_found or not rss_found:
         # Do not turn a missing value into zero or record an incomplete sample.
         # This is not an API failure, so retry normally on the next poll.
-        _k8s_stats_note_success()
         _kubectl_top_sample._last_outcome = "no_data"
         return None
 
-    _k8s_stats_note_success()
     _kubectl_top_sample._last_outcome = "ok"
     return (cpu_total, rss_total)
 
@@ -1740,7 +1709,7 @@ def _collect_stats_kubernetes(items, logger):
         return
     if not _has_kubectl_top(logger):
         return
-    if _k8s_stats_backing_off():
+    if getattr(_has_kubectl_top, "_metrics_gone", False):
         return
 
     for job_name, log_path in items.items():
@@ -1754,7 +1723,7 @@ def _collect_stats_kubernetes(items, logger):
             outcome = getattr(_kubectl_top_sample, "_last_outcome", None)
             if outcome == "error":
                 # An API-level failure is likely to affect every remaining job in
-                # this polling cycle. Stop issuing calls until the backoff expires.
+                # this polling cycle. Retryable failures wait for the next poll.
                 break
             continue
 

@@ -153,7 +153,7 @@ jawm calls `sstat --jobs=<jobids> --parsable2` to query Slurm's accounting for r
 
 jawm uses `kubectl top pods --containers` to collect CPU and memory working-set usage from the Kubernetes Metrics API. Values are summed across the containers belonging to the Job so that CPU follows the same convention as the other managers: 100% is one fully used core. The Kubernetes Metrics Server must be installed and accessible to the current `kubectl` context.
 
-Collection is strictly best-effort and read-only. A missing `kubectl`, unavailable Metrics API, timeout, malformed response, or incomplete CPU/memory response never changes Job execution or its exit status. Invalid samples are skipped, and query failures use bounded retry backoff. If no valid sample is ever returned, `stats.json` is not created for that Job.
+Collection is strictly best-effort and read-only. A missing `kubectl`, unavailable Metrics API, timeout, malformed response, or incomplete CPU/memory response never changes Job execution or its exit status. Invalid samples are skipped. Retryable query failures are tried again at the next polling interval; if Kubernetes reports `Metrics API not available`, Kubernetes stats collection is disabled for the remainder of that JAWM run. If no valid sample is ever returned, `stats.json` is not created for that Job.
 
 Kubernetes reports memory working set rather than the exact OS RSS measurement used by the other managers. The existing `rss_*` field names are retained for compatibility with `jawm-monitor`.
 
