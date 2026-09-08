@@ -69,6 +69,7 @@ def execute(self, depends_on=None):
 
         # Make the process active by clearing finished_event in case of instance re-use
         self.finished_event.clear()
+        self._execution_blocked = False
 
         # Sync mk./map. prefixed variables with their short aliases
         if isinstance(self.var, dict):
@@ -122,6 +123,7 @@ def execute(self, depends_on=None):
 
         # Check if another process has already failed (skip this gate if always_run)
         if (not self.always_run) and self.__class__.stop_future_event.is_set():
+            self._execution_blocked = True
             self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
             self.finished_event.set()
             return
@@ -159,6 +161,7 @@ def execute(self, depends_on=None):
                         if dp and not dp.is_successful():
                             bad.append((dp.name, dp.get_exitcode()))
                     if bad:
+                        self._execution_blocked = True
                         self.logger.warning(
                             f"Skipping {self.name}: dependencies not successful: " +
                             ", ".join(f"{n} (exit={c})" for n, c in bad)
@@ -169,6 +172,7 @@ def execute(self, depends_on=None):
 
                 # Check for global stop
                 if (not self.always_run) and self.__class__.stop_future_event.is_set():
+                    self._execution_blocked = True
                     self.logger.warning(
                         f"Skipping execution of {self.name}, as some other process already failed"
                     )
@@ -233,6 +237,7 @@ def execute(self, depends_on=None):
                         if dp and not dp.is_successful():
                             bad.append((dp.name, dp.get_exitcode()))
                     if bad:
+                        self._execution_blocked = True
                         self.logger.warning(f"Skipping {self.name}: dependencies not successful: " + ", ".join(f"{n} (exit={c})" for n, c in bad))
                         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                         self.finished_event.set()
@@ -240,6 +245,7 @@ def execute(self, depends_on=None):
 
                 # Check if another process has already failed (skip if always_run)
                 if (not self.always_run) and self.__class__.stop_future_event.is_set():
+                    self._execution_blocked = True
                     self.logger.warning(f"Skipping execution of {self.name}, as some other process already failed")
                     self.finished_event.set()
                     return

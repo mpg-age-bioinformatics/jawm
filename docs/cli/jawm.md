@@ -293,7 +293,7 @@ When you invoke `jawm mymodule.py -p params.yaml`, the following happens in orde
 7. **Execute the module** — the Python file is run with `runpy.run_path()`. Processes defined inside it call `.execute()` which spawns background threads
 8. **Wait for all Processes** — after the module file finishes, jawm automatically waits for every registered Process to complete (up to 24 hours, configurable via `JAWM_WAIT_TIMEOUT`)
 9. **Post-run hashing** — output hashes are computed and written to `<logs>/jawm_hashes/<module>.hash`. These are the hashes that `jawm-test` compares against stored references
-10. **Exit** — jawm exits with the module's exit code, or `0` if the module did not call `sys.exit()`
+10. **Exit** — with automatic waiting enabled, child failures, wait failures/timeouts, and processes blocked by upstream failures or strict dependency rules make the command fail. Jawm retains an existing nonzero module exit code, or uses `1`, after cleanup and post-run hashing. Intentional conditional skips are allowed. Reference-check failures take precedence with exit `73`; other post-run exceptions exit `1`. When all checks succeed, the module's exit code is preserved (default `0`).
 
 ---
 
@@ -315,8 +315,8 @@ These environment variables affect `jawm` behaviour without needing a command-li
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `JAWM_GIT_CACHE` | `~/.jawm/git` | Override the Git clone cache directory. Use `.` to place it in `<cwd>/git`. |
-| `JAWM_WAIT_TIMEOUT` | `86400` (24h) | Maximum seconds to wait for all Processes after the module finishes. |
-| `JAWM_WAIT_CLI` | `1` | Set to `0` to skip the automatic post-module wait. |
+| `JAWM_WAIT_TIMEOUT` | `86400` (24h) | Timeout applied to each process wait after the module finishes. |
+| `JAWM_WAIT_CLI` | `1` | Set to `0` to skip the automatic post-module wait and its child-outcome check. |
 | `JAWM_RECORD_STAT` | `0` | Set to `1` to enable per-process resource stats (equivalent to `--stats`). |
 | `JAWM_LOG_EMOJI` | `1` | Set to `0` to strip emoji from log messages. |
 | `JAWM_ALLOW_URL_CONFIG` | `1` | Set to `0` to disallow remote HTTPS parameter files passed via `-p` / `-v`. |

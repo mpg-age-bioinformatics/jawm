@@ -121,7 +121,7 @@ class Process:
         "scope", "params", "hash", "date_time", "log_path", "stdout_path", "stderr_path", "base_script_path", "finished_event",
         "runtime_id", "execution_start_at", "execution_end_at", "_monitor_thread", "completed_directory", "running_directory",
         "parameters_directory", "logger", "_k8s_namespace", "_k8s_job_name", "_k8s_container_name", "_k8s_killed", "_mk_dirs_created",
-        "_init_done", "_touched_params", "_script_type", "_manifest_path"
+        "_init_done", "_touched_params", "_script_type", "_manifest_path", "_execution_blocked"
     }
     # Supported managers by the jawm
     supported_managers = {"local", "slurm", "kubernetes"}
@@ -502,6 +502,7 @@ class Process:
         # Time 
         self.execution_start_at = None
         self.execution_end_at = None
+        self._execution_blocked = False
 
         # Internal field, populated after execution
         self.runtime_id = None

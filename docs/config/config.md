@@ -257,6 +257,8 @@ JAWM_WAIT_STABILIZE=300
 
 ### `JAWM_WAIT_CLI`
 
+With the default automatic wait enabled, the CLI checks child exit codes and returns nonzero if a child fails, a required process is blocked by an upstream failure or a strict dependency rule, or waiting fails or times out. Intentional conditional skips are allowed. Cleanup and post-run hashing still run before the final exit; reference-check failures retain exit code `73`. Setting this option to `0` also disables this automatic child-outcome check.
+
 - **Type:** `bool`
 - **Default:** `1` (enabled)
 - **Values:** `1`, `true`, `yes`, `on` to enable; `0`, `false`, `no`, `off` to disable

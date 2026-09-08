@@ -3375,6 +3375,9 @@ finally:
 print("\n>>> Test 50: CLI remote -p/-v URL (HTML blob -> retry ?raw=1 -> success + cache)")
 try:
     _clear_params()
+    # The in-process CLI must not inherit deliberately failed earlier fixtures.
+    Process.wait("all", allowed_exit="all", abort=False, log=False)
+    Process.reset_runtime()
 
     # Workspace
     tmpdir = tempfile.mkdtemp(prefix="test_cli_remote_url_", dir=base_tmp)
@@ -4506,6 +4509,12 @@ finally:
 # -----------------------------
 # Cleanup created directories
 # -----------------------------
+# Deliberate failure/blocked fixtures are assessed by the assertions above.
+# Finish them before deleting evidence, then clear their runtime registry so the
+# outer CLI evaluates this test harness's summary rather than fixture exit codes.
+Process.wait("all", allowed_exit="all", abort=False, log=False)
+Process.reset_runtime()
+
 for d in [
     "logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
     "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test",

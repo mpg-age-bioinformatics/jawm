@@ -2793,16 +2793,24 @@ def main():
                         logger.warning(f"Invalid JAWM_WAIT_TIMEOUT='{env_val}'. Falling back to default (24h).")
 
                 # Wait for all processes to finish before hashing
-                Process.wait("all", allowed_exit="all", timeout=timeout_val, log=False, dynamic=True, abort=False)
+                processes_ok = Process.wait("all", allowed_exit=0, timeout=timeout_val, log=False, dynamic=True, abort=False)
+                blocked = sorted({p.name for p in Process.registry.values()
+                                  if getattr(p, "_execution_blocked", False)})
+                if not processes_ok or blocked:
+                    logger.error("Required processes failed, were blocked, or did not finish successfully"
+                                 + (f": {', '.join(blocked)}" if blocked else ""))
+                    exit_code_def = exit_code_def or 1
 
         except Exception as e:
-            logger.warning(f"Could not complete jawm default wait for processes before exit: {e}")
+            logger.error(f"Could not complete jawm default wait for processes before exit: {e}")
+            exit_code_def = exit_code_def or 1
 
         # Wait for process to fully end and cleaned up
         deadline = time.time() + 120
         while Process.list_monitoring_threads():
             if time.time() >= deadline:
                 logger.warning("Timed out after 2 minutes waiting for processes to finish/clean up; CLOSING ANYWAY!")
+                exit_code_def = exit_code_def or 1
                 break
             time.sleep(1)
 
@@ -3049,10 +3057,10 @@ def main():
         else:
             logger.error(f"Ending jawm module script from jawm command with exit code {exit_code_def}")
 
-    # Honor the workflow's exit only after all post-run checks have succeeded.
+    # Report the workflow/child outcome after all post-run checks have completed.
     # Never exit from finally: doing so would replace a pending failure.
-    if exit_code_from_script is not None:
-        sys.exit(exit_code_from_script)
+    if exit_code_def or exit_code_from_script is not None:
+        sys.exit(exit_code_def)
 
 
 
