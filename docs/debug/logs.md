@@ -19,6 +19,7 @@ logs/
 │   ├── <name>.id                       # PID (local) or job ID (Slurm/K8s)
 │   ├── <name>.slurm                    # Slurm job script (Slurm only)
 │   ├── <name>.k8s.json                 # Kubernetes manifest (K8s only)
+│   ├── attempts/                      # independent per-attempt records (see below)
 │   └── stats.json                      # resource stats (when --stats is enabled)
 │
 ├── error.log                           # aggregated error summary (all failed processes)
@@ -44,6 +45,30 @@ Each `Process` gets its own log directory named:
 For example: `logs/bwa_align_20240315_142301_a3f9bc/`
 
 The `<hash>` is a 10-character identifier partly derived from the Process parameters — the same hash used to reference the process in `depends_on`, `Process.wait()`, and the registry.
+
+#### Retry attempt records
+
+Local, Slurm and Kubernetes executors preserve each JAWM attempt under:
+
+```text
+<process-log-directory>/attempts/attempt-0001-<unique-suffix>/
+    started.json
+    <name>.script
+    <name>.command
+    <name>.output
+    <name>.error
+    <name>.id
+    <name>.exitcode
+    completed.json
+```
+
+Only records actually produced are copied; Slurm scripts/submission responses and Kubernetes manifests/apply responses are also included when present. Every attempt, including the final successful or exhausted attempt, is copied before the executor proceeds. Copies are independent files. The existing top-level files and `get_stdout()`, `get_stderr()` and `get_exitcode()` continue to describe the current/latest attempt.
+
+`started.json` records the process identity, attempt number, UTC start time and selected effective configuration after retry overrides (variables, declared inputs/outputs, local/Slurm settings, environment/container selection and script wrappers). It does not dump the inherited environment or provide a complete environment attestation. `completed.json` records the end time, executor outcome, any propagated exception and SHA-256 values for the copied records. The copied exit-code file retains backend detail, such as Slurm `7:0`, separately from the executor's normalized outcome. Submission failures without an exit-code file receive the executor's failure code.
+
+If copying or writing the attempt record fails, the executor fails and does not start another retry. A `started.json` without `completed.json` identifies an incomplete archive. Existing current files found at the start of a repeated execution are copied to a unique `previous-*` directory before reuse; those records have no newly inferred attempt identity.
+
+This preserves JAWM-owned execution records after an attempt returns. It does not archive scientific output files outside those records, custom scheduler stdout/stderr destinations, cluster-side pod/job records, or every scheduler-internal retry. Abrupt termination and inaccessible or late-arriving remote logs can leave incomplete evidence. Files remain subject to normal filesystem permissions and retention policies; checksums do not make them tamper-proof. Archive storage grows with retained stdout/stderr and scripts, so include `attempts/` in the deployment's storage and retention planning.
 
 #### `<name>.output` — stdout
 

@@ -141,8 +141,7 @@ def _execute_local(self):
                 last_exit_code = None
 
                 for attempt_i in range(1, total_attempts + 1):
-                    self._apply_retry_parameters(attempt_i - 1)
-                    exit_code = run_process_once(attempt_i, total_attempts)
+                    exit_code = self._run_recorded_attempt(run_process_once, attempt_i, total_attempts)
                     last_exit_code = exit_code
 
                     # If success, we're done
