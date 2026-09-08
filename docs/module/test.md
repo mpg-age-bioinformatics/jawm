@@ -63,7 +63,7 @@ jawm mymodule.py test
 
 ### Setting up `jawm-test`
 
-`jawm-test` provides structured, repeatable testing. After each run it reads the output hash that `jawm` writes to `logs/jawm_hashes/<module>.hash` and compares it against a stored reference in `test/tests.txt`. If the hashes match, the test passes. If they differ, the test fails — signalling that the module's output has changed.
+`jawm-test` provides structured, repeatable testing. Each test invocation gets a fresh directory under `test/logs/run.XXXXXX/`. The runner reads its `jawm_hashes/<module>.hash` and compares it against a stored reference in `test/tests.txt`. If the hashes match, the test passes. If they differ, the test fails — signalling that the module's output has changed. This also works with `overwrite: false`, because an earlier invocation's hash is never reused. Missing or malformed hashes fail the test.
 
 The scaffold from `jawm-dev init` already creates both files. Here's how to populate them.
 
@@ -150,7 +150,7 @@ Which files are included in the hash is controlled by `scope: hash` entries in y
   recursive: true
 ```
 
-Without a `scope: hash` entry, jawm hashes a default set of output files. Being explicit about what to hash makes your tests stable — you avoid false failures from log files, timestamps, or intermediate files changing between runs.
+`jawm-test` requires a `scope: hash` entry selecting the files to compare. Without it, the CLI writes automatic input history but no output hash for the runner, so the test fails. Select stable, meaningful outputs and exclude volatile logs and timestamps.
 
 ---
 

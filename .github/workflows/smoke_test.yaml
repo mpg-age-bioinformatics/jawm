@@ -39,6 +39,9 @@ jobs:
 
           echo "▶️ Running jawm with test/base_test.py"
           jawm test/base_test.py
+
+      - name: Test module runner hash comparisons
+        run: python test/runner_test.py
   
   # ─────────────────────────────
   #  Slurm integration test (matrix)

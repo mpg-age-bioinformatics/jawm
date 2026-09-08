@@ -1,5 +1,7 @@
 # `jawm` Base Tests with `base_test.py`
 
+The module test runner also has a focused regression suite: `python3 test/runner_test.py` from the repository root. It checks current-run hash comparison, preserved baselines, missing/malformed hashes, repeated module tests, and reference updates using synthetic local workflows. The local CI Python matrix runs this suite automatically.
+
 This script (`base_test.py`) can validate the core functionalities of **jawm (Just Another Workflow Manager)** across multiple execution backends: **local**, **Slurm**, and **Kubernetes**.
 
 Git action on every commit runs and validate for the local backend. Utilizing the `jawm` command, the base tests can be executed with different **manager**.

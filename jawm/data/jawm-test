@@ -111,8 +111,10 @@ BEHAVIOR OVERVIEW
   • Tests execution:
       - For each Python × jawm × module version combo, runs each test via:
           jawm <module> <workflow> -l <logs_folder> -p <params> <yaml...>
-      - Compares generated hash from "\$LOGS_FOLDER/jawm_hashes/<module>.hash"
+      - Creates a fresh logs directory under "\$LOGS_FOLDER/run.XXXXXX" for each test.
+      - Compares that run's generated hash from "<run_logs>/jawm_hashes/<module>.hash"
         with the stored hash in the tests file.
+      - A missing or malformed generated hash fails the test.
       - With --override, mismatches update the tests file; otherwise mismatches fail
         (unless --ignore).
 
@@ -586,6 +588,11 @@ for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
 
         NAME="${NAME%\"}"; NAME="${NAME#\"}"
 
+        # A preserved baseline from an earlier invocation is not its current result.
+        # Keep each invocation's evidence separate, also for repeated module names.
+        mkdir -p "$LOGS_FOLDER"
+        RUN_LOGS_FOLDER="$(mktemp -d "${LOGS_FOLDER}/run.XXXXXX")"
+
         echo "MODULE: $MOD"
         echo "WORKFLOW: $WORKFLOW"
         echo "PARAMETERS: $PARAM"
@@ -595,21 +602,31 @@ for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
         echo "JAWM VERSION: ${JAWM_VERSION}"
         echo "MODULE VERSION: ${MODULE_VERSION}"
         echo "PWD: $(pwd)"
-        echo "JAWM COMMAND: jawm ${MOD} ${WORKFLOW} -l ${LOGS_FOLDER} -p $PARAM ${YAML_FILES[*]}"
+        echo "JAWM COMMAND: jawm ${MOD} ${WORKFLOW} -l ${RUN_LOGS_FOLDER} -p $PARAM ${YAML_FILES[*]}"
         echo "------"
 
         FAILED=false
         if [[ $IGNORE == false ]]; then
-          jawm "$MOD" "$WORKFLOW" -l "$LOGS_FOLDER" -p $PARAM "${YAML_FILES[@]}" \
+          jawm "$MOD" "$WORKFLOW" -l "$RUN_LOGS_FOLDER" -p $PARAM "${YAML_FILES[@]}" \
             || { echo 'Error: jawm failed. Test failed.'; rm -f "${TESTS_FILE}.tmp"; exit 1; }
         else
-          jawm "$MOD" "$WORKFLOW" -l "$LOGS_FOLDER" -p $PARAM "${YAML_FILES[@]}" \
+          jawm "$MOD" "$WORKFLOW" -l "$RUN_LOGS_FOLDER" -p $PARAM "${YAML_FILES[@]}" \
             || { echo 'Warning: jawm failed. Test failed.'; FAILED=true; }
         fi
 
         if [[ $FAILED == false ]]; then
-          NEW_HASH="$(cat "${LOGS_FOLDER}/jawm_hashes/$(basename "${MOD%.py}").hash")"
+          HASH_FILE="${RUN_LOGS_FOLDER}/jawm_hashes/$(basename "${MOD%.py}").hash"
+          if ! NEW_HASH="$(cat "$HASH_FILE")" || [[ ! "$NEW_HASH" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "Error: missing or malformed current-run SHA-256 hash: $HASH_FILE"
+            if [[ $IGNORE == false ]]; then
+              rm -f "${TESTS_FILE}.tmp"
+              exit 1
+            fi
+            FAILED=true
+          fi
+        fi
 
+        if [[ $FAILED == false ]]; then
           echo "Stored HASH:    ${STORED_HASH}"
           echo "Generated HASH: ${NEW_HASH}"
 
@@ -635,6 +652,9 @@ for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
               echo "$MOD;$WORKFLOW;$PARAM;\"$NAME\";${STORED_HASH}" >> "${TESTS_FILE}.tmp"
             fi
           fi
+        else
+          # --ignore continues, but must not remove failed tests from the suite.
+          echo "$MOD;$WORKFLOW;$PARAM;\"$NAME\";${STORED_HASH}" >> "${TESTS_FILE}.tmp"
         fi
       done < "$TESTS_FILE"
 

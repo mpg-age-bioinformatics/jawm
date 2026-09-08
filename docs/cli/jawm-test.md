@@ -16,8 +16,8 @@ By default it uses your local `jawm` installation and system Python. Optionally 
 2. **Set up Python environments** — if you request non-system Python versions, pyenv is bootstrapped and virtualenvs are created
 3. **Install jawm** — one or more jawm versions can be installed into each environment
 4. **Determine module versions** — auto-detected from the current checkout, or explicit via `-m`
-5. **Run each test** — for every Python × jawm × module version combination, runs `jawm <module> <workflow> -l <logs> -p <params>`
-6. **Compare hashes** — reads the generated hash from `test/logs/jawm_hashes/<module>.hash` and compares it to the stored value in `tests.txt`
+5. **Run each test** — for every Python × jawm × module version combination, creates a fresh `test/logs/run.XXXXXX/` directory and runs `jawm <module> <workflow> -l <run_logs> -p <params>`
+6. **Compare hashes** — reads that invocation's hash from `<run_logs>/jawm_hashes/<module>.hash` and compares it to the stored value in `tests.txt`; missing or malformed hashes fail the test
 7. **Update or fail** — on mismatch, fails by default; with `--override`, updates the stored hash
 
 ---
@@ -168,13 +168,15 @@ If the file already exists locally, download is skipped but the MD5 is still ver
 
 ### Where hashes come from
 
-After each `jawm` run, the CLI writes a hash of the output files to:
+With a `scope: hash` configuration, the CLI writes a hash of the selected files to:
 
 ```
-<logs>/jawm_hashes/<module_name>.hash
+test/logs/run.XXXXXX/jawm_hashes/<module_name>.hash
 ```
 
-`jawm-test` reads this file and compares it against the hash stored in `tests.txt`. This means the hash reflects the actual outputs produced by the module — not just whether the run succeeded, but whether the results are bit-for-bit reproducible.
+`jawm-test` reads this file and compares it against the hash stored in `tests.txt`. Each test invocation has a fresh logs directory, including repeated tests of the same module. Consequently, `overwrite: false` cannot cause the runner to compare a previous invocation's baseline instead of the current result. Previous logs and hashes are retained.
+
+A missing or malformed SHA-256 hash fails the test, including with `--override`. Configure `scope: hash` explicitly; automatic input history alone does not provide the output hash required by this runner. Use `jawm-monitor logs -l test/logs/run.XXXXXX` to inspect a particular invocation, using the directory printed in its command.
 
 The hash computation is controlled by `scope: hash` entries in your YAML parameter files — you can configure which files and directories are included. See the [Utils reference](../utils.md#hash_content) for details.
 
