@@ -1,12 +1,12 @@
 # jawm-dev
 
-`jawm-dev` is the developer companion to `jawm`. It provides utilities for module authors — scaffolding new modules from a template and inspecting what variables a module expects.
+`jawm-dev` is the developer companion to `jawm`. It provides utilities for module authors — inspecting the host environment, scaffolding new modules from a template, and inspecting what variables a module expects.
 
 ```bash
 jawm-dev <command> [args]
 ```
 
-Currently two commands are available: `init` and `lsvar` (there will be more devloper supporting commands soon).
+Three commands are available: `env`, `init`, and `lsvar`.
 
 ---
 
@@ -14,8 +14,53 @@ Currently two commands are available: `init` and `lsvar` (there will be more dev
 
 | Command | Description |
 |---------|-------------|
+| [`env`](#env) | Report the host, Python, jawm, package, and backend environment |
 | [`init`](#init) | Scaffold a new module from the `jawm_demo` template |
 | [`lsvar`](#lsvar) | Extract `{{variable}}` placeholders from a module file |
+
+---
+
+## `env`
+
+Reports the environment in which jawm is installed and would run. The command is best-effort: optional tools and unavailable cluster services are reported without failing or blocking the rest of the report.
+
+```bash
+jawm-dev env
+```
+
+The report includes:
+
+- jawm version, package location, installation source, Git revision when available, config file location, and current working directory
+- host, operating system, architecture, CPU, memory, user, and shell details
+- Python version, executable, environment, pip version, and installed packages
+- defined `JAWM_*` environment variables
+- versions and paths for available Git, Docker, Apptainer/Singularity, Slurm, and Kubernetes tools
+- best-effort Docker daemon, Slurm partition, and Kubernetes context, cluster, and node details
+
+Variable names containing `CREDENTIAL`, `PASSWORD`, `SECRET`, or `TOKEN` remain visible, but their values are shown as `**********`. This lets users see that a setting exists without exposing its value. Credentials and query values are also removed from the reported jawm installation URL.
+
+For a direct Git installation, jawm reads the repository, requested revision, and resolved commit from pip's installation metadata. For an editable installation, it reads the current commit and dirty-worktree state from the local checkout. Installations from a package index or wheel may not contain commit information, in which case those fields are reported as `not set`.
+
+Environment reports still contain potentially identifying operational details such as the hostname, username, working directory, installed packages, Kubernetes context, and node names. Review a report before sharing it outside your organisation.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Render the same report as JSON. |
+| `-o`, `--output PATH` | Write the report to a file instead of standard output. |
+
+### Examples
+
+```bash
+# Print a human-readable report
+jawm-dev env
+
+# Save a machine-readable provenance report
+jawm-dev env --json --output jawm-environment.json
+```
+
+The contents do not change between the text and JSON forms; only their representation does.
 
 ---
 

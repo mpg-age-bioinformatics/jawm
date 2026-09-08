@@ -6,7 +6,7 @@ jawm ships four command-line tools, each with a distinct role — from running w
 |---------|------|-------------|
 | [`jawm`](jawm.md) | Run a workflow module (local or remote) | Everyone |
 | [`jawm-monitor`](jawm-monitor.md) | Live process and job monitoring | Everyone |
-| [`jawm-dev`](jawm-dev.md) | Developer utilities — scaffold and inspect modules | Module authors |
+| [`jawm-dev`](jawm-dev.md) | Developer utilities — inspect environments, scaffold and inspect modules | Module authors |
 | [`jawm-test`](jawm-test.md) | Structured test runner with hash verification | Module authors, CI |
 
 ---
@@ -28,6 +28,7 @@ Everything else — `jawm-dev`, `jawm-test`, `jawm-monitor` — is built around 
 ### Which tool do I need?
 
 - **Running a workflow** — use `jawm`
+- **Capturing host and runtime details** — use `jawm-dev env`
 - **Starting a new module from scratch** — use `jawm-dev init`
 - **Checking what variables a module expects** — use `jawm-dev lsvar`
 - **Verifying a module still produces correct output** — use `jawm-test`
