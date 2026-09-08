@@ -292,6 +292,8 @@ Glob patterns follow standard shell glob syntax. `**` matches any number of dire
 
 The `reference` field allows jawm to compare the computed hash against a known value. If the hashes do not match, jawm exits with code `73` (`EXIT_HASH_REFERENCE_MISMATCH`).
 
+Post-run check failures take precedence over a workflow's requested exit code, including `sys.exit(0)`. Invalid references and missing hash inputs also exit with `73`; other post-run exceptions exit with `1`. When post-run checks succeed, the workflow's exit status is preserved. Without `reference`, a mismatch against the stored `.hash` remains informational.
+
 The reference can be a literal SHA-256 hex string:
 
 ```yaml

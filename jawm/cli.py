@@ -2773,7 +2773,9 @@ def main():
             runpy.run_path(module_path, run_name="__main__", init_globals=exec_namespace)
         except SystemExit as e:
             # Defer exiting until after we perform cleanup + hashing
-            exit_code_from_script = e.code if isinstance(e.code, int) else 0
+            exit_code_from_script = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+            if e.code is not None and not isinstance(e.code, int):
+                logger.error(str(e.code))
             logger.info(f"Module ended with exitcode ({exit_code_from_script}); Initiating post run procedures.")
 
         exit_code_def = 0 if exit_code_from_script is None else exit_code_from_script
@@ -3005,6 +3007,11 @@ def main():
     # ------------------------------------------------------------
     #  Final exception handling and logging
     # ------------------------------------------------------------
+    except SystemExit as e:
+        # Post-run checks take precedence over the workflow's deferred exit.
+        exit_code_def = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        raise
+
     except Exception:
         logger.exception("Failed to execute module script")
         try:
@@ -3012,8 +3019,9 @@ def main():
             Process.kill_all()
         except Exception as e:
             logger.warning(f"Cleanup up during exception failed: {e}")
-        # If module raised SystemExit, prefer that code; else generic failure
-        sys.exit(exit_code_from_script if exit_code_from_script is not None else 1)
+        # A workflow's requested success cannot mask a post-run exception.
+        exit_code_def = 1
+        sys.exit(exit_code_def)
 
     finally:
         try:
@@ -3040,9 +3048,11 @@ def main():
             logger.info("Ending jawm module script from jawm command")
         else:
             logger.error(f"Ending jawm module script from jawm command with exit code {exit_code_def}")
-        # Now, if the script wanted to exit with a specific code, honor it
-        if exit_code_from_script is not None:
-            sys.exit(exit_code_from_script)
+
+    # Honor the workflow's exit only after all post-run checks have succeeded.
+    # Never exit from finally: doing so would replace a pending failure.
+    if exit_code_from_script is not None:
+        sys.exit(exit_code_from_script)
 
 
 

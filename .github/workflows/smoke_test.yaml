@@ -42,6 +42,9 @@ jobs:
 
       - name: Test module runner hash comparisons
         run: python test/runner_test.py
+
+      - name: Test CLI exit precedence
+        run: python test/cli_exit_test.py
   
   # ─────────────────────────────
   #  Slurm integration test (matrix)
