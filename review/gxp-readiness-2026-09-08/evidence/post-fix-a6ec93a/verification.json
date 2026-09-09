@@ -1,0 +1,46 @@
+{
+  "head": "a6ec93a2bba5ca54944a6d495fce5315e9154826",
+  "tracked_status_at_start": "",
+  "started_utc": "2026-09-08T13:23:23.472946+00:00",
+  "python": "3.11.6 (main, Oct  2 2023, 13:45:54) [Clang 15.0.0 (clang-1500.0.40.1)]",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "previous_inventory_verified": true,
+  "commands": {
+    "runner_tests": {
+      "argv": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "test/runner_test.py"
+      ],
+      "returncode": 0
+    },
+    "cli_exit_tests": {
+      "argv": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "test/cli_exit_test.py"
+      ],
+      "returncode": 0
+    },
+    "probes": {
+      "argv": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "/Users/jboucas/jawm/review/gxp-readiness-2026-09-08/probes.py",
+        "/Users/jboucas/jawm"
+      ],
+      "returncode": 0
+    }
+  },
+  "source_sha256": {
+    "jawm/cli.py": "06c528c424159df82e5a6954160e5e176f7d77f8edf3c4437c237c9274ac77ae",
+    "jawm/_process_api.py": "747aec75d88c4a998aaafed87b16230012992a8b5e18e49f35bd2987feb7adda",
+    "jawm/process.py": "f3d8486807c786f7fb4377ca9e107e9327c07ff141d349c636bc6beeb14a18c6",
+    "jawm/_process_internal.py": "b389c66ce6a1cdd9beabfff1e099e60efbb021eb31e4b46df596ad4af44eff8a",
+    "jawm/_process_local.py": "063a8e190173d25623e6cacc4c2c4f7e65cd6e3e5c5dcfc69a617b704536051e",
+    "jawm/_utils.py": "ec299b6cada54fd091c2022ab61dc39a4b5c244dd30d689b359d497a5836de6a",
+    "jawm/data/jawm-test": "c7dbcef1c1d5fa28b8a738af31cc363dbaea64e0eb42e2b3200d214a3fe13481",
+    "test/runner_test.py": "718b65e7ff349191ecc13843ddd280f95cb79ee8d39bb6ac67ff55088f14f7ec",
+    "test/cli_exit_test.py": "f1874c91e3870e173953ace8db8cf270a2b97798cf3e10e2c0afdbb804a62493",
+    "test/base_test.py": "7868fcec437101aefd09f758ed1f74da1af040a9f3e5f80f152f932a0444ef2c",
+    ".github/workflows/smoke_test.yaml": "42362192bb6e50a3aa8086b666bf5faec6377ed5b059f9f6a2705c84666cac2f"
+  },
+  "ended_utc": "2026-09-08T13:24:48.443890+00:00"
+}

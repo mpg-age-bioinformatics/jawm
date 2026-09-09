@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "process": "retry_step",
+  "process_hash": "4dd1fdrhye",
+  "attempt": 2,
+  "total_attempts": 2,
+  "execution_started_at": "20260908_162905",
+  "started_at": "2026-09-08T14:29:10.897633+00:00",
+  "effective_configuration": {
+    "var": {},
+    "inputs": {},
+    "outputs": {},
+    "manager": "local",
+    "manager_local": {},
+    "manager_slurm": {},
+    "environment": "local",
+    "container": null,
+    "retries": 1,
+    "error_strategy": "retry",
+    "before_script": null,
+    "after_script": null
+  }
+}

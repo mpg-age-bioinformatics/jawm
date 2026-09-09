@@ -1,0 +1,18 @@
+test_changed_file_boundaries_fail_in_both_modes (__main__.HashContentTests.test_changed_file_boundaries_fail_in_both_modes) ... ok
+test_cli_reference_rejects_former_boundary_collision (__main__.HashContentTests.test_cli_reference_rejects_former_boundary_collision) ... ok
+test_empty_file_addition_and_removal_change_hash (__main__.HashContentTests.test_empty_file_addition_and_removal_change_hash) ... ok
+test_filters_and_nonrecursive_mode (__main__.HashContentTests.test_filters_and_nonrecursive_mode) ... ok
+test_identical_content_in_distinct_files_is_counted (__main__.HashContentTests.test_identical_content_in_distinct_files_is_counted) ... ok
+test_known_versioned_encoding (__main__.HashContentTests.test_known_versioned_encoding) ... ok
+test_missing_input_fails_instead_of_silent_omission (__main__.HashContentTests.test_missing_input_fails_instead_of_silent_omission) ... ok
+test_names_are_unambiguously_framed (__main__.HashContentTests.test_names_are_unambiguously_framed) ... ok
+test_relative_paths_distinguish_moves_with_same_basename (__main__.HashContentTests.test_relative_paths_distinguish_moves_with_same_basename) ... ok
+test_relocation_order_and_overlapping_selections (__main__.HashContentTests.test_relocation_order_and_overlapping_selections) ... ok
+test_symlinks_and_nonregular_files_are_rejected (__main__.HashContentTests.test_symlinks_and_nonregular_files_are_rejected) ... ok
+test_unreadable_file_and_directory_fail (__main__.HashContentTests.test_unreadable_file_and_directory_fail) ... ok
+test_write_hash_file_forwards_explicit_content_only_option (__main__.HashContentTests.test_write_hash_file_forwards_explicit_content_only_option) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 2.430s
+
+OK

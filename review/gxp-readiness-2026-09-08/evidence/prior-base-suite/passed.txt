@@ -1,0 +1,915 @@
+[2026-09-08 10:53:28] - INFO - jawm.cli|base_test :: Initiating jawm module script from jawm command
+[2026-09-08 10:53:28] - INFO - jawm.cli|base_test :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs/jawm_runs/base_test_20260908_105328.log
+[2026-09-08 10:53:28] - INFO - jawm.cli|base_test :: [sys] jawm: 0.1.0
+[2026-09-08 10:53:28] - INFO - jawm.cli|base_test :: [sys] Python: 3.11.6
+[2026-09-08 10:53:28] - INFO - jawm.cli|base_test :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:53:28] - INFO - jawm.cli|base_test :: [sys] Machine/Arch: arm64
+[2026-09-08 10:53:28] - INFO - jawm.cli|base_test :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:53:29] - INFO - jawm.cli|base_test :: Running jawm module: /Users/jboucas/jawm/test/base_test.py
+>>> Test 1: Basic Inline Script Execution
+[2026-09-08 10:53:29] - INFO - basic_hello|399444c4ga :: Launching process basic_hello using Local executor.
+[2026-09-08 10:53:29] - INFO - basic_hello|399444c4ga :: Log folder for process basic_hello: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/basic_hello_20260908_105329_399444c4ga
+[2026-09-08 10:53:29] - INFO - basic_hello|399444c4ga :: Preparing base script for process basic_hello
+[2026-09-08 10:53:29] - INFO - basic_hello|399444c4ga :: Process basic_hello started with PID: 73579
+[2026-09-08 10:53:29] - INFO - basic_hello|399444c4ga :: Process basic_hello (PID: 73579) is still running...
+[2026-09-08 10:53:34] - INFO - basic_hello|399444c4ga :: Process basic_hello completed with exit code: 0
+[2026-09-08 10:53:34] - INFO - basic_hello|399444c4ga :: Process.wait → basic_hello [399444c4ga] has completed
+[2026-09-08 10:53:34] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: Basic Inline Script
+
+>>> Test 2: Dependency Handling
+[2026-09-08 10:53:34] - INFO - step_a|5e2d18rq3y :: Launching process step_a using Local executor.
+[2026-09-08 10:53:34] - INFO - step_a|5e2d18rq3y :: Log folder for process step_a: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/step_a_20260908_105334_5e2d18rq3y
+[2026-09-08 10:53:34] - INFO - step_a|5e2d18rq3y :: Preparing base script for process step_a
+[2026-09-08 10:53:34] - INFO - step_a|5e2d18rq3y :: Process step_a started with PID: 73615
+[2026-09-08 10:53:34] - INFO - step_a|5e2d18rq3y :: Process step_a (PID: 73615) is still running...
+[2026-09-08 10:53:34] - INFO - step_b|985d54rdyp :: Waiting for dependency process step_a (5e2d18rq3y) to finish before executing step_b (985d54rdyp)
+[2026-09-08 10:53:39] - INFO - step_a|5e2d18rq3y :: Process step_a completed with exit code: 0
+[2026-09-08 10:53:39] - INFO - step_a|5e2d18rq3y :: Process.wait → step_a [5e2d18rq3y] has completed
+[2026-09-08 10:53:39] - INFO - step_b|985d54rdyp :: Launching process step_b using Local executor.
+[2026-09-08 10:53:39] - INFO - step_b|985d54rdyp :: Log folder for process step_b: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/step_b_20260908_105334_985d54rdyp
+[2026-09-08 10:53:39] - INFO - step_b|985d54rdyp :: Preparing base script for process step_b
+[2026-09-08 10:53:39] - INFO - step_b|985d54rdyp :: Process step_b started with PID: 73630
+[2026-09-08 10:53:39] - INFO - step_b|985d54rdyp :: Process step_b (PID: 73630) is still running...
+[2026-09-08 10:53:44] - INFO - step_b|985d54rdyp :: Process step_b completed with exit code: 0
+[2026-09-08 10:53:44] - INFO - step_b|985d54rdyp :: Process.wait → step_b [985d54rdyp] has completed
+[2026-09-08 10:53:44] - INFO - jawm.Process|WAIT :: Wait completed for 2 process(es).
+✅ Passed: Dependency Handling
+
+>>> Test 3: Retry Mechanism
+[2026-09-08 10:53:44] - INFO - retry_test|f85414box7 :: Launching process retry_test using Local executor.
+[2026-09-08 10:53:44] - INFO - retry_test|f85414box7 :: Log folder for process retry_test: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/retry_test_20260908_105344_f85414box7
+[2026-09-08 10:53:44] - INFO - retry_test|f85414box7 :: Preparing base script for process retry_test
+[2026-09-08 10:53:44] - INFO - retry_test|f85414box7 :: Process retry_test started with PID: 73661
+[2026-09-08 10:53:44] - INFO - retry_test|f85414box7 :: Process retry_test (PID: 73661) is still running...
+[2026-09-08 10:53:49] - INFO - retry_test|f85414box7 :: Process retry_test completed with exit code: 127
+[2026-09-08 10:53:49] - ERROR - retry_test|f85414box7 :: ❌  Attempt 1 for process retry_test failed with exit code 127 (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/retry_test_20260908_105344_f85414box7)
+[2026-09-08 10:53:49] - INFO - retry_test|f85414box7 :: Retrying process retry_test, 1 retries left.
+[2026-09-08 10:53:49] - INFO - retry_test|f85414box7 :: Launching attempt 2/2 locally...
+[2026-09-08 10:53:49] - INFO - retry_test|f85414box7 :: Preparing base script for process retry_test
+[2026-09-08 10:53:49] - INFO - retry_test|f85414box7 :: Process retry_test started with PID: 73681
+[2026-09-08 10:53:49] - INFO - retry_test|f85414box7 :: Process retry_test (PID: 73681) is still running...
+[2026-09-08 10:53:54] - INFO - retry_test|f85414box7 :: Process retry_test completed with exit code: 127
+[2026-09-08 10:53:54] - ERROR - retry_test|f85414box7 :: ❌  Attempt 2 for process retry_test failed with exit code 127 (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/retry_test_20260908_105344_f85414box7)
+[2026-09-08 10:53:54] - ERROR - retry_test|f85414box7 :: ❌  Process retry_test in Local failed after 2 attempts (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/retry_test_20260908_105344_f85414box7)
+
+/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/retry_test_20260908_105344_f85414box7/retry_test.script: line 2: fakecommandddddd: command not found
+[2026-09-08 10:53:54] - INFO - retry_test|f85414box7 :: Process.wait → retry_test [f85414box7] has completed
+[2026-09-08 10:53:54] - WARNING - retry_test|f85414box7 :: ⚠️  Process retry_test (f85414box7) has completed with disallowed exit code: 127
+[2026-09-08 10:53:54] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:53:54] - ERROR - jawm.Process|WAIT :: ❌  Process.wait → Failure detected; waiting for 0 active process(es) to finish (graceful=True).
+✅ Passed: Retry Mechanism
+
+>>> Test 4: Output, Error, and Command Log Check
+✅ Passed: Log Retrieval Checks
+
+>>> Test 5: Process Registry Summary
+✅ Passed: 4 Process(es) tracked and marked finished
+
+>>> Test 6: Script Variable Substitution
+[2026-09-08 10:53:54] - INFO - var_subst|8bfa83wr16 :: Launching process var_subst using Local executor.
+[2026-09-08 10:53:54] - INFO - var_subst|8bfa83wr16 :: Log folder for process var_subst: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/var_subst_20260908_105354_8bfa83wr16
+[2026-09-08 10:53:54] - INFO - var_subst|8bfa83wr16 :: Preparing base script for process var_subst
+[2026-09-08 10:53:54] - INFO - var_subst|8bfa83wr16 :: Process var_subst started with PID: 73709
+[2026-09-08 10:53:54] - INFO - var_subst|8bfa83wr16 :: Process var_subst (PID: 73709) is still running...
+[2026-09-08 10:53:59] - INFO - var_subst|8bfa83wr16 :: Process var_subst completed with exit code: 0
+[2026-09-08 10:53:59] - INFO - var_subst|8bfa83wr16 :: Process.wait → var_subst [8bfa83wr16] has completed
+[2026-09-08 10:53:59] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: Script Variable Substitution
+
+>>> Test 7: Script Variable File Substitution
+[2026-09-08 10:54:00] - INFO - file_vars|ef97db7p8r :: Launching process file_vars using Local executor.
+[2026-09-08 10:54:00] - INFO - file_vars|ef97db7p8r :: Log folder for process file_vars: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/file_vars_20260908_105359_ef97db7p8r
+[2026-09-08 10:54:00] - INFO - file_vars|ef97db7p8r :: Preparing base script for process file_vars
+[2026-09-08 10:54:00] - INFO - file_vars|ef97db7p8r :: Process file_vars started with PID: 73730
+[2026-09-08 10:54:00] - INFO - file_vars|ef97db7p8r :: Process file_vars (PID: 73730) is still running...
+[2026-09-08 10:54:05] - INFO - file_vars|ef97db7p8r :: Process file_vars completed with exit code: 0
+[2026-09-08 10:54:05] - INFO - file_vars|ef97db7p8r :: Process.wait → file_vars [ef97db7p8r] has completed
+[2026-09-08 10:54:05] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: Script Variable File Substitution
+
+>>> Test 8: Skipped Process using `when=False`
+[2026-09-08 10:54:05] - INFO - skip_this|ed3db4vzpc :: Process skip_this skipped because 'when' condition was not fulfilled!
+[2026-09-08 10:54:05] - INFO - skip_this|ed3db4vzpc :: Process.wait → skip_this [ed3db4vzpc] already completed
+[2026-09-08 10:54:05] - INFO - skip_this|ed3db4vzpc :: Process skip_this (ed3db4vzpc) finished without an exit code (skipped or not executed).
+[2026-09-08 10:54:05] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: Conditional Skip with `when=False`
+
+>>> Test 9: Process Cloning with `clone()`
+[2026-09-08 10:54:05] - INFO - original_proc|734397un4u :: Launching process original_proc using Local executor.
+[2026-09-08 10:54:05] - INFO - original_proc|734397un4u :: Log folder for process original_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/original_proc_20260908_105405_734397un4u
+[2026-09-08 10:54:05] - INFO - original_proc|734397un4u :: Preparing base script for process original_proc
+[2026-09-08 10:54:05] - INFO - original_proc|734397un4u :: Process original_proc started with PID: 73758
+[2026-09-08 10:54:05] - INFO - original_proc|734397un4u :: Process original_proc (PID: 73758) is still running...
+[2026-09-08 10:54:05] - INFO - cloned_proc|f7994b8hwx :: Launching process cloned_proc using Local executor.
+[2026-09-08 10:54:05] - INFO - cloned_proc|f7994b8hwx :: Log folder for process cloned_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test/cloned_proc_20260908_105405_f7994b8hwx
+[2026-09-08 10:54:05] - INFO - cloned_proc|f7994b8hwx :: Preparing base script for process cloned_proc
+[2026-09-08 10:54:05] - INFO - cloned_proc|f7994b8hwx :: Process cloned_proc started with PID: 73759
+[2026-09-08 10:54:05] - INFO - cloned_proc|f7994b8hwx :: Process cloned_proc (PID: 73759) is still running...
+[2026-09-08 10:54:10] - INFO - original_proc|734397un4u :: Process original_proc completed with exit code: 0
+[2026-09-08 10:54:10] - INFO - original_proc|734397un4u :: Process.wait → original_proc [734397un4u] has completed
+[2026-09-08 10:54:10] - INFO - cloned_proc|f7994b8hwx :: Process cloned_proc completed with exit code: 0
+[2026-09-08 10:54:10] - INFO - cloned_proc|f7994b8hwx :: Process.wait → cloned_proc [f7994b8hwx] has completed
+[2026-09-08 10:54:10] - INFO - jawm.Process|WAIT :: Wait completed for 2 process(es).
+✅ Passed: Process Copy and Execution
+
+>>> Test 10: Class-Level Defaults with `set_default()`
+✅ Passed: Class-Level Default Parameters
+
+>>> Test 11: Parameter Resolution from YAML (Global and Process)
+✅ Passed: YAML Parameter Resolution (skipped for cli override)
+
+>>> Test 12: Validation Logic (Basic vs. Strict)
+[2026-09-08 10:54:10] - WARNING - valid_proc_basic|c76df31zdz :: ⚠️  Validation Warning: Unrecognized parameters in kwargs: unknown_param
+[2026-09-08 10:54:10] - WARNING - valid_proc_basic|c76df31zdz :: ⚠️  Validation Warning: Unrecognized parameters in kwargs: unknown_param
+[2026-09-08 10:54:10] - WARNING - valid_proc_strict|0de9622k82 :: ⚠️  Validation Warning: Unrecognized parameters in kwargs: unknown_param
+[2026-09-08 10:54:10] - WARNING - valid_proc_strict|0de9622k82 :: ⚠️  Strict validation failed — process valid_proc_strict will be skipped with when False
+[2026-09-08 10:54:10] - WARNING - valid_proc_strict|0de9622k82 :: ⚠️  Validation Warning: Unrecognized parameters in kwargs: unknown_param
+[2026-09-08 10:54:10] - ERROR - invalid_proc_strict|3a1a78k258 :: ❌  Validation Error: Missing or invalid shebang line (must start with #!) in script or script_file.
+[2026-09-08 10:54:10] - WARNING - invalid_proc_strict|3a1a78k258 :: ⚠️  Strict validation failed — process invalid_proc_strict will be skipped with when False
+[2026-09-08 10:54:10] - ERROR - invalid_proc_strict|3a1a78k258 :: ❌  Validation Error: Missing or invalid shebang line (must start with #!) in script or script_file.
+[2026-09-08 10:54:10] - ERROR - invalid_proc_strict|3a1a78k258 :: ❌  Validation Error: Missing or invalid shebang line (must start with #!) in script or script_file.
+[2026-09-08 10:54:10] - WARNING - proc_callable_retries|0b52c5hxpd :: ⚠️  Validation Warning: Parameter 'retries' expected type int, got function
+[2026-09-08 10:54:10] - WARNING - proc_callable_retries|0b52c5hxpd :: ⚠️  Strict validation failed — process proc_callable_retries will be skipped with when False
+[2026-09-08 10:54:10] - WARNING - proc_callable_retries|0b52c5hxpd :: ⚠️  Validation Warning: Parameter 'retries' expected type int, got function
+[2026-09-08 10:54:10] - WARNING - proc_placeholder_missing|a40fcct5rr :: ⚠️  Validation Warning: Unresolved placeholder variables in Process script: UNDEFINED_VAR
+[2026-09-08 10:54:10] - WARNING - proc_placeholder_missing|a40fcct5rr :: ⚠️  Strict validation failed — process proc_placeholder_missing will be skipped with when False
+[2026-09-08 10:54:10] - WARNING - proc_placeholder_missing|a40fcct5rr :: ⚠️  Validation Warning: Unresolved placeholder variables in Process script: UNDEFINED_VAR
+[2026-09-08 10:54:10] - WARNING - proc_placeholder_missing|a40fcct5rr :: ⚠️  Validation Warning: Unresolved placeholder variables in Process script: UNDEFINED_VAR
+✅ Passed: Validation Logic (Basic & Strict Modes)
+
+>>> Test 13: jawm CLI Integration 
+✅ Passed: CLI options & path resolution
+
+>>> Test 14: Hash Prefix Consistency for Identical Parameters
+✅ Passed: Hash prefix match → e49e0e
+
+>>> Test 15: Resume Skips Execution if Previous Run Succeeded
+[2026-09-08 10:54:37] - INFO - resume_test_proc|f7f1157321 :: Launching process resume_test_proc using Local executor.
+[2026-09-08 10:54:37] - INFO - resume_test_proc|f7f1157321 :: Log folder for process resume_test_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_resume_test/resume_test_proc_20260908_105437_f7f1157321
+[2026-09-08 10:54:37] - INFO - resume_test_proc|f7f1157321 :: Preparing base script for process resume_test_proc
+[2026-09-08 10:54:37] - INFO - resume_test_proc|f7f1157321 :: Process resume_test_proc started with PID: 73975
+[2026-09-08 10:54:37] - INFO - resume_test_proc|f7f1157321 :: Process resume_test_proc (PID: 73975) is still running...
+[2026-09-08 10:54:42] - INFO - resume_test_proc|f7f1157321 :: Process resume_test_proc completed with exit code: 0
+[2026-09-08 10:54:42] - INFO - resume_test_proc|f7f1157321 :: Process.wait → resume_test_proc [f7f1157321] has completed
+[2026-09-08 10:54:42] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:54:42] - INFO - resume_test_proc|f7f115s7an :: Matched process with hash prefix 'f7f115' already finished successfully — logs in (resume_test_proc_20260908_105437_f7f1157321)
+[2026-09-08 10:54:42] - INFO - resume_test_proc|f7f115s7an :: Process resume_test_proc skipped with resume enabled — already completed successfully.
+[2026-09-08 10:54:42] - INFO - resume_test_proc|f7f115s7an :: Process.wait → resume_test_proc [f7f115s7an] already completed
+[2026-09-08 10:54:42] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: Resume correctly skipped execution and reused logs from resume_test_proc_20260908_105437_f7f1157321
+
+>>> Test 16: Class-Level Overrides with `set_override()`
+✅ Passed: Class-Level Override Parameters
+
+>>> Test 17: update_vars() supports list of files and YAML directory
+[2026-09-08 10:54:42] - INFO - update_vars_proc|62e847oc6u :: Process update_vars_proc var updated from ['/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/update_vars_list_2d3r34m4/v1.yaml', '/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/update_vars_list_2d3r34m4/v2.yml'] (3 loaded; 4 total after merge)
+[2026-09-08 10:54:43] - INFO - update_vars_proc|62e847oc6u :: Launching process update_vars_proc using Local executor.
+[2026-09-08 10:54:43] - INFO - update_vars_proc|62e847oc6u :: Log folder for process update_vars_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_update_vars/update_vars_proc_20260908_105442_62e847oc6u
+[2026-09-08 10:54:43] - INFO - update_vars_proc|62e847oc6u :: Preparing base script for process update_vars_proc
+[2026-09-08 10:54:43] - INFO - update_vars_proc|62e847oc6u :: Process update_vars_proc started with PID: 73998
+[2026-09-08 10:54:43] - INFO - update_vars_proc|62e847oc6u :: Process update_vars_proc (PID: 73998) is still running...
+[2026-09-08 10:54:48] - INFO - update_vars_proc|62e847oc6u :: Process update_vars_proc completed with exit code: 0
+[2026-09-08 10:54:48] - INFO - update_vars_proc|62e847oc6u :: Process.wait → update_vars_proc [62e847oc6u] has completed
+[2026-09-08 10:54:48] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:54:48] - INFO - update_vars_dir_proc|b695c836l5 :: Process update_vars_dir_proc var updated from /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/update_vars_dir__iqun04e (2 loaded; 2 total after merge)
+[2026-09-08 10:54:48] - INFO - update_vars_dir_proc|b695c836l5 :: Launching process update_vars_dir_proc using Local executor.
+[2026-09-08 10:54:48] - INFO - update_vars_dir_proc|b695c836l5 :: Log folder for process update_vars_dir_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_update_vars/update_vars_dir_proc_20260908_105448_b695c836l5
+[2026-09-08 10:54:48] - INFO - update_vars_dir_proc|b695c836l5 :: Preparing base script for process update_vars_dir_proc
+[2026-09-08 10:54:48] - INFO - update_vars_dir_proc|b695c836l5 :: Process update_vars_dir_proc started with PID: 74017
+[2026-09-08 10:54:48] - INFO - update_vars_dir_proc|b695c836l5 :: Process update_vars_dir_proc (PID: 74017) is still running...
+[2026-09-08 10:54:53] - INFO - update_vars_dir_proc|b695c836l5 :: Process update_vars_dir_proc completed with exit code: 0
+[2026-09-08 10:54:53] - INFO - update_vars_dir_proc|b695c836l5 :: Process.wait → update_vars_dir_proc [b695c836l5] has completed
+[2026-09-08 10:54:53] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: update_vars() with list and directory
+
+>>> Test 18: Concurrent tail across multiple processes
+[2026-09-08 10:54:53] - INFO - tail_conc_1|38b177ccr5 :: Launching process tail_conc_1 using Local executor.
+[2026-09-08 10:54:53] - INFO - tail_conc_1|38b177ccr5 :: Log folder for process tail_conc_1: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_tail_concurrent/tail_conc_1_20260908_105453_38b177ccr5
+[2026-09-08 10:54:53] - INFO - tail_conc_1|38b177ccr5 :: Preparing base script for process tail_conc_1
+[2026-09-08 10:54:53] - INFO - tail_conc_1|38b177ccr5 :: Process tail_conc_1 started with PID: 74040
+[2026-09-08 10:54:53] - INFO - tail_conc_1|38b177ccr5 :: Process tail_conc_1 (PID: 74040) is still running...
+[2026-09-08 10:54:53] - INFO - tail_conc_2|6a73f8epu9 :: Launching process tail_conc_2 using Local executor.
+[2026-09-08 10:54:53] - INFO - tail_conc_2|6a73f8epu9 :: Log folder for process tail_conc_2: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_tail_concurrent/tail_conc_2_20260908_105453_6a73f8epu9
+[2026-09-08 10:54:53] - INFO - tail_conc_2|6a73f8epu9 :: Preparing base script for process tail_conc_2
+[2026-09-08 10:54:53] - INFO - tail_conc_2|6a73f8epu9 :: Process tail_conc_2 started with PID: 74041
+[2026-09-08 10:54:53] - INFO - tail_conc_2|6a73f8epu9 :: Process tail_conc_2 (PID: 74041) is still running...
+[TAIL tail_conc_1|38b177ccr5 stdout] A STDOUT 1
+[TAIL tail_conc_1|38b177ccr5 stderr] A STDERR 1
+[TAIL tail_conc_2|6a73f8epu9 stdout] B STDOUT 5
+[TAIL tail_conc_2|6a73f8epu9 stderr] B STDERR 5
+[TAIL tail_conc_1|38b177ccr5 stderr] A STDERR 2
+[TAIL tail_conc_1|38b177ccr5 stdout] A STDOUT 2
+[TAIL tail_conc_2|6a73f8epu9 stdout] B STDOUT 6
+[TAIL tail_conc_2|6a73f8epu9 stderr] B STDERR 6
+[TAIL tail_conc_1|38b177ccr5 stdout] A STDOUT 3
+[TAIL tail_conc_1|38b177ccr5 stderr] A STDERR 3
+[TAIL tail_conc_2|6a73f8epu9 stdout] B STDOUT 7
+[TAIL tail_conc_2|6a73f8epu9 stderr] B STDERR 7
+[TAIL tail_conc_1|38b177ccr5 stderr] A STDERR 4
+[TAIL tail_conc_1|38b177ccr5 stdout] A STDOUT 4
+[TAIL tail_conc_2|6a73f8epu9 stdout] B STDOUT 8
+[TAIL tail_conc_2|6a73f8epu9 stderr] B STDERR 8
+[2026-09-08 10:54:58] - INFO - tail_conc_1|38b177ccr5 :: Process tail_conc_1 completed with exit code: 0
+[2026-09-08 10:54:58] - INFO - tail_conc_1|38b177ccr5 :: Process.wait → tail_conc_1 [38b177ccr5] has completed
+[2026-09-08 10:54:58] - INFO - tail_conc_2|6a73f8epu9 :: Process tail_conc_2 completed with exit code: 0
+[2026-09-08 10:54:58] - INFO - tail_conc_2|6a73f8epu9 :: Process.wait → tail_conc_2 [6a73f8epu9] already completed
+[2026-09-08 10:54:58] - INFO - jawm.Process|WAIT :: Wait completed for 2 process(es).
+[2026-09-08 10:54:58] - INFO - tail_conc_1|38b177ccr5 :: Process.wait → tail_conc_1 [38b177ccr5] already completed
+[2026-09-08 10:54:58] - INFO - tail_conc_2|6a73f8epu9 :: Process.wait → tail_conc_2 [6a73f8epu9] already completed
+[2026-09-08 10:54:58] - INFO - jawm.Process|WAIT :: Wait completed for 2 process(es).
+✅ Passed: Concurrent multi-process tailing (stdout+stderr) and no-tail fallback
+
+>>> Test 19: Hash reacts deterministically (same inputs) and to allowed file changes
+✅ Passed: Hash stability and sensitivity across files, dirs, and inline script
+
+>>> Test 20: Parallelism True vs False (time-window overlap, backend-agnostic)
+[2026-09-08 10:54:58] - INFO - parallel_true_A|cb2d37e3jc :: Launching process parallel_true_A using Local executor.
+[2026-09-08 10:54:58] - INFO - parallel_true_A|cb2d37e3jc :: Log folder for process parallel_true_A: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_parallel/parallel_true_A_20260908_105458_cb2d37e3jc
+[2026-09-08 10:54:58] - INFO - parallel_true_A|cb2d37e3jc :: Preparing base script for process parallel_true_A
+[2026-09-08 10:54:58] - INFO - parallel_true_A|cb2d37e3jc :: Process parallel_true_A started with PID: 74075
+[2026-09-08 10:54:58] - INFO - parallel_true_A|cb2d37e3jc :: Process parallel_true_A (PID: 74075) is still running...
+[2026-09-08 10:54:59] - INFO - parallel_true_B|d4c6f7hnlj :: Launching process parallel_true_B using Local executor.
+[2026-09-08 10:54:59] - INFO - parallel_true_B|d4c6f7hnlj :: Log folder for process parallel_true_B: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_parallel/parallel_true_B_20260908_105458_d4c6f7hnlj
+[2026-09-08 10:54:59] - INFO - parallel_true_B|d4c6f7hnlj :: Preparing base script for process parallel_true_B
+[2026-09-08 10:54:59] - INFO - parallel_true_B|d4c6f7hnlj :: Process parallel_true_B started with PID: 74076
+[2026-09-08 10:54:59] - INFO - parallel_true_B|d4c6f7hnlj :: Process parallel_true_B (PID: 74076) is still running...
+[2026-09-08 10:55:08] - INFO - parallel_true_A|cb2d37e3jc :: Process parallel_true_A completed with exit code: 0
+[2026-09-08 10:55:08] - INFO - parallel_true_A|cb2d37e3jc :: Process.wait → parallel_true_A [cb2d37e3jc] has completed
+[2026-09-08 10:55:09] - INFO - parallel_true_B|d4c6f7hnlj :: Process parallel_true_B completed with exit code: 0
+[2026-09-08 10:55:09] - INFO - parallel_true_B|d4c6f7hnlj :: Process.wait → parallel_true_B [d4c6f7hnlj] has completed
+[2026-09-08 10:55:09] - INFO - jawm.Process|WAIT :: Wait completed for 2 process(es).
+[2026-09-08 10:55:09] - INFO - parallel_false_C|3e714e6v0u :: Launching process parallel_false_C using Local executor.
+[2026-09-08 10:55:09] - INFO - parallel_false_C|3e714e6v0u :: Log folder for process parallel_false_C: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_parallel/parallel_false_C_20260908_105509_3e714e6v0u
+[2026-09-08 10:55:09] - INFO - parallel_false_C|3e714e6v0u :: Preparing base script for process parallel_false_C
+[2026-09-08 10:55:09] - INFO - parallel_false_C|3e714e6v0u :: Process parallel_false_C started with PID: 74127
+[2026-09-08 10:55:09] - INFO - parallel_false_C|3e714e6v0u :: Process parallel_false_C (PID: 74127) is still running...
+[2026-09-08 10:55:19] - INFO - parallel_false_C|3e714e6v0u :: Process parallel_false_C completed with exit code: 0
+[2026-09-08 10:55:19] - INFO - parallel_false_D|0b1793j285 :: Launching process parallel_false_D using Local executor.
+[2026-09-08 10:55:19] - INFO - parallel_false_D|0b1793j285 :: Log folder for process parallel_false_D: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_parallel/parallel_false_D_20260908_105509_0b1793j285
+[2026-09-08 10:55:19] - INFO - parallel_false_D|0b1793j285 :: Preparing base script for process parallel_false_D
+[2026-09-08 10:55:19] - INFO - parallel_false_D|0b1793j285 :: Process parallel_false_D started with PID: 74169
+[2026-09-08 10:55:19] - INFO - parallel_false_D|0b1793j285 :: Process parallel_false_D (PID: 74169) is still running...
+[2026-09-08 10:55:29] - INFO - parallel_false_D|0b1793j285 :: Process parallel_false_D completed with exit code: 0
+[2026-09-08 10:55:29] - INFO - parallel_false_C|3e714e6v0u :: Process.wait → parallel_false_C [3e714e6v0u] already completed
+[2026-09-08 10:55:29] - INFO - parallel_false_D|0b1793j285 :: Process.wait → parallel_false_D [0b1793j285] already completed
+[2026-09-08 10:55:29] - INFO - jawm.Process|WAIT :: Wait completed for 2 process(es).
+✅ Passed: parallel=10.3s, serial=20.1s
+
+>>> Test 21: always_run ignores global stop (runs after upstream failure)
+[2026-09-08 10:55:29] - INFO - ar_fail_up|825a8699wz :: Launching process ar_fail_up using Local executor.
+[2026-09-08 10:55:29] - INFO - ar_fail_up|825a8699wz :: Log folder for process ar_fail_up: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_ar/ar_fail_up_20260908_105529_825a8699wz
+[2026-09-08 10:55:29] - INFO - ar_fail_up|825a8699wz :: Preparing base script for process ar_fail_up
+[2026-09-08 10:55:29] - INFO - ar_fail_up|825a8699wz :: Process ar_fail_up started with PID: 74214
+[2026-09-08 10:55:29] - INFO - ar_fail_up|825a8699wz :: Process ar_fail_up (PID: 74214) is still running...
+[2026-09-08 10:55:34] - INFO - ar_fail_up|825a8699wz :: Process ar_fail_up completed with exit code: 3
+[2026-09-08 10:55:34] - ERROR - ar_fail_up|825a8699wz :: ❌  Attempt 1 for process ar_fail_up failed with exit code 3 (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_ar/ar_fail_up_20260908_105529_825a8699wz)
+[2026-09-08 10:55:34] - ERROR - ar_fail_up|825a8699wz :: ❌  Process ar_fail_up in Local failed after 1 attempts (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_ar/ar_fail_up_20260908_105529_825a8699wz)
+[2026-09-08 10:55:34] - INFO - ar_fail_up|825a8699wz :: Process.wait → ar_fail_up [825a8699wz] has completed
+[2026-09-08 10:55:34] - WARNING - ar_fail_up|825a8699wz :: ⚠️  Process ar_fail_up (825a8699wz) has completed with disallowed exit code: 3
+[2026-09-08 10:55:34] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:55:34] - ERROR - jawm.Process|WAIT :: ❌  Process.wait → Failure detected; waiting for 0 active process(es) to finish (graceful=True).
+[2026-09-08 10:55:34] - INFO - ar_dn|ca39bbhcaq :: Waiting for dependency process ar_fail_up (825a8699wz) to finish before executing ar_dn (ca39bbhcaq)
+[2026-09-08 10:55:34] - INFO - ar_dn|ca39bbhcaq :: Launching process ar_dn using Local executor.
+[2026-09-08 10:55:34] - INFO - ar_dn|ca39bbhcaq :: Log folder for process ar_dn: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_ar/ar_dn_20260908_105534_ca39bbhcaq
+[2026-09-08 10:55:34] - INFO - ar_dn|ca39bbhcaq :: Preparing base script for process ar_dn
+[2026-09-08 10:55:34] - INFO - ar_dn|ca39bbhcaq :: Process ar_dn started with PID: 74243
+[2026-09-08 10:55:34] - INFO - ar_dn|ca39bbhcaq :: Process ar_dn (PID: 74243) is still running...
+[2026-09-08 10:55:39] - INFO - ar_dn|ca39bbhcaq :: Process ar_dn completed with exit code: 0
+[2026-09-08 10:55:39] - INFO - ar_dn|ca39bbhcaq :: Process.wait → ar_dn [ca39bbhcaq] has completed
+[2026-09-08 10:55:39] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: always_run runs despite global stop
+[2026-09-08 10:55:39] - INFO - ar_when_false|cf9589u3k3 :: Process ar_when_false skipped because 'when' condition was not fulfilled!
+✅ Passed: always_run respects 'when'
+
+>>> Test 22: allow_skipped_deps — default allows skip, strict blocks
+[2026-09-08 10:55:39] - INFO - askip_up_A|e79893576u :: Process askip_up_A skipped because 'when' condition was not fulfilled!
+[2026-09-08 10:55:39] - INFO - askip_dn_A|aa35f9u5nk :: Waiting for dependency process askip_up_A (e79893576u) to finish before executing askip_dn_A (aa35f9u5nk)
+[2026-09-08 10:55:39] - INFO - askip_dn_A|aa35f9u5nk :: Launching process askip_dn_A using Local executor.
+[2026-09-08 10:55:39] - INFO - askip_dn_A|aa35f9u5nk :: Log folder for process askip_dn_A: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_allow_skip/askip_dn_A_20260908_105539_aa35f9u5nk
+[2026-09-08 10:55:39] - INFO - askip_dn_A|aa35f9u5nk :: Preparing base script for process askip_dn_A
+[2026-09-08 10:55:39] - INFO - askip_dn_A|aa35f9u5nk :: Process askip_dn_A started with PID: 74261
+[2026-09-08 10:55:39] - INFO - askip_dn_A|aa35f9u5nk :: Process askip_dn_A (PID: 74261) is still running...
+[2026-09-08 10:55:44] - INFO - askip_dn_A|aa35f9u5nk :: Process askip_dn_A completed with exit code: 0
+[2026-09-08 10:55:44] - INFO - askip_dn_A|aa35f9u5nk :: Process.wait → askip_dn_A [aa35f9u5nk] has completed
+[2026-09-08 10:55:44] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Subtest A passed: default allows skipped deps
+[2026-09-08 10:55:44] - INFO - askip_up_B|e725ddez2u :: Process askip_up_B skipped because 'when' condition was not fulfilled!
+[2026-09-08 10:55:45] - INFO - askip_dn_B|5b540frf9j :: Waiting for dependency process askip_up_B (e725ddez2u) to finish before executing askip_dn_B (5b540frf9j)
+[2026-09-08 10:55:45] - WARNING - askip_dn_B|5b540frf9j :: ⚠️  Skipping askip_dn_B: dependencies not successful: askip_up_B (exit=None)
+[2026-09-08 10:55:45] - INFO - askip_dn_B|5b540frf9j :: Process.wait → askip_dn_B [5b540frf9j] has completed
+[2026-09-08 10:55:45] - INFO - askip_dn_B|5b540frf9j :: Process askip_dn_B (5b540frf9j) finished without an exit code (skipped or not executed).
+[2026-09-08 10:55:45] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Subtest B passed: strict blocks when upstream is skipped
+
+>>> Test 23: Auto mk./map. vars mount for apptainer, docker, kubernetes
+[2026-09-08 10:55:45] - INFO - mk_always_true|977e7899qy :: Launching process mk_always_true using Local executor.
+[2026-09-08 10:55:45] - INFO - mk_always_true|977e7899qy :: Log folder for process mk_always_true: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_auto_mount/mk_always_true_20260908_105545_977e7899qy
+[2026-09-08 10:55:45] - INFO - mk_always_true|977e7899qy :: Preparing base script for process mk_always_true
+[2026-09-08 10:55:45] - INFO - mk_always_true|977e7899qy :: mk.* created directory /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/auto_mount_test_zd564jtz/out_auto_true
+[2026-09-08 10:55:45] - INFO - mk_always_true|977e7899qy :: Process mk_always_true started with PID: 74285
+[2026-09-08 10:55:45] - INFO - mk_always_true|977e7899qy :: Process mk_always_true (PID: 74285) is still running...
+[2026-09-08 10:55:50] - INFO - mk_always_true|977e7899qy :: Process mk_always_true completed with exit code: 0
+[2026-09-08 10:55:50] - INFO - mk_always_true|977e7899qy :: Process.wait → mk_always_true [977e7899qy] has completed
+[2026-09-08 10:55:50] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:55:50] - INFO - mk_always_false|e22b65uli1 :: Launching process mk_always_false using Local executor.
+[2026-09-08 10:55:50] - INFO - mk_always_false|e22b65uli1 :: Log folder for process mk_always_false: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_auto_mount/mk_always_false_20260908_105550_e22b65uli1
+[2026-09-08 10:55:50] - INFO - mk_always_false|e22b65uli1 :: Preparing base script for process mk_always_false
+[2026-09-08 10:55:50] - INFO - mk_always_false|e22b65uli1 :: mk.* created directory /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/auto_mount_test_zd564jtz/out_auto_false
+[2026-09-08 10:55:50] - INFO - mk_always_false|e22b65uli1 :: Process mk_always_false started with PID: 74304
+[2026-09-08 10:55:50] - INFO - mk_always_false|e22b65uli1 :: Process mk_always_false (PID: 74304) is still running...
+[2026-09-08 10:55:55] - INFO - mk_always_false|e22b65uli1 :: Process mk_always_false completed with exit code: 0
+[2026-09-08 10:55:55] - INFO - mk_always_false|e22b65uli1 :: Process.wait → mk_always_false [e22b65uli1] has completed
+[2026-09-08 10:55:55] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+   Skipped container runs (no container backend available or manager is slurm)
+✅ Passed: Auto mk./map. vars mount + mk.* mkdir independent of automated_mount
+
+>>> Test 24: Hashing via -p (scope: hash): new → mismatch(no overwrite) → overwrite(true) → reference check
+✅ Passed: Test 24 (-p scope: hash) new → mismatch → overwrite → reference check
+
+>>> Test 25: update_params invalidates cached script (var re-substitution)
+[2026-09-08 10:56:08] - INFO - upd_params_case|e47236ga0l :: Launching process upd_params_case using Local executor.
+[2026-09-08 10:56:08] - INFO - upd_params_case|e47236ga0l :: Log folder for process upd_params_case: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/upd_params_k_4xcxap/logs/upd_params_case_20260908_105608_e47236ga0l
+[2026-09-08 10:56:08] - INFO - upd_params_case|e47236ga0l :: Preparing base script for process upd_params_case
+[2026-09-08 10:56:08] - WARNING - upd_params_case|e47236ga0l :: ⚠️  Unresolved placeholder variables in Process script (kept as-is): ncores
+[2026-09-08 10:56:08] - INFO - upd_params_case|e47236ga0l :: Process upd_params_case started with PID: 74439
+[2026-09-08 10:56:08] - INFO - upd_params_case|e47236ga0l :: Process upd_params_case (PID: 74439) is still running...
+[2026-09-08 10:56:13] - INFO - upd_params_case|e47236ga0l :: Process upd_params_case completed with exit code: 0
+[2026-09-08 10:56:13] - INFO - upd_params_case|e47236ga0l :: Process.wait → upd_params_case [e47236ga0l] has completed
+[2026-09-08 10:56:13] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:56:13] - INFO - upd_params_case|e47236ga0l :: Process upd_params_case updated parameters from /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/upd_params_k_4xcxap/params.yaml
+[2026-09-08 10:56:13] - INFO - upd_params_case|e47236ga0l :: Launching process upd_params_case using Local executor.
+[2026-09-08 10:56:13] - INFO - upd_params_case|e47236ga0l :: Log folder for process upd_params_case: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/upd_params_k_4xcxap/logs/upd_params_case_20260908_105608_e47236ga0l
+[2026-09-08 10:56:13] - INFO - upd_params_case|e47236ga0l :: Preparing base script for process upd_params_case
+[2026-09-08 10:56:13] - INFO - upd_params_case|e47236ga0l :: Process upd_params_case started with PID: 74463
+[2026-09-08 10:56:13] - INFO - upd_params_case|e47236ga0l :: Process upd_params_case (PID: 74463) is still running...
+[2026-09-08 10:56:18] - INFO - upd_params_case|e47236ga0l :: Process upd_params_case completed with exit code: 0
+[2026-09-08 10:56:18] - INFO - upd_params_case|e47236ga0l :: Process.wait → upd_params_case [e47236ga0l] has completed
+[2026-09-08 10:56:18] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: update_params triggers base script regeneration and var substitution
+
+>>> Test 26: Deep-merge (constructor) for var/env/manager_slurm/environment_docker
+✅ Passed: Deep-merge at constructor for multiple dict fields
+
+>>> Test 27: Deep-merge on update_params() without clobbering existing dicts
+[2026-09-08 10:56:18] - INFO - merge_up_proc|805319zooo :: Process merge_up_proc updated parameters from /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/merge_update_nraub8p0/params2.yaml
+✅ Passed: Deep-merge on update_params() preserves/overrides as expected
+
+>>> Test 28: clone — same hash prefix when unchanged; different when a param is modified
+✅ Passed: prefixes — unchanged cc3250 == cc3250; changed cc3250 != 05c59d
+
+>>> Test 29: CLI var injection sanitizes mk./map. and Process still resolves originals
+✅ Passed: CLI sanitation (mk./map.) + Process placeholder resolution
+
+>>> Test 30: mk./map. aliasing — mkdir, placeholder resolution, and update_vars consistency (no YAML import)
+[2026-09-08 10:56:26] - INFO - alias_inline_proc|624c64tojb :: Launching process alias_inline_proc using Local executor.
+[2026-09-08 10:56:26] - INFO - alias_inline_proc|624c64tojb :: Log folder for process alias_inline_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_alias/alias_inline_proc_20260908_105626_624c64tojb
+[2026-09-08 10:56:26] - INFO - alias_inline_proc|624c64tojb :: Preparing base script for process alias_inline_proc
+[2026-09-08 10:56:26] - INFO - alias_inline_proc|624c64tojb :: mk.* created directory /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/aliasing_test_gyrltk72/out_inline
+[2026-09-08 10:56:26] - INFO - alias_inline_proc|624c64tojb :: Process alias_inline_proc started with PID: 74529
+[2026-09-08 10:56:26] - INFO - alias_inline_proc|624c64tojb :: Process alias_inline_proc (PID: 74529) is still running...
+[2026-09-08 10:56:31] - INFO - alias_inline_proc|624c64tojb :: Process alias_inline_proc completed with exit code: 0
+[2026-09-08 10:56:31] - INFO - alias_inline_proc|624c64tojb :: Process.wait → alias_inline_proc [624c64tojb] has completed
+[2026-09-08 10:56:31] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Subtest 1 (inline var) passed
+[2026-09-08 10:56:32] - INFO - alias_varfile_proc|08c6d2axd2 :: Launching process alias_varfile_proc using Local executor.
+[2026-09-08 10:56:32] - INFO - alias_varfile_proc|08c6d2axd2 :: Log folder for process alias_varfile_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_alias/alias_varfile_proc_20260908_105631_08c6d2axd2
+[2026-09-08 10:56:32] - INFO - alias_varfile_proc|08c6d2axd2 :: Preparing base script for process alias_varfile_proc
+[2026-09-08 10:56:32] - INFO - alias_varfile_proc|08c6d2axd2 :: mk.* created directory /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/aliasing_test_gyrltk72/out_yaml
+[2026-09-08 10:56:32] - INFO - alias_varfile_proc|08c6d2axd2 :: Process alias_varfile_proc started with PID: 74556
+[2026-09-08 10:56:32] - INFO - alias_varfile_proc|08c6d2axd2 :: Process alias_varfile_proc (PID: 74556) is still running...
+[2026-09-08 10:56:37] - INFO - alias_varfile_proc|08c6d2axd2 :: Process alias_varfile_proc completed with exit code: 0
+[2026-09-08 10:56:37] - INFO - alias_varfile_proc|08c6d2axd2 :: Process.wait → alias_varfile_proc [08c6d2axd2] has completed
+[2026-09-08 10:56:37] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Subtest 2 (var_file YAML) passed
+[2026-09-08 10:56:37] - INFO - alias_update_proc|c16e08orxm :: Process alias_update_proc var updated from /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/aliasing_test_gyrltk72/upd_vars.yaml (1 loaded; 3 total after merge)
+[2026-09-08 10:56:37] - INFO - alias_update_proc|c16e08orxm :: Launching process alias_update_proc using Local executor.
+[2026-09-08 10:56:37] - INFO - alias_update_proc|c16e08orxm :: Log folder for process alias_update_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_test_alias/alias_update_proc_20260908_105637_c16e08orxm
+[2026-09-08 10:56:37] - INFO - alias_update_proc|c16e08orxm :: Preparing base script for process alias_update_proc
+[2026-09-08 10:56:37] - INFO - alias_update_proc|c16e08orxm :: mk.* created directory /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/aliasing_test_gyrltk72/upd_dir
+[2026-09-08 10:56:37] - INFO - alias_update_proc|c16e08orxm :: Process alias_update_proc started with PID: 74579
+[2026-09-08 10:56:37] - INFO - alias_update_proc|c16e08orxm :: Process alias_update_proc (PID: 74579) is still running...
+[2026-09-08 10:56:42] - INFO - alias_update_proc|c16e08orxm :: Process alias_update_proc completed with exit code: 0
+[2026-09-08 10:56:42] - INFO - alias_update_proc|c16e08orxm :: Process.wait → alias_update_proc [c16e08orxm] has completed
+[2026-09-08 10:56:42] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Subtest 3 (update_vars) passed
+✅ Passed: Test 30 — mk./map. aliasing works across inline var, YAML, and update_vars
+
+>>> Test 31: execute(depends_on=...) — runtime dependency override
+[2026-09-08 10:56:42] - INFO - exec_dep_up|851ecdugsl :: Launching process exec_dep_up using Local executor.
+[2026-09-08 10:56:42] - INFO - exec_dep_up|851ecdugsl :: Log folder for process exec_dep_up: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/exec_dep_override_0qyzzc7y/logs/exec_dep_up_20260908_105642_851ecdugsl
+[2026-09-08 10:56:42] - INFO - exec_dep_up|851ecdugsl :: Preparing base script for process exec_dep_up
+[2026-09-08 10:56:42] - INFO - exec_dep_up|851ecdugsl :: Process exec_dep_up started with PID: 74603
+[2026-09-08 10:56:42] - INFO - exec_dep_up|851ecdugsl :: Process exec_dep_up (PID: 74603) is still running...
+[2026-09-08 10:56:47] - INFO - exec_dep_up|851ecdugsl :: Process exec_dep_up completed with exit code: 0
+[2026-09-08 10:56:47] - INFO - exec_dep_up|851ecdugsl :: Process.wait → exec_dep_up [851ecdugsl] has completed
+[2026-09-08 10:56:47] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:56:47] - INFO - exec_dep_dn|c163bbbcd2 :: Waiting for dependency process exec_dep_up (851ecdugsl) to finish before executing exec_dep_dn (c163bbbcd2)
+[2026-09-08 10:56:47] - INFO - exec_dep_dn|c163bbbcd2 :: Launching process exec_dep_dn using Local executor.
+[2026-09-08 10:56:47] - INFO - exec_dep_dn|c163bbbcd2 :: Log folder for process exec_dep_dn: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/exec_dep_override_0qyzzc7y/logs/exec_dep_dn_20260908_105642_c163bbbcd2
+[2026-09-08 10:56:47] - INFO - exec_dep_dn|c163bbbcd2 :: Preparing base script for process exec_dep_dn
+[2026-09-08 10:56:47] - INFO - exec_dep_dn|c163bbbcd2 :: Process exec_dep_dn started with PID: 74627
+[2026-09-08 10:56:47] - INFO - exec_dep_dn|c163bbbcd2 :: Process exec_dep_dn (PID: 74627) is still running...
+[2026-09-08 10:56:52] - INFO - exec_dep_dn|c163bbbcd2 :: Process exec_dep_dn completed with exit code: 0
+[2026-09-08 10:56:52] - INFO - exec_dep_dn|c163bbbcd2 :: Process.wait → exec_dep_dn [c163bbbcd2] has completed
+[2026-09-08 10:56:52] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: execute(depends_on=...) overrides dependencies at runtime
+
+>>> Test 32: Non-blocking deps with parallel=True (loop should not serialize)
+[2026-09-08 10:56:52] - INFO - nbdep_map_1|50b259nsj3 :: Launching process nbdep_map_1 using Local executor.
+[2026-09-08 10:56:52] - INFO - nbdep_map_1|50b259nsj3 :: Log folder for process nbdep_map_1: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_nbdeps/nbdep_map_1_20260908_105652_50b259nsj3
+[2026-09-08 10:56:52] - INFO - nbdep_map_1|50b259nsj3 :: Preparing base script for process nbdep_map_1
+[2026-09-08 10:56:52] - INFO - nbdep_map_1|50b259nsj3 :: Process nbdep_map_1 started with PID: 74647
+[2026-09-08 10:56:52] - INFO - nbdep_map_1|50b259nsj3 :: Process nbdep_map_1 (PID: 74647) is still running...
+[2026-09-08 10:56:52] - INFO - nbdep_flag_1|41ef5fgct5 :: Waiting for dependency process nbdep_map_1 (50b259nsj3) to finish before executing nbdep_flag_1 (41ef5fgct5)
+[2026-09-08 10:56:52] - INFO - nbdep_map_2|3febc461cb :: Launching process nbdep_map_2 using Local executor.
+[2026-09-08 10:56:52] - INFO - nbdep_map_2|3febc461cb :: Log folder for process nbdep_map_2: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_nbdeps/nbdep_map_2_20260908_105652_3febc461cb
+[2026-09-08 10:56:52] - INFO - nbdep_map_2|3febc461cb :: Preparing base script for process nbdep_map_2
+[2026-09-08 10:56:52] - INFO - nbdep_map_2|3febc461cb :: Process nbdep_map_2 started with PID: 74651
+[2026-09-08 10:56:52] - INFO - nbdep_map_2|3febc461cb :: Process nbdep_map_2 (PID: 74651) is still running...
+[2026-09-08 10:56:52] - INFO - nbdep_flag_2|35fea6q4zt :: Waiting for dependency process nbdep_map_2 (3febc461cb) to finish before executing nbdep_flag_2 (35fea6q4zt)
+[2026-09-08 10:56:53] - INFO - nbdep_map_3|17b967sc5n :: Launching process nbdep_map_3 using Local executor.
+[2026-09-08 10:56:53] - INFO - nbdep_map_3|17b967sc5n :: Log folder for process nbdep_map_3: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_nbdeps/nbdep_map_3_20260908_105652_17b967sc5n
+[2026-09-08 10:56:53] - INFO - nbdep_map_3|17b967sc5n :: Preparing base script for process nbdep_map_3
+[2026-09-08 10:56:53] - INFO - nbdep_map_3|17b967sc5n :: Process nbdep_map_3 started with PID: 74654
+[2026-09-08 10:56:53] - INFO - nbdep_map_3|17b967sc5n :: Process nbdep_map_3 (PID: 74654) is still running...
+[2026-09-08 10:56:53] - INFO - nbdep_flag_3|e618579fnk :: Waiting for dependency process nbdep_map_3 (17b967sc5n) to finish before executing nbdep_flag_3 (e618579fnk)
+[2026-09-08 10:56:57] - INFO - nbdep_map_1|50b259nsj3 :: Process nbdep_map_1 completed with exit code: 0
+[2026-09-08 10:56:57] - INFO - nbdep_map_1|50b259nsj3 :: Process.wait → nbdep_map_1 [50b259nsj3] has completed
+[2026-09-08 10:56:57] - INFO - nbdep_flag_1|41ef5fgct5 :: Launching process nbdep_flag_1 using Local executor.
+[2026-09-08 10:56:57] - INFO - nbdep_flag_1|41ef5fgct5 :: Log folder for process nbdep_flag_1: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_nbdeps/nbdep_flag_1_20260908_105652_41ef5fgct5
+[2026-09-08 10:56:57] - INFO - nbdep_flag_1|41ef5fgct5 :: Preparing base script for process nbdep_flag_1
+[2026-09-08 10:56:57] - INFO - nbdep_flag_1|41ef5fgct5 :: Process nbdep_flag_1 started with PID: 74680
+[2026-09-08 10:56:57] - INFO - nbdep_flag_1|41ef5fgct5 :: Process nbdep_flag_1 (PID: 74680) is still running...
+[2026-09-08 10:56:57] - INFO - nbdep_map_2|3febc461cb :: Process nbdep_map_2 completed with exit code: 0
+[2026-09-08 10:56:57] - INFO - nbdep_flag_2|35fea6q4zt :: Launching process nbdep_flag_2 using Local executor.
+[2026-09-08 10:56:57] - INFO - nbdep_flag_2|35fea6q4zt :: Log folder for process nbdep_flag_2: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_nbdeps/nbdep_flag_2_20260908_105652_35fea6q4zt
+[2026-09-08 10:56:57] - INFO - nbdep_map_2|3febc461cb :: Process.wait → nbdep_map_2 [3febc461cb] has completed
+[2026-09-08 10:56:57] - INFO - nbdep_flag_2|35fea6q4zt :: Preparing base script for process nbdep_flag_2
+[2026-09-08 10:56:57] - INFO - nbdep_flag_2|35fea6q4zt :: Process nbdep_flag_2 started with PID: 74681
+[2026-09-08 10:56:57] - INFO - nbdep_flag_2|35fea6q4zt :: Process nbdep_flag_2 (PID: 74681) is still running...
+[2026-09-08 10:56:58] - INFO - nbdep_map_3|17b967sc5n :: Process nbdep_map_3 completed with exit code: 0
+[2026-09-08 10:56:58] - INFO - nbdep_flag_3|e618579fnk :: Launching process nbdep_flag_3 using Local executor.
+[2026-09-08 10:56:58] - INFO - nbdep_map_3|17b967sc5n :: Process.wait → nbdep_map_3 [17b967sc5n] has completed
+[2026-09-08 10:56:58] - INFO - nbdep_flag_3|e618579fnk :: Log folder for process nbdep_flag_3: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_nbdeps/nbdep_flag_3_20260908_105652_e618579fnk
+[2026-09-08 10:56:58] - INFO - nbdep_flag_3|e618579fnk :: Preparing base script for process nbdep_flag_3
+[2026-09-08 10:56:58] - INFO - nbdep_flag_3|e618579fnk :: Process nbdep_flag_3 started with PID: 74685
+[2026-09-08 10:56:58] - INFO - nbdep_flag_3|e618579fnk :: Process nbdep_flag_3 (PID: 74685) is still running...
+[2026-09-08 10:57:02] - INFO - nbdep_flag_1|41ef5fgct5 :: Process nbdep_flag_1 completed with exit code: 0
+[2026-09-08 10:57:02] - INFO - nbdep_flag_1|41ef5fgct5 :: Process.wait → nbdep_flag_1 [41ef5fgct5] has completed
+[2026-09-08 10:57:02] - INFO - nbdep_flag_2|35fea6q4zt :: Process nbdep_flag_2 completed with exit code: 0
+[2026-09-08 10:57:02] - INFO - nbdep_flag_2|35fea6q4zt :: Process.wait → nbdep_flag_2 [35fea6q4zt] has completed
+[2026-09-08 10:57:03] - INFO - nbdep_flag_3|e618579fnk :: Process nbdep_flag_3 completed with exit code: 0
+[2026-09-08 10:57:03] - INFO - nbdep_flag_3|e618579fnk :: Process.wait → nbdep_flag_3 [e618579fnk] has completed
+[2026-09-08 10:57:03] - INFO - jawm.Process|WAIT :: Wait completed for 6 process(es).
+✅ Passed: Non-blocking deps (parallel=True). Schedule time=0.66s
+
+>>> Test 33: parallel=False blocks caller until completion (with dependency)
+[2026-09-08 10:57:03] - INFO - pfalse_map|d03ce5asjk :: Launching process pfalse_map using Local executor.
+[2026-09-08 10:57:03] - INFO - pfalse_map|d03ce5asjk :: Log folder for process pfalse_map: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_pfalse/pfalse_map_20260908_105703_d03ce5asjk
+[2026-09-08 10:57:03] - INFO - pfalse_map|d03ce5asjk :: Preparing base script for process pfalse_map
+[2026-09-08 10:57:03] - INFO - pfalse_flag|bdbbe4ub7f :: Waiting for dependency process pfalse_map (d03ce5asjk) to finish before executing pfalse_flag (bdbbe4ub7f)
+[2026-09-08 10:57:03] - INFO - pfalse_map|d03ce5asjk :: Process pfalse_map started with PID: 74717
+[2026-09-08 10:57:03] - INFO - pfalse_map|d03ce5asjk :: Process pfalse_map (PID: 74717) is still running...
+[2026-09-08 10:57:08] - INFO - pfalse_map|d03ce5asjk :: Process pfalse_map completed with exit code: 0
+[2026-09-08 10:57:08] - INFO - pfalse_flag|bdbbe4ub7f :: Launching process pfalse_flag using Local executor.
+[2026-09-08 10:57:08] - INFO - pfalse_flag|bdbbe4ub7f :: Log folder for process pfalse_flag: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_pfalse/pfalse_flag_20260908_105703_bdbbe4ub7f
+[2026-09-08 10:57:08] - INFO - pfalse_flag|bdbbe4ub7f :: Preparing base script for process pfalse_flag
+[2026-09-08 10:57:08] - INFO - pfalse_flag|bdbbe4ub7f :: Process pfalse_flag started with PID: 74740
+[2026-09-08 10:57:08] - INFO - pfalse_flag|bdbbe4ub7f :: Process pfalse_flag (PID: 74740) is still running...
+[2026-09-08 10:57:13] - INFO - pfalse_flag|bdbbe4ub7f :: Process pfalse_flag completed with exit code: 0
+✅ Passed: parallel=False blocks caller (elapsed=10.05s)
+
+>>> Test 34: allow_skipped_deps=False blocks downstream when upstream is skipped
+[2026-09-08 10:57:13] - INFO - skip_up_strict|88ca9ba9oo :: Process skip_up_strict skipped because 'when' condition was not fulfilled!
+[2026-09-08 10:57:13] - INFO - skip_dn_strict|f22ad2z3gh :: Waiting for dependency process skip_up_strict (88ca9ba9oo) to finish before executing skip_dn_strict (f22ad2z3gh)
+[2026-09-08 10:57:13] - WARNING - skip_dn_strict|f22ad2z3gh :: ⚠️  Skipping skip_dn_strict: dependencies not successful: skip_up_strict (exit=None)
+[2026-09-08 10:57:13] - INFO - skip_dn_strict|f22ad2z3gh :: Process.wait → skip_dn_strict [f22ad2z3gh] has completed
+[2026-09-08 10:57:13] - INFO - skip_dn_strict|f22ad2z3gh :: Process skip_dn_strict (f22ad2z3gh) finished without an exit code (skipped or not executed).
+[2026-09-08 10:57:13] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: strict skipped-deps handling
+
+>>> Test 35: depends_on normalization (string vs list) still works
+[2026-09-08 10:57:13] - INFO - norm_map|8161b8dz0r :: Launching process norm_map using Local executor.
+[2026-09-08 10:57:13] - INFO - norm_map|8161b8dz0r :: Log folder for process norm_map: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_norm/norm_map_20260908_105713_8161b8dz0r
+[2026-09-08 10:57:13] - INFO - norm_map|8161b8dz0r :: Preparing base script for process norm_map
+[2026-09-08 10:57:13] - INFO - norm_map|8161b8dz0r :: Process norm_map started with PID: 74767
+[2026-09-08 10:57:13] - INFO - norm_map|8161b8dz0r :: Process norm_map (PID: 74767) is still running...
+[2026-09-08 10:57:13] - INFO - norm_flag|d567e6asf7 :: Waiting for dependency process norm_map (8161b8dz0r) to finish before executing norm_flag (d567e6asf7)
+[2026-09-08 10:57:18] - INFO - norm_map|8161b8dz0r :: Process norm_map completed with exit code: 0
+[2026-09-08 10:57:18] - INFO - norm_flag|d567e6asf7 :: Launching process norm_flag using Local executor.
+[2026-09-08 10:57:18] - INFO - norm_flag|d567e6asf7 :: Log folder for process norm_flag: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_norm/norm_flag_20260908_105713_d567e6asf7
+[2026-09-08 10:57:18] - INFO - norm_flag|d567e6asf7 :: Preparing base script for process norm_flag
+[2026-09-08 10:57:18] - INFO - norm_flag|d567e6asf7 :: Process norm_flag started with PID: 74789
+[2026-09-08 10:57:18] - INFO - norm_flag|d567e6asf7 :: Process norm_flag (PID: 74789) is still running...
+[2026-09-08 10:57:23] - INFO - norm_flag|d567e6asf7 :: Process norm_flag completed with exit code: 0
+[2026-09-08 10:57:23] - INFO - norm_flag|d567e6asf7 :: Process.wait → norm_flag [d567e6asf7] has completed
+[2026-09-08 10:57:23] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: depends_on normalization (string -> list)
+
+>>> Test 36: Process.wait(), timeout, and environment behavior
+[2026-09-08 10:57:23] - INFO - p1_quick|d93330mh1z :: Launching process p1_quick using Local executor.
+[2026-09-08 10:57:23] - INFO - p1_quick|d93330mh1z :: Log folder for process p1_quick: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/wait_cli_env_bcsnph40/logs/p1_quick_20260908_105723_d93330mh1z
+[2026-09-08 10:57:23] - INFO - p1_quick|d93330mh1z :: Preparing base script for process p1_quick
+[2026-09-08 10:57:23] - INFO - p1_quick|d93330mh1z :: Process p1_quick started with PID: 74814
+[2026-09-08 10:57:23] - INFO - p1_quick|d93330mh1z :: Process p1_quick (PID: 74814) is still running...
+[2026-09-08 10:57:28] - INFO - p1_quick|d93330mh1z :: Process p1_quick completed with exit code: 0
+ ✓ Quick process completed normally
+[2026-09-08 10:57:28] - INFO - p2_timeout|2aa277lp1w :: Launching process p2_timeout using Local executor.
+[2026-09-08 10:57:28] - INFO - p2_timeout|2aa277lp1w :: Log folder for process p2_timeout: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/wait_cli_env_bcsnph40/logs/p2_timeout_20260908_105728_2aa277lp1w
+[2026-09-08 10:57:28] - INFO - p2_timeout|2aa277lp1w :: Preparing base script for process p2_timeout
+[2026-09-08 10:57:28] - INFO - p2_timeout|2aa277lp1w :: Process p2_timeout started with PID: 74836
+[2026-09-08 10:57:28] - INFO - p2_timeout|2aa277lp1w :: Process p2_timeout (PID: 74836) is still running...
+[2026-09-08 10:57:30] - WARNING - p2_timeout|2aa277lp1w :: ⚠️  Process.wait → Timeout (2s) reached while waiting for p2_timeout [2aa277lp1w]
+ ✓ Timeout respected (waited 2.0s, process still running)
+[2026-09-08 10:57:33] - INFO - p2_timeout|2aa277lp1w :: Process p2_timeout completed with exit code: 0
+[2026-09-08 10:57:34] - INFO - p3_env|4961b4esb4 :: Launching process p3_env using Local executor.
+[2026-09-08 10:57:34] - INFO - p3_env|4961b4esb4 :: Log folder for process p3_env: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/wait_cli_env_bcsnph40/logs/p3_env_20260908_105733_4961b4esb4
+[2026-09-08 10:57:34] - INFO - p3_env|4961b4esb4 :: Preparing base script for process p3_env
+[2026-09-08 10:57:34] - INFO - p3_env|4961b4esb4 :: Process p3_env started with PID: 74863
+[2026-09-08 10:57:34] - INFO - p3_env|4961b4esb4 :: Process p3_env (PID: 74863) is still running...
+[2026-09-08 10:57:37] - WARNING - p3_env|4961b4esb4 :: ⚠️  Process.wait → Timeout (3s) reached while waiting for p3_env [4961b4esb4]
+[2026-09-08 10:57:44] - INFO - p3_env|4961b4esb4 :: Process p3_env completed with exit code: 0
+ ✓ Environment timeout respected (JAWM_WAIT_TIMEOUT=3 → returned after 3.1s)
+✅ Passed: Process.wait(), timeout, and environment behavior
+
+>>> Test 37: Path expansion logic and environment toggles
+   ✓ Default expansion behavior correct
+   ✓ Global disable (env var false) works
+   ✓ Path-only expansion works (safe mode)
+   ✓ Full expansion mode works (./ and ~/ expanded)
+✅ Passed: Path expansion logic and environment toggle behavior
+
+>>> Test 38: hash_content() behavior — content-only vs name-sensitive
+   ✓ Content-only mode works correctly
+   ✓ Name-sensitive mode differentiates filenames and contents
+   ✓ Directory hashing stable and consistent
+✅ Passed: hash_content() behavior test
+
+>>> Test 39: YAML Parsing — Multi-name and Merge Behavior
+✅ Passed: YAML list-of-names and repeated process merging works
+
+>>> Test 40: mk./map. variable alias synchronization before execution
+[2026-09-08 10:57:44] - INFO - alias_sync_A|047350va33 :: Launching process alias_sync_A using Local executor.
+[2026-09-08 10:57:44] - INFO - alias_sync_A|047350va33 :: Log folder for process alias_sync_A: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_sync_test/alias_sync_A_20260908_105744_047350va33
+[2026-09-08 10:57:44] - INFO - alias_sync_A|047350va33 :: Preparing base script for process alias_sync_A
+[2026-09-08 10:57:44] - INFO - alias_sync_A|047350va33 :: mk.* created directory /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_sync_test/updated_dir
+[2026-09-08 10:57:44] - INFO - alias_sync_A|047350va33 :: Process alias_sync_A started with PID: 74909
+[2026-09-08 10:57:44] - INFO - alias_sync_A|047350va33 :: Process alias_sync_A (PID: 74909) is still running...
+[2026-09-08 10:57:49] - INFO - alias_sync_A|047350va33 :: Process alias_sync_A completed with exit code: 0
+[2026-09-08 10:57:49] - INFO - alias_sync_A|047350va33 :: Process.wait → alias_sync_A [047350va33] has completed
+[2026-09-08 10:57:49] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: mk./map. aliases synchronized correctly before execution
+
+>>> Test 41: Process Cloning — Independence, Alias Sync, and Param Inheritance
+✅ Passed: Process cloning preserves runtime independence, syncs aliases, and inherits params correctly
+
+>>> Test 42: retry_overrides update base script per retry
+[2026-09-08 10:57:49] - INFO - retry_override_proc|70db12uncm :: Launching process retry_override_proc using Local executor.
+[2026-09-08 10:57:49] - INFO - retry_override_proc|70db12uncm :: Log folder for process retry_override_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/retry_override_test_cvj9sjeb/retry_override_proc_20260908_105749_70db12uncm
+[2026-09-08 10:57:49] - INFO - retry_override_proc|70db12uncm :: Preparing base script for process retry_override_proc
+[2026-09-08 10:57:49] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc started with PID: 74929
+[2026-09-08 10:57:49] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc (PID: 74929) is still running...
+[2026-09-08 10:57:54] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc completed with exit code: 1
+[2026-09-08 10:57:54] - ERROR - retry_override_proc|70db12uncm :: ❌  Attempt 1 for process retry_override_proc failed with exit code 1 (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/retry_override_test_cvj9sjeb/retry_override_proc_20260908_105749_70db12uncm)
+[2026-09-08 10:57:54] - INFO - retry_override_proc|70db12uncm :: Retrying process retry_override_proc, 3 retries left.
+[2026-09-08 10:57:54] - INFO - retry_override_proc|70db12uncm :: Applying retry parameters for retry attempt 1: 1 parameter(s) found
+[2026-09-08 10:57:54] - INFO - retry_override_proc|70db12uncm :: Launching attempt 2/4 locally...
+[2026-09-08 10:57:54] - INFO - retry_override_proc|70db12uncm :: Preparing base script for process retry_override_proc
+[2026-09-08 10:57:54] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc started with PID: 74953
+[2026-09-08 10:57:54] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc (PID: 74953) is still running...
+[2026-09-08 10:57:59] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc completed with exit code: 2
+[2026-09-08 10:57:59] - ERROR - retry_override_proc|70db12uncm :: ❌  Attempt 2 for process retry_override_proc failed with exit code 2 (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/retry_override_test_cvj9sjeb/retry_override_proc_20260908_105749_70db12uncm)
+[2026-09-08 10:57:59] - INFO - retry_override_proc|70db12uncm :: Retrying process retry_override_proc, 2 retries left.
+[2026-09-08 10:57:59] - INFO - retry_override_proc|70db12uncm :: Applying retry parameters for retry attempt 2: 1 parameter(s) found
+[2026-09-08 10:57:59] - INFO - retry_override_proc|70db12uncm :: Launching attempt 3/4 locally...
+[2026-09-08 10:57:59] - INFO - retry_override_proc|70db12uncm :: Preparing base script for process retry_override_proc
+[2026-09-08 10:57:59] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc started with PID: 74971
+[2026-09-08 10:57:59] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc (PID: 74971) is still running...
+[2026-09-08 10:58:04] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc completed with exit code: 3
+[2026-09-08 10:58:04] - ERROR - retry_override_proc|70db12uncm :: ❌  Attempt 3 for process retry_override_proc failed with exit code 3 (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/retry_override_test_cvj9sjeb/retry_override_proc_20260908_105749_70db12uncm)
+[2026-09-08 10:58:04] - INFO - retry_override_proc|70db12uncm :: Retrying process retry_override_proc, 1 retries left.
+[2026-09-08 10:58:04] - INFO - retry_override_proc|70db12uncm :: Applying retry parameters for retry attempt 3: 1 parameter(s) found
+[2026-09-08 10:58:04] - INFO - retry_override_proc|70db12uncm :: Launching attempt 4/4 locally...
+[2026-09-08 10:58:04] - INFO - retry_override_proc|70db12uncm :: Preparing base script for process retry_override_proc
+[2026-09-08 10:58:04] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc started with PID: 75002
+[2026-09-08 10:58:04] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc (PID: 75002) is still running...
+[2026-09-08 10:58:09] - INFO - retry_override_proc|70db12uncm :: Process retry_override_proc completed with exit code: 0
+[2026-09-08 10:58:09] - INFO - retry_override_proc|70db12uncm :: Process.wait → retry_override_proc [70db12uncm] has completed
+[2026-09-08 10:58:09] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: retry_overrides update vars + regenerate script per retry
+
+>>> Test 43: Params order check: YAML vs Python vs CLI overrides (-l, -r)
+✅ Passed: YAML vs Python vs CLI (-l, -r) precedence verified
+
+>>> Test 44: var precedence — defaults, YAML global/process, Python, CLI-style -p, override
+✅ Passed: var precedence — defaults, YAML global/process, Python, CLI-style -p, override
+
+>>> Test 45: Process.update — multi-key, override/default, dict/scalar, aliasing, future & existing processes
+✅ Passed: Process.update — fully validated (override/default, var/scalar, alias, future/existing, multi-key)
+
+>>> Test 46: CLI nested overrides — global + process pattern matching
+[2026-09-08 10:58:22] - INFO - jawm.cli|test_mod :: Initiating jawm module script from jawm command
+[2026-09-08 10:58:22] - INFO - jawm.cli|test_mod :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs/jawm_runs/test_mod_20260908_105822.log
+[2026-09-08 10:58:22] - INFO - jawm.cli|test_mod :: [sys] jawm: 0.1.0
+[2026-09-08 10:58:22] - INFO - jawm.cli|test_mod :: [sys] Python: 3.11.6
+[2026-09-08 10:58:22] - INFO - jawm.cli|test_mod :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:58:22] - INFO - jawm.cli|test_mod :: [sys] Machine/Arch: arm64
+[2026-09-08 10:58:22] - INFO - jawm.cli|test_mod :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:58:22] - INFO - jawm.cli|test_mod :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_nested_overrides_qgdhtn8v/test_mod.py
+P1_VAR= {'a': '11', 'b': 'PY', 'g': '999', 'x': '55'}
+P2_VAR= {'a': '11', 'b': 'PY', 'g': '999'}
+X1_VAR= {'a': 'PY', 'b': 'PY', 'g': '999'}
+P1_SLURM= {'resources': {'mem': '2048'}}
+P2_SLURM= {'resources': {'mem': '2048'}}
+X1_SLURM= {'resources': {'mem': 'PY'}}
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: Ending jawm module script from jawm command
+
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: Initiating jawm module script from jawm command
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs/jawm_runs/test_mod_20260908_105824.log
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: [sys] jawm: 0.1.0
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: [sys] Python: 3.11.6
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: [sys] Machine/Arch: arm64
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:58:24] - INFO - jawm.cli|test_mod :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_nested_overrides_qgdhtn8v/test_mod.py
+P1_VAR= {'a': '11', 'b': 'PY', 'g': '999', 'mk.output_folder': '/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_nested_overrides_qgdhtn8v/mk_out_dir_0py0nqd4', 'x': '55', 'output_folder': '/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_nested_overrides_qgdhtn8v/mk_out_dir_0py0nqd4'}
+P2_VAR= {'a': '11', 'b': 'PY', 'g': '999', 'mk.output_folder': '/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_nested_overrides_qgdhtn8v/mk_out_dir_0py0nqd4', 'output_folder': '/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_nested_overrides_qgdhtn8v/mk_out_dir_0py0nqd4'}
+X1_VAR= {'a': 'PY', 'b': 'PY', 'g': '999', 'mk.output_folder': '/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_nested_overrides_qgdhtn8v/mk_out_dir_0py0nqd4', 'output_folder': '/private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_nested_overrides_qgdhtn8v/mk_out_dir_0py0nqd4'}
+P1_SLURM= {'resources': {'mem': '2048'}}
+P2_SLURM= {'resources': {'mem': '2048'}}
+X1_SLURM= {'resources': {'mem': 'PY'}}
+[2026-09-08 10:58:26] - INFO - jawm.cli|test_mod :: Ending jawm module script from jawm command
+
+✅ Passed: CLI nested overrides — global, process patterns, space syntax and mk special-case
+
+>>> Test 47: get_cls_var — default, YAML(-p), CLI global override, class override (NO -v influence)
+✅ Passed: get_cls_var — correct precedence and correct -v behavior
+
+>>> Test 48: Process.wait skip logic — non-executed vs dependency-blocked processes
+[2026-09-08 10:58:27] - WARNING - jawm.Process|WAIT :: ⚠️  Process.wait → Process '27b009pl3m' has not started; skipping.
+[2026-09-08 10:58:27] - INFO - jawm.Process|WAIT :: Wait completed for 0 process(es).
+[2026-09-08 10:58:27] - INFO - dep_map|a32e39jlaw :: Launching process dep_map using Local executor.
+[2026-09-08 10:58:27] - INFO - dep_map|a32e39jlaw :: Log folder for process dep_map: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_wait_skip_5wbrbqik/logs/dep_map_20260908_105827_a32e39jlaw
+[2026-09-08 10:58:27] - INFO - dep_map|a32e39jlaw :: Preparing base script for process dep_map
+[2026-09-08 10:58:27] - INFO - dep_map|a32e39jlaw :: Process dep_map started with PID: 75138
+[2026-09-08 10:58:27] - INFO - dep_map|a32e39jlaw :: Process dep_map (PID: 75138) is still running...
+[2026-09-08 10:58:27] - WARNING - jawm.Process|WAIT :: ⚠️  Process.wait → Process '4b9df402ry' has not started; skipping.
+[2026-09-08 10:58:32] - INFO - dep_map|a32e39jlaw :: Process dep_map completed with exit code: 0
+[2026-09-08 10:58:32] - INFO - dep_map|a32e39jlaw :: Process.wait → dep_map [a32e39jlaw] has completed
+[2026-09-08 10:58:32] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:58:32] - INFO - dep_flag|4b9df402ry :: Waiting for dependency process dep_map (a32e39jlaw) to finish before executing dep_flag (4b9df402ry)
+[2026-09-08 10:58:32] - INFO - dep_flag|4b9df402ry :: Launching process dep_flag using Local executor.
+[2026-09-08 10:58:32] - INFO - dep_flag|4b9df402ry :: Log folder for process dep_flag: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_wait_skip_5wbrbqik/logs/dep_flag_20260908_105827_4b9df402ry
+[2026-09-08 10:58:32] - INFO - dep_flag|4b9df402ry :: Preparing base script for process dep_flag
+[2026-09-08 10:58:32] - INFO - dep_flag|4b9df402ry :: Process dep_flag started with PID: 75160
+[2026-09-08 10:58:32] - INFO - dep_flag|4b9df402ry :: Process dep_flag (PID: 75160) is still running...
+[2026-09-08 10:58:37] - INFO - dep_flag|4b9df402ry :: Process dep_flag completed with exit code: 0
+[2026-09-08 10:58:37] - INFO - dep_flag|4b9df402ry :: Process.wait → dep_flag [4b9df402ry] has completed
+[2026-09-08 10:58:37] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: Process.wait skip logic (non-executed vs dependency-blocked)
+
+>>> Test 49: User config loading — default path, custom path, env precedence
+✅ Passed: user config loading — default path, custom path, env precedence
+
+>>> Test 50: CLI remote -p/-v URL (HTML blob -> retry ?raw=1 -> success + cache)
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: Initiating jawm module script from jawm command
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [url] Fetching remote file for url: https://github.com/mpg-age-bioinformatics/jawm_git_test/blob/main/params/params.yaml
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [url] URL returned HTML, Retrying with ?raw=1: https://github.com/mpg-age-bioinformatics/jawm_git_test/blob/main/params/params.yaml?raw=1
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [url] Fetching remote file for url: https://github.com/mpg-age-bioinformatics/jawm_git_test/blob/main/params/vars.yaml
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [url] URL returned HTML, Retrying with ?raw=1: https://github.com/mpg-age-bioinformatics/jawm_git_test/blob/main/params/vars.yaml?raw=1
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs/jawm_runs/test_mod_remote_20260908_105837.log
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: Override param_file set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_remote_url_8bcmc51r/remote_params/155d13a4b90e7d48c940cd4ffc7861fbfd3c5b64842ce3ce31da0f08b23cc5d5.yaml
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: Injected 3 variable(s) from: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_remote_url_8bcmc51r/remote_params/bc48ed9cb90c58249829830ab55418fc5e2d1185806b101adcfa5f1322ca5871.yaml to the script
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: Override var_file set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_remote_url_8bcmc51r/remote_params/bc48ed9cb90c58249829830ab55418fc5e2d1185806b101adcfa5f1322ca5871.yaml
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [sys] jawm: 0.1.0
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [sys] Python: 3.11.6
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [sys] Machine/Arch: arm64
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:58:37] - INFO - jawm.cli|test_mod_remote :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_remote_url_8bcmc51r/test_mod_remote.py
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: Ending jawm module script from jawm command
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: Initiating jawm module script from jawm command
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: [url] Using cached remote file for url: https://github.com/mpg-age-bioinformatics/jawm_git_test/blob/main/params/params.yaml
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: [url] Using cached remote file for url: https://github.com/mpg-age-bioinformatics/jawm_git_test/blob/main/params/vars.yaml
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs/jawm_runs/test_mod_remote_20260908_105839.log
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: Override param_file set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_remote_url_8bcmc51r/remote_params/155d13a4b90e7d48c940cd4ffc7861fbfd3c5b64842ce3ce31da0f08b23cc5d5.yaml
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: Injected 3 variable(s) from: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_remote_url_8bcmc51r/remote_params/bc48ed9cb90c58249829830ab55418fc5e2d1185806b101adcfa5f1322ca5871.yaml to the script
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: Override var_file set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_remote_url_8bcmc51r/remote_params/bc48ed9cb90c58249829830ab55418fc5e2d1185806b101adcfa5f1322ca5871.yaml
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: [sys] jawm: 0.1.0
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: [sys] Python: 3.11.6
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:58:39] - INFO - jawm.cli|test_mod_remote :: [sys] Machine/Arch: arm64
+[2026-09-08 10:58:40] - INFO - jawm.cli|test_mod_remote :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:58:40] - INFO - jawm.cli|test_mod_remote :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_remote_url_8bcmc51r/test_mod_remote.py
+[2026-09-08 10:58:42] - INFO - jawm.cli|test_mod_remote :: Ending jawm module script from jawm command
+✅ Passed: CLI remote -p/-v URL (HTML retry + cache)
+
+>>> Test 51: CLI -w/--workdir creates + chdir early (relative -l resolves under workdir)
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: Initiating jawm module script from jawm command
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_workdir_2blvz91b/new_workdir/logs_rel/jawm_runs/workflow_abs_20260908_105842.log
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: Override logs_directory set to: logs_rel
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: [sys] jawm: 0.1.0
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: [sys] Python: 3.11.6
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: [sys] Machine/Arch: arm64
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:58:42] - INFO - jawm.cli|workflow_abs :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_workdir_2blvz91b/workflow_abs/main.py
+WORKDIR_TEST_RUN
+[2026-09-08 10:58:44] - INFO - jawm.cli|workflow_abs :: Ending jawm module script from jawm command
+
+[jawm] ERROR: user defined workdir exists but is not a directory: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_cli_workdir_2blvz91b/not_a_dir
+
+✅ Passed: CLI -w/--workdir creates directory + applies cwd early + rejects file target
+
+>>> Test 52: Python cli.run wrapper (subprocess/inprocess, argv string, cwd, check)
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: Initiating jawm module script from jawm command
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_py_cli_run_4txmx834/work/logs_3/jawm_runs/script_20260908_105849.log
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: Override logs_directory set to: logs_3
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: [sys] jawm: 0.1.0
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: [sys] Python: 3.11.6
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: [sys] Machine/Arch: arm64
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:58:49] - INFO - jawm.cli|script :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_py_cli_run_4txmx834/work/script.py
+PY_CLI_RUN_OK
+[2026-09-08 10:58:51] - INFO - jawm.cli|script :: Ending jawm module script from jawm command
+✅ Passed: Python cli.run wrapper (subprocess/inprocess, argv string, cwd, check)
+
+>>> Test 53: YAML includes (list-of-entries) — YAML-file-relative + wildcard + ../path + precedence at position
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: Initiating jawm module script from jawm command
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/logs/jawm_runs/test_mod_includes_20260908_105852.log
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: Override param_file set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_yaml_includes_ckfvio9y/cfg/main.yaml
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: [sys] jawm: 0.1.0
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: [sys] Python: 3.11.6
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: [sys] Machine/Arch: arm64
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:58:52] - INFO - jawm.cli|test_mod_includes :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_yaml_includes_ckfvio9y/test_mod_includes.py
+P1_VAR= {'local': 'L', 'z': 'Z_FROM_WILDCARD_2', 'x': 'MAINX_AFTER', 'w': 'W1', 'w2': 'W2', 'a': 'MAIN_P1'}
+X1_VAR= {'local': 'L', 'z': 'Z_FROM_WILDCARD_2', 'x': 'MAINX_AFTER', 'w': 'W1', 'w2': 'W2'}
+[2026-09-08 10:58:54] - INFO - jawm.cli|test_mod_includes :: Ending jawm module script from jawm command
+
+✅ Passed: YAML includes — YAML-relative, wildcard, ../path, spliced order, precedence
+
+>>> Test 54: Kubernetes workspace + mounts smoke test (gated by config + readback)
+[2026-09-08 10:58:54] - ERROR - jawm.utils|kubernetes_available :: ❌  Kubernetes not ready: E0908 10:58:54.550792   75300 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://biokube.age.mpg.de:6443/api?timeout=32s\": dial tcp: lookup biokube.age.mpg.de: no such host"
+E0908 10:58:54.553396   75300 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://biokube.age.mpg.de:6443/api?timeout=32s\": dial tcp: lookup biokube.age.mpg.de: no such host"
+E0908 10:58:54.553892   75300 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://biokube.age.mpg.de:6443/api?timeout=32s\": dial tcp: lookup biokube.age.mpg.de: no such host"
+E0908 10:58:54.555024   75300 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://biokube.age.mpg.de:6443/api?timeout=32s\": dial tcp: lookup biokube.age.mpg.de: no such host"
+E0908 10:58:54.555895   75300 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://biokube.age.mpg.de:6443/api?timeout=32s\": dial tcp: lookup biokube.age.mpg.de: no such host"
+Unable to connect to the server: dial tcp: lookup biokube.age.mpg.de: no such host
+   ⏭️  Skipped: kubectl/Kubernetes not available
+
+>>> Test 55: Path resolution policy — workdir for explicit relative paths, YAML-relative only for includes, CLI -w stays consistent
+[2026-09-08 10:58:54] - INFO - path_param_proc|848fc5j6bv :: Launching process path_param_proc using Local executor.
+[2026-09-08 10:58:54] - INFO - path_param_proc|848fc5j6bv :: Log folder for process path_param_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/path_resolution_policy_jvx6jeqh/run/logs_from_dot/path_param_proc_20260908_105854_848fc5j6bv
+[2026-09-08 10:58:54] - INFO - path_param_proc|848fc5j6bv :: Preparing base script for process path_param_proc
+[2026-09-08 10:58:54] - INFO - path_param_proc|848fc5j6bv :: Process path_param_proc started with PID: 75304
+[2026-09-08 10:58:54] - INFO - path_param_proc|848fc5j6bv :: Process path_param_proc (PID: 75304) is still running...
+[2026-09-08 10:58:59] - INFO - path_param_proc|848fc5j6bv :: Process path_param_proc completed with exit code: 0
+[2026-09-08 10:58:59] - INFO - path_param_proc|848fc5j6bv :: Process.wait → path_param_proc [848fc5j6bv] has completed
+[2026-09-08 10:58:59] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:58:59] - INFO - path_vars_plain_proc|859c263wsp :: Launching process path_vars_plain_proc using Local executor.
+[2026-09-08 10:58:59] - INFO - path_vars_plain_proc|859c263wsp :: Log folder for process path_vars_plain_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/path_resolution_policy_jvx6jeqh/run/logs_test_path_resolution/path_vars_plain_proc_20260908_105859_859c263wsp
+[2026-09-08 10:58:59] - INFO - path_vars_plain_proc|859c263wsp :: Preparing base script for process path_vars_plain_proc
+[2026-09-08 10:58:59] - INFO - path_vars_plain_proc|859c263wsp :: Process path_vars_plain_proc started with PID: 75323
+[2026-09-08 10:58:59] - INFO - path_vars_plain_proc|859c263wsp :: Process path_vars_plain_proc (PID: 75323) is still running...
+[2026-09-08 10:59:04] - INFO - path_vars_plain_proc|859c263wsp :: Process path_vars_plain_proc completed with exit code: 0
+[2026-09-08 10:59:04] - INFO - path_vars_plain_proc|859c263wsp :: Process.wait → path_vars_plain_proc [859c263wsp] has completed
+[2026-09-08 10:59:04] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+[2026-09-08 10:59:04] - INFO - path_vars_scoped_proc|4cc11204ds :: Launching process path_vars_scoped_proc using Local executor.
+[2026-09-08 10:59:04] - INFO - path_vars_scoped_proc|4cc11204ds :: Log folder for process path_vars_scoped_proc: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/path_resolution_policy_jvx6jeqh/run/logs_test_path_resolution/path_vars_scoped_proc_20260908_105904_4cc11204ds
+[2026-09-08 10:59:04] - INFO - path_vars_scoped_proc|4cc11204ds :: Preparing base script for process path_vars_scoped_proc
+[2026-09-08 10:59:04] - INFO - path_vars_scoped_proc|4cc11204ds :: Process path_vars_scoped_proc started with PID: 75349
+[2026-09-08 10:59:04] - INFO - path_vars_scoped_proc|4cc11204ds :: Process path_vars_scoped_proc (PID: 75349) is still running...
+[2026-09-08 10:59:09] - INFO - path_vars_scoped_proc|4cc11204ds :: Process path_vars_scoped_proc completed with exit code: 0
+[2026-09-08 10:59:09] - INFO - path_vars_scoped_proc|4cc11204ds :: Process.wait → path_vars_scoped_proc [4cc11204ds] has completed
+[2026-09-08 10:59:09] - INFO - jawm.Process|WAIT :: Wait completed for 1 process(es).
+✅ Passed: Path resolution policy (workdir for explicit relative paths, YAML-relative only for includes, CLI -w consistent)
+
+>>> Test 56: jawm-monitor — ps, logs (--ls / --show / --errors), stats, clean
+[2026-09-08 10:59:12] - INFO - jm_ok|64dc92euwl :: Launching process jm_ok using Local executor.
+[2026-09-08 10:59:12] - INFO - jm_ok|64dc92euwl :: Log folder for process jm_ok: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs/jm_ok_20260908_105912_64dc92euwl
+[2026-09-08 10:59:12] - INFO - jm_ok|64dc92euwl :: Preparing base script for process jm_ok
+[2026-09-08 10:59:12] - INFO - jm_ok|64dc92euwl :: Process jm_ok started with PID: 75412
+[2026-09-08 10:59:12] - INFO - jm_ok|64dc92euwl :: Process jm_ok (PID: 75412) is still running...
+[2026-09-08 10:59:12] - INFO - jm_fail|df810b3sqe :: Launching process jm_fail using Local executor.
+[2026-09-08 10:59:12] - INFO - jm_fail|df810b3sqe :: Log folder for process jm_fail: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs/jm_fail_20260908_105912_df810b3sqe
+[2026-09-08 10:59:12] - INFO - jm_fail|df810b3sqe :: Preparing base script for process jm_fail
+[2026-09-08 10:59:12] - INFO - jm_fail|df810b3sqe :: Process jm_fail started with PID: 75413
+[2026-09-08 10:59:12] - INFO - jm_fail|df810b3sqe :: Process jm_fail (PID: 75413) is still running...
+[2026-09-08 10:59:17] - INFO - jm_ok|64dc92euwl :: Process jm_ok completed with exit code: 0
+[2026-09-08 10:59:17] - INFO - jm_ok|64dc92euwl :: Process.wait → jm_ok [64dc92euwl] has completed
+[2026-09-08 10:59:17] - INFO - jm_fail|df810b3sqe :: Process jm_fail completed with exit code: 2
+[2026-09-08 10:59:17] - ERROR - jm_fail|df810b3sqe :: ❌  Attempt 1 for process jm_fail failed with exit code 2 (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs/jm_fail_20260908_105912_df810b3sqe)
+[2026-09-08 10:59:17] - ERROR - jm_fail|df810b3sqe :: ❌  Process jm_fail in Local failed after 1 attempts (Log Folder: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs/jm_fail_20260908_105912_df810b3sqe)
+
+jm_fail_stderr
+[2026-09-08 10:59:17] - INFO - jm_fail|df810b3sqe :: Process.wait → jm_fail [df810b3sqe] has completed
+[2026-09-08 10:59:17] - INFO - jawm.Process|WAIT :: Wait completed for 2 process(es).
+  [ps]
+STATUS  NAME     HASH        MANAGER  ID     STARTED              ELAPSED  ENDED                EXIT
+----------------------------------------------------------------------------------------------------
+OK      jm_ok    64dc92euwl  local    75412  2026-09-08 10:59:12  5s       2026-09-08 10:59:17  0   
+FAILED  jm_fail  df810b3sqe  local    75413  2026-09-08 10:59:12  5s       2026-09-08 10:59:17  2   
+
+  /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/monitoring  |  2 completed (last 20)
+
+  [logs --ls]
+STATUS  NAME     HASH        STARTED              ENDED                ELAPSED  EXIT
+------------------------------------------------------------------------------------
+FAILED  jm_fail  df810b3sqe  2026-09-08 10:59:12  2026-09-08 10:59:17  5s       2   
+OK      jm_ok    64dc92euwl  2026-09-08 10:59:12  2026-09-08 10:59:17  5s       0   
+
+  /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs  |  2 processes (last 20)
+
+  [logs --show jm_ok]
+Process:  jm_ok   OK
+  Hash:    64dc92euwl
+  Started: 2026-09-08 10:59:12
+  Dir:     /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs/jm_ok_20260908_105912_64dc92euwl
+  Exit:    0
+  Ended:   2026-09-08 10:59:17   elapsed: 5s
+
+--- stderr (0 lines) ---
+
+  [logs --errors]
+[2026-09-08 10:59:17]  jm_fail  (df810b3sqe)  LocalAttempt
+  /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs/jm_fail_20260908_105912_df810b3sqe
+  LocalAttempt: jm_fail_stderr
+
+[2026-09-08 10:59:17]  jm_fail  (df810b3sqe)  LocalAttempt
+  /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs/jm_fail_20260908_105912_df810b3sqe
+  LocalAttempt: Process in Local failed.
+  
+  jm_fail_stderr
+
+  /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs/error.log  |  showing 2 of 2 errors
+
+  [stats --process]
+jawm-monitor stats: no stats.json files found in /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/jm_test_yk93txk9/logs
+  Statistics are only available when jawm is run with --stats.
+
+  [clean --dry-run]
+Remove 2 completed entries:
+  local.75413.2.txt
+  local.75412.0.txt
+
+(dry run — no changes made)
+
+✅ Passed: jawm-monitor ps / logs / stats / clean
+
+>>> Test 57: scope: hash manifest — per-file hashes + mismatch diff (CHANGED / NEW)
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: Initiating jawm module script from jawm command
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs/jawm_runs/hm_mod_20260908_105919.log
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: Override param_file set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/hash.yaml
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: Override logs_directory set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: [sys] jawm: 0.1.0
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: [sys] Python: 3.11.6
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: [sys] Machine/Arch: arm64
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:59:19] - INFO - jawm.cli|hm_mod :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/hm_mod.py
+hm module ran
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [hash] Generated hash from user definitions → 80ea94cdc6e8a55a68c457dfc11d1b52813b23fbdc71380fd7ed563c435a732a
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [hash] Wrote current hash to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs/jawm_hashes/hm_mod.hash
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [hash] Manifest written → /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs/jawm_hashes/hm_mod_hash_manifest.json
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [hash] STATUS: NEW  ✅
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [hash] Appended history based on user definitions → /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs/jawm_hashes/hm_mod_user_defined.history
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: Ending jawm module script from jawm command
+
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: Initiating jawm module script from jawm command
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: Logging terminal output to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs/jawm_runs/hm_mod_20260908_105921.log
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: Override param_file set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/hash.yaml
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: Override logs_directory set to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [sys] jawm: 0.1.0
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [sys] Python: 3.11.6
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [sys] OS: macOS-26.6.2-arm64-arm-64bit
+[2026-09-08 10:59:21] - INFO - jawm.cli|hm_mod :: [sys] Machine/Arch: arm64
+[2026-09-08 10:59:22] - INFO - jawm.cli|hm_mod :: [sys] Docker: Docker version 29.7.2, build a7dcaa6
+[2026-09-08 10:59:22] - INFO - jawm.cli|hm_mod :: Running jawm module: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/hm_mod.py
+hm module ran
+[2026-09-08 10:59:23] - INFO - jawm.cli|hm_mod :: [hash] Generated hash from user definitions → cb64d138704f538c55d2e4fb38dbabbdad71dc870ba130320996b06510ab5c5d
+[2026-09-08 10:59:23] - WARNING - jawm.cli|hm_mod :: ⚠️  [hash] Mismatch for hm_mod.hash: 
+Stored=80ea94cdc6e8a55a68c457dfc11d1b52813b23fbdc71380fd7ed563c435a732a 
+Computed=cb64d138704f538c55d2e4fb38dbabbdad71dc870ba130320996b06510ab5c5d
+[2026-09-08 10:59:23] - INFO - jawm.cli|hm_mod :: [hash] Wrote current hash to: /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs/jawm_hashes/hm_mod.hash
+[2026-09-08 10:59:23] - WARNING - jawm.cli|hm_mod :: ⚠️  [hash] Per-file diff vs baseline manifest (recorded 2026-09-08T10:59:19, hash 80ea94cd):
+[2026-09-08 10:59:23] - WARNING - jawm.cli|hm_mod :: ⚠️  [hash]   CHANGED  /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/out/b.txt
+[2026-09-08 10:59:23] - WARNING - jawm.cli|hm_mod :: ⚠️  [hash]            was: dcdb704109a454784b81229d2b05f368692e758bfa33cb61d04c1b93791b0273
+[2026-09-08 10:59:23] - WARNING - jawm.cli|hm_mod :: ⚠️  [hash]            now: d39ac78d758aeadf517147334bc6a795eae1bad6b08afd26d30d2fc6a9140677
+[2026-09-08 10:59:23] - WARNING - jawm.cli|hm_mod :: ⚠️  [hash]   NEW      /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/out/c.txt
+[2026-09-08 10:59:23] - INFO - jawm.cli|hm_mod :: [hash] Manifest written → /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs/jawm_hashes/hm_mod_hash_manifest.json
+[2026-09-08 10:59:23] - INFO - jawm.cli|hm_mod :: [hash] STATUS: MISMATCHED  ❌
+[2026-09-08 10:59:23] - INFO - jawm.cli|hm_mod :: [hash] Appended history based on user definitions → /private/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_base_verification_9vissm9k/logs_temp/test_hash_manifest_i2q_781a/logs/jawm_hashes/hm_mod_user_defined.history
+[2026-09-08 10:59:24] - INFO - jawm.cli|hm_mod :: Ending jawm module script from jawm command
+
+✅ Passed: scope: hash manifest — per-file hashes, CHANGED + NEW diff
+
+===== TEST SUMMARY =====
+✅ Passed: 57
+❌ Failed: 0
+🎉 All tests passed!
+[2026-09-08 10:59:24] - INFO - jawm.cli|base_test :: Module ended with exitcode (0); Initiating post run procedures.
+[2026-09-08 10:59:26] - INFO - jawm.cli|base_test :: Ending jawm module script from jawm command

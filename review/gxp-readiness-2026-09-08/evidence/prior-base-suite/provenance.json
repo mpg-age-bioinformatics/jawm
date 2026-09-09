@@ -1,0 +1,6 @@
+{
+  "description": "Transcripts retained from the preceding implementation session before commits 8a979b5 and a6ec93a. Not freshly executed in this reassessment; exact working-tree digest and command were not captured with these transcripts.",
+  "passed": "Reports 57 passed, 0 failed and normal CLI ending; unavailable backends skipped.",
+  "initial-failed": "Earlier base-suite attempt encountered inherited process-registry fixture state during its in-process CLI test. The harness was subsequently changed to wait for and reset fixture runtime state before that test and final cleanup. Preserved as development history, not passing evidence.",
+  "limitation": "These transcripts do not qualify the later merged Kubernetes statistics, jawm-dev or packaging changes."
+}

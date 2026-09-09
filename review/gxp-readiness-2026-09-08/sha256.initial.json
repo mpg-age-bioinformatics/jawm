@@ -1,0 +1,16 @@
+{
+  "assessment.md": "b26484d0fa3e9a536d5a2ea0d076d52295b0ff9925292b18167583a8050b703e",
+  "evidence/child_failure.log": "f5a836f45b5a148623f665e0e33c307bf46844b5983a69f5d4a457f6b4b38e8c",
+  "evidence/hash_baseline.log": "295bd8b0e156554883e9b8bc3d00e8c50fa3a74d264472f85d8ef248e55aa7f4",
+  "evidence/hash_changed.log": "d1566ecf2aedeff37b50d7bae3210597e82b7292ac57bf76b427483a2f1664e0",
+  "evidence/hash_reference.log": "471295dd1070c212fcf78470001675f90b0d1afd8ce9bd68a526586fd8b3af89",
+  "evidence/hash_reference_exit_zero.log": "02fa9dd967cf88300dd4c097710862ffecd1e22095eebc85ba2d1be9c746e23e",
+  "evidence/jawm_test_baseline.log": "248eeff807673df5477ea0c0f33d235f644b2ab01c78b029598418a5d9443b94",
+  "evidence/jawm_test_changed.log": "707ecf8e04905445f8c3b990e2f034c22e5f52a2f22a7852ab9d44b4d35d53c9",
+  "evidence/observations.json": "c86e038e8ad768fa450aa8ae032a514a77f9e7c0074821e76cbff221db43a4e8",
+  "evidence/resume_changed.log": "191ebf6a734cb1b7fbcbd8fbc4039382ebdad2e0b5d3d377f78a5bbf0a19456e",
+  "evidence/resume_deleted_output.log": "9e09ba7877f84aed3df97c094cd3fac88d49a1dc55620f3c5108bf6f949216d1",
+  "evidence/resume_original.log": "5422aa2f0b1c4ea11b15f3211d3c1f1024384b5fafc7bf54ef9a77b40359859d",
+  "evidence/retry_records.log": "2729cdb0f676c809246b52a741ab25d05970b969042125ec5a1e60c453f087f7",
+  "probes.py": "b766eb4dc7a5647ebbd7b77175500bec7fac43728f4478b7d6241cb4f94c4b6c"
+}

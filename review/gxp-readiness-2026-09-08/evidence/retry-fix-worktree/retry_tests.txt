@@ -1,0 +1,15 @@
+test_archive_failure_after_success_still_fails_cli (__main__.RetryRecordsTests.test_archive_failure_after_success_still_fails_cli) ... ok
+test_archive_failure_stops_retry_and_fails_cli (__main__.RetryRecordsTests.test_archive_failure_stops_retry_and_fails_cli) ... ok
+test_exhausted_retries_preserve_every_exit (__main__.RetryRecordsTests.test_exhausted_retries_preserve_every_exit) ... ok
+test_failed_then_successful_retry_preserves_both_attempts (__main__.RetryRecordsTests.test_failed_then_successful_retry_preserves_both_attempts) ... ok
+test_kubernetes_submission_failures_preserve_manifests_and_response (__main__.RetryRecordsTests.test_kubernetes_submission_failures_preserve_manifests_and_response) ... ok
+test_launch_failure_does_not_inherit_previous_pid_or_stdout (__main__.RetryRecordsTests.test_launch_failure_does_not_inherit_previous_pid_or_stdout) ... ok
+test_repeated_attempt_numbers_cannot_replace_previous_archives (__main__.RetryRecordsTests.test_repeated_attempt_numbers_cannot_replace_previous_archives) ... ok
+test_slurm_completed_attempts_preserve_raw_exit_codes_and_streams (__main__.RetryRecordsTests.test_slurm_completed_attempts_preserve_raw_exit_codes_and_streams) ... ok
+test_slurm_submission_failures_preserve_scripts_and_full_response (__main__.RetryRecordsTests.test_slurm_submission_failures_preserve_scripts_and_full_response) ... ok
+test_unexpected_exception_preserves_partial_records (__main__.RetryRecordsTests.test_unexpected_exception_preserves_partial_records) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 58.496s
+
+OK

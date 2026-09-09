@@ -1,0 +1,21 @@
+test_child_failure_without_explicit_wait_fails_after_hashing (__main__.CliExitTests.test_child_failure_without_explicit_wait_fails_after_hashing) ... ok
+test_failed_upstream_blocks_downstream_without_workflow_exit (__main__.CliExitTests.test_failed_upstream_blocks_downstream_without_workflow_exit) ... ok
+test_inprocess_api_preserves_reference_failure (__main__.CliExitTests.test_inprocess_api_preserves_reference_failure) ... ok
+test_invalid_reference_cannot_be_masked (__main__.CliExitTests.test_invalid_reference_cannot_be_masked) ... ok
+test_mismatch_without_reference_remains_informational (__main__.CliExitTests.test_mismatch_without_reference_remains_informational) ... ok
+test_missing_hash_input_cannot_be_masked (__main__.CliExitTests.test_missing_hash_input_cannot_be_masked) ... ok
+test_post_run_exception_cannot_be_masked (__main__.CliExitTests.test_post_run_exception_cannot_be_masked) ... ok
+test_reference_failure_takes_precedence_over_child_failure (__main__.CliExitTests.test_reference_failure_takes_precedence_over_child_failure) ... ok
+test_reference_mismatch_overrides_workflow_exit (__main__.CliExitTests.test_reference_mismatch_overrides_workflow_exit) ... ok
+test_strict_dependency_block_is_not_an_intentional_skip (__main__.CliExitTests.test_strict_dependency_block_is_not_an_intentional_skip) ... ok
+test_successful_checks_preserve_workflow_exit (__main__.CliExitTests.test_successful_checks_preserve_workflow_exit) ... ok
+test_successful_child_and_intentional_skip_pass (__main__.CliExitTests.test_successful_child_and_intentional_skip_pass) ... ok
+test_successful_retry_passes (__main__.CliExitTests.test_successful_retry_passes) ... ok
+test_wait_exception_fails_after_hashing (__main__.CliExitTests.test_wait_exception_fails_after_hashing) ... ok
+test_wait_timeout_remains_failure_after_child_finishes (__main__.CliExitTests.test_wait_timeout_remains_failure_after_child_finishes) ... ok
+test_workflow_exception_still_fails (__main__.CliExitTests.test_workflow_exception_still_fails) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 84.021s
+
+OK

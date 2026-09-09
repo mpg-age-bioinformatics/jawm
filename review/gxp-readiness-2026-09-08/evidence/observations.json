@@ -1,0 +1,44 @@
+{
+  "repository": "/Users/jboucas/jawm",
+  "work_area": "/var/folders/y_/2556k6jj4xg_9q48014134tm0000gn/T/jawm_gxp_review__2ii8tt3",
+  "python": "3.11.6 (main, Oct  2 2023, 13:45:54) [Clang 15.0.0 (clang-1500.0.40.1)]",
+  "cases": {
+    "aggregate_hash": {
+      "two_files_changed_but_digest_equal": true,
+      "digest": "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78",
+      "note": "AB+C versus A+BC; no SHA-256 collision needed"
+    },
+    "hash_exit": {
+      "baseline_rc": 0,
+      "changed_without_reference_rc": 0,
+      "mismatch_reported": true,
+      "explicit_reference_mismatch_rc": 73,
+      "explicit_reference_mismatch_after_workflow_sys_exit_zero_rc": 0,
+      "reference_failure_logged_after_sys_exit_zero": true
+    },
+    "resume": {
+      "original_rc": 0,
+      "changed_input_rc": 0,
+      "changed_input_skipped": true,
+      "output_after_input_change": "original",
+      "deleted_output_rc": 0,
+      "deleted_output_skipped": true,
+      "output_restored": false
+    },
+    "child_failure": {
+      "workflow_cli_rc": 0,
+      "child_exitcode": "7"
+    },
+    "retry_records": {
+      "workflow_cli_rc": 0,
+      "retained_stdout": "SECOND_ATTEMPT\n",
+      "stdout_file_count": 1
+    },
+    "jawm_test_stale_hash": {
+      "baseline_rc": 0,
+      "changed_output_rc": 0,
+      "cli_mismatch_reported": true,
+      "test_runner_reads_old_hash": true
+    }
+  }
+}

@@ -1,0 +1,13 @@
+test_changed_output_fails_with_preserved_baselines (__main__.RunnerTests.test_changed_output_fails_with_preserved_baselines) ... ok
+test_empty_expected_hash_captures_current_output (__main__.RunnerTests.test_empty_expected_hash_captures_current_output) ... ok
+test_ignore_retains_failed_rows_and_continues (__main__.RunnerTests.test_ignore_retains_failed_rows_and_continues) ... ok
+test_malformed_current_hash_is_rejected (__main__.RunnerTests.test_malformed_current_hash_is_rejected) ... ok
+test_missing_hash_cannot_reuse_previous_result_even_with_override (__main__.RunnerTests.test_missing_hash_cannot_reuse_previous_result_even_with_override) ... ok
+test_override_accepts_current_output (__main__.RunnerTests.test_override_accepts_current_output) ... ok
+test_repeated_module_rows_have_independent_hashes (__main__.RunnerTests.test_repeated_module_rows_have_independent_hashes) ... ok
+test_unchanged_output_passes_repeatedly (__main__.RunnerTests.test_unchanged_output_passes_repeatedly) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 41.581s
+
+OK

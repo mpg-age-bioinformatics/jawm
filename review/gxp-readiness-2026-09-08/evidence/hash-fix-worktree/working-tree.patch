@@ -1,0 +1,603 @@
+diff --git a/.github/workflows/smoke_test.yaml b/.github/workflows/smoke_test.yaml
+index 4b31bc6..96c3329 100644
+--- a/.github/workflows/smoke_test.yaml
++++ b/.github/workflows/smoke_test.yaml
+@@ -48,6 +48,9 @@ jobs:
+ 
+       - name: Test retry record retention
+         run: python test/retry_records_test.py
++
++      - name: Test canonical dataset hashing
++        run: python test/hash_content_test.py
+   
+   # ─────────────────────────────
+   #  Slurm integration test (matrix)
+diff --git a/docs/cli/jawm-test.md b/docs/cli/jawm-test.md
+index f79bc59..9b81099 100644
+--- a/docs/cli/jawm-test.md
++++ b/docs/cli/jawm-test.md
+@@ -209,3 +209,8 @@ For dispatched workflows (manual triggers), pass `--dispatch` to test both the c
+ |------|---------|
+ | `0` | All tests passed |
+ | `1` | One or more tests failed, hash mismatch, download error, or invalid arguments |
++
++
++### Aggregate hash format migration
++
++Output aggregates now use `jawm-file-manifest-v2`: relative paths, byte sizes and individual SHA-256 values are encoded with explicit boundaries. Existing `tests.txt` hashes must be deliberately regenerated after reviewing the outputs; the runner does not accept legacy aggregates as equivalent. Keep the previous test references and software version as historical evidence. See [hashing semantics and migration](../utils.md#hash_content) before updating baselines.
+diff --git a/docs/cli/jawm.md b/docs/cli/jawm.md
+index a9f0ad2..685dd1c 100644
+--- a/docs/cli/jawm.md
++++ b/docs/cli/jawm.md
+@@ -357,3 +357,8 @@ jawm ./my_pipeline/ --no-web -p params.yaml
+ # Change working directory before running
+ jawm mymodule.py -w /scratch/project123 -p params.yaml
+ ```
++
++
++### Dataset hash encoding
++
++`scope: hash` uses `jawm-file-manifest-v2` with relative file paths, sizes and per-file SHA-256 digests. The CLI reports the encoding in its log and records it in the diagnostic hash manifest. Explicit references created with the former concatenation encoding will mismatch and must be deliberately regenerated after review. See [hashing semantics and migration](../utils.md#hash_content).
+diff --git a/docs/utils.md b/docs/utils.md
+index 857a4f4..81a95c6 100644
+--- a/docs/utils.md
++++ b/docs/utils.md
+@@ -384,7 +384,7 @@ yaml_text = jawm.utils.script_to_yaml(
+ 
+ Compute a hash of the content of one or more files/folders and write it to a file. If the file already exists, its stored hash is compared against the freshly computed one — making this a simple way to detect changes in inputs, references, or pipelines.
+ 
+-- **Signature:** `jawm.utils.write_hash_file(paths, hash_file, hash_func=hashlib.sha256, v=True, exclude_dirs=None, exclude_files=None, allowed_extensions=None, recursive=True, consider_name=False)`
++- **Signature:** `jawm.utils.write_hash_file(paths, hash_file, hash_func=hashlib.sha256, v=True, exclude_dirs=None, exclude_files=None, allowed_extensions=None, recursive=True, consider_name=True)`
+ - **Returns:** `bool` — `True` if the hash was written or matched the existing one; `False` if the existing hash differs.
+ 
+ **Parameters**
+@@ -398,7 +398,7 @@ Compute a hash of the content of one or more files/folders and write it to a fil
+ | `exclude_files` | File name patterns to skip. |
+ | `allowed_extensions` | Restrict hashing to files with these extensions when scanning a directory. |
+ | `recursive` | Recurse into subdirectories. Default: `True`. |
+-| `consider_name` | Also include filenames (not only contents) in the hash. |
++| `consider_name` | Include relative file paths. Default: `True`. Explicit `False` hashes a framed collection of file sizes/digests without paths. |
+ 
+ ```python
+ import jawm
+@@ -418,7 +418,7 @@ if not ok:
+ 
+ Compute a combined hash digest for files and/or folders, **without** writing it to disk. This is the lower-level primitive that `write_hash_file()` uses internally.
+ 
+-- **Signature:** `jawm.utils.hash_content(paths, hash_func=hashlib.sha256, exclude_dirs=None, exclude_files=None, allowed_extensions=None, recursive=True, consider_name=False)`
++- **Signature:** `jawm.utils.hash_content(paths, hash_func=hashlib.sha256, exclude_dirs=None, exclude_files=None, allowed_extensions=None, recursive=True, consider_name=True)`
+ - **Returns:** `str` — the hex digest.
+ 
+ ```python
+@@ -428,6 +428,17 @@ print(digest)
+ 
+ The arguments mirror `write_hash_file()` exactly (minus `hash_file` and `v`).
+ 
++Both functions now use the **`jawm-file-manifest-v2`** encoding. The default aggregate hashes a canonical JSON array containing the format identifier, the name-policy boolean, and sorted entries of `[relative_path, byte_size, per_file_sha256]`. JSON uses ASCII escaping and compact separators, without a trailing newline. File bytes are streamed into individual SHA-256 digests; `hash_func` selects the outer aggregate algorithm.
++
++Relative paths use `/` separators and are measured from the common root of selected directories and the parent directories of explicitly selected files. Moving the whole dataset preserves its hash; changing a relative filename or directory changes it. For a stable directory boundary, pass that directory as the dataset root. Selection order and overlapping/duplicate selections do not affect the result. Distinct files with identical content still count separately. Empty files count; empty directories do not.
++
++With explicit `consider_name=False`, entries contain only `[byte_size, per_file_sha256]`. File boundaries and multiplicity remain preserved, but renames or swaps of identical file-content collections are intentionally ignored. Neither mode concatenates raw contents.
++
++Missing or unreadable selected inputs, selected symlinks (including directory symlinks during recursive traversal), and non-regular files cause an error. Exclusion filters omit matching entries; extension filters apply to directory contents, while explicitly selected files are included regardless of extension. `recursive=False` ignores subdirectories. Use stable input files: this is not an atomic filesystem snapshot, although changes to an individual file during reading are checked.
++
++**Migration:** all legacy aggregate values, including single-file and empty-set hashes, change. Existing `.hash` files, `tests.txt` entries and explicit references are not silently converted or accepted using the old encoding. Preserve the old references with the old software version, review the dataset with the new version, then deliberately capture approved new baselines. Process hash prefixes that incorporate file digests can change too; previously cached/resumed results may no longer match. This change does not resolve the separate resume-verification limitation.
++
++
+ ---
+ 
+ ## Files & Inputs
+diff --git a/jawm/_utils.py b/jawm/_utils.py
+index 8907dad..11d6649 100644
+--- a/jawm/_utils.py
++++ b/jawm/_utils.py
+@@ -13,6 +13,8 @@ import yaml
+ import fnmatch
+ import inspect
+ import hashlib
++import json
++import stat
+ from pathlib import Path
+ 
+ 
+@@ -109,108 +111,88 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
+ def hash_content(paths, hash_func=hashlib.sha256,
+                  exclude_dirs=None, exclude_files=None,
+                  allowed_extensions=None, recursive=True,
+-                 consider_name=False):
++                 consider_name=True):
++    """Hash the canonical jawm-file-manifest-v2 encoding of a file set.
++
++    Entries contain relative path, byte size and per-file SHA-256. Paths are
++    relative to the common root of selected directories and explicit files'
++    parents, making a relocated dataset stable. Input order and duplicate
++    selections do not matter. Empty files count; empty directories do not.
++    Explicit consider_name=False omits paths but still frames each file.
++    Missing/unreadable paths, symlinks and non-regular files raise errors.
++    Extension filters apply inside directories (explicit files remain included).
++    This encoding intentionally changes all legacy aggregate baselines.
+     """
+-    Return a combined hash digest for multiple files and/or folders,
+-    including their contents and (optionally) their basenames.
+-
+-    The traversal order is deterministic across platforms: top-level paths
+-    are processed in the order given, and within each directory both
+-    subdirectories and files are visited in sorted order.
+-
+-    When `consider_name=True`, only the file's basename is included in the
+-    hash — never its parent directories or absolute path. This means hashing
+-    a file directly and hashing it as part of a containing directory record
+-    the same name for that file.
+-
+-    Args:
+-        paths (str or Path or list[str | Path]): A single file/folder path or
+-            a list of paths to include in the hash.
+-        hash_func (callable, optional): Hash function from hashlib (default: sha256).
+-        exclude_dirs (list[str], optional): List of directory name patterns to exclude.
+-        exclude_files (list[str], optional): List of file name patterns to exclude.
+-        allowed_extensions (list[str], optional): Only consider allowed files if a directory is provided.
+-        recursive (bool, optional): Whether to descend into subdirectories (default: True).
+-        consider_name (bool, optional): Whether to consider file basenames while hashing (default: False).
+-
+-    Returns:
+-        str: Hex digest representing the combined hash of all provided files
+-            and folder contents.
+-    """
+-    if exclude_dirs is None:
+-        exclude_dirs = []
+-    if exclude_files is None:
+-        exclude_files = []
+-
+     if isinstance(paths, (str, Path)):
+         paths = [paths]
+-
+-    # Normalize extension list
+-    allowed_exts = None
+-    if allowed_extensions:
+-        allowed_exts = {
+-            (e if e.startswith(".") else "." + e).lower()
+-            for e in allowed_extensions
+-        }
+-
+-    def _file_excluded(name):
+-        return any(fnmatch.fnmatch(name, pat) for pat in exclude_files)
+-
+-    def _dir_excluded(name):
+-        return any(fnmatch.fnmatch(name, pat) for pat in exclude_dirs)
+-
+-    def _ext_allowed(name):
+-        if allowed_exts is None:
+-            return True
+-        return os.path.splitext(name)[1].lower() in allowed_exts
+-
+-    def _hash_file(h, fpath, name_to_record=None):
+-        if name_to_record is not None and consider_name:
+-            h.update(name_to_record.encode("utf-8"))
+-        with open(fpath, "rb") as f:
+-            while chunk := f.read(8192):
+-                h.update(chunk)
+-
+-    h = hash_func()
++    paths = sorted(set(os.path.abspath(p) for p in paths))
++    exclude_dirs = exclude_dirs or []
++    exclude_files = exclude_files or []
++    extensions = {(e if e.startswith('.') else '.' + e).lower()
++                  for e in allowed_extensions or []}
++    selected = set()
++    roots = []
++
++    def excluded(name, patterns):
++        return any(fnmatch.fnmatch(name, pattern) for pattern in patterns)
++
++    def checked_stat(path):
++        info = os.lstat(path)
++        if stat.S_ISLNK(info.st_mode):
++            raise ValueError(f"Cannot hash symbolic link: {path}")
++        if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
++            raise ValueError(f"Cannot hash non-regular file: {path}")
++        return info
++
++    def walk_error(error):
++        raise error
+ 
+     for path in paths:
+-        path = os.path.abspath(path)
+-
+-        if os.path.isfile(path):
+-            fname = os.path.basename(path)
+-            if _file_excluded(fname):
+-                continue
+-            _hash_file(h, path, name_to_record=fname)
+-
+-        elif os.path.isdir(path):
+-            if recursive:
+-                walker = os.walk(path)
+-            else:
+-                entries = os.listdir(path)
+-                files_only = [
+-                    e for e in entries
+-                    if os.path.isfile(os.path.join(path, e))
+-                ]
+-                walker = [(path, [], files_only)]
+-
+-            for root, dirs, files in walker:
+-                if recursive:
+-                    dirs[:] = sorted(d for d in dirs if not _dir_excluded(d))
+-
+-                for fname in sorted(files):
+-                    if _file_excluded(fname):
+-                        continue
+-                    if not _ext_allowed(fname):
+-                        continue
+-
+-                    fpath = os.path.join(root, fname)
+-                    # Record the basename only — matches the standalone-file branch
+-                    _hash_file(h, fpath, name_to_record=fname)
+-
+-        else:
++        info = checked_stat(path)
++        if stat.S_ISREG(info.st_mode):
++            roots.append(os.path.dirname(path))
++            if not excluded(os.path.basename(path), exclude_files):
++                selected.add(path)
+             continue
+-
+-    return h.hexdigest()
++        roots.append(path)
++        for root, dirs, files in os.walk(path, onerror=walk_error):
++            dirs[:] = sorted(d for d in dirs if not excluded(d, exclude_dirs)) if recursive else []
++            for dirname in dirs:
++                checked_stat(os.path.join(root, dirname))
++            for name in sorted(files):
++                if excluded(name, exclude_files):
++                    continue
++                if extensions and os.path.splitext(name)[1].lower() not in extensions:
++                    continue
++                file_path = os.path.join(root, name)
++                checked_stat(file_path)
++                selected.add(file_path)
++
++    common_root = os.path.commonpath(roots) if roots else None
++    entries = []
++    for path in sorted(selected):
++        checked_stat(path)
++        digest = hashlib.sha256()
++        size = 0
++        with open(path, "rb") as f:
++            before = os.fstat(f.fileno())
++            for block in iter(lambda: f.read(1024 * 1024), b""):
++                size += len(block)
++                digest.update(block)
++            after = os.fstat(f.fileno())
++        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
++                after.st_size, after.st_mtime_ns, after.st_ctime_ns) or size != after.st_size:
++            raise OSError(f"File changed while hashing: {path}")
++        entry = [size, digest.hexdigest()]
++        if consider_name:
++            entry.insert(0, Path(os.path.relpath(path, common_root)).as_posix())
++        entries.append(entry)
++    entries.sort()
++    payload = json.dumps(["jawm-file-manifest-v2", bool(consider_name), entries],
++                         ensure_ascii=True, separators=(",", ":")).encode("ascii")
++    aggregate = hash_func()
++    aggregate.update(payload)
++    return aggregate.hexdigest()
+ 
+ 
+ def _sanitize_vars(d, prefixes=("mk.", "map.")):
+diff --git a/jawm/cli.py b/jawm/cli.py
+index eebaaee..0f1a8d8 100644
+--- a/jawm/cli.py
++++ b/jawm/cli.py
+@@ -906,6 +906,7 @@ def _write_hash_manifest(manifest_path, timestamp, combined_hash, file_hashes):
+     data = {
+         "timestamp": timestamp,
+         "combined_hash": combined_hash,
++        "aggregate_format": "jawm-file-manifest-v2",
+         "files": file_hashes,
+     }
+     Path(manifest_path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+@@ -2916,7 +2917,7 @@ def main():
+                     recursive=True,
+                 )
+             else:
+-                auto_hash = hashlib.sha256(b"").hexdigest()
++                auto_hash = hash_content([])
+ 
+         # Append to <wf>_input.history
+         _append_history_line_cli(
+@@ -3010,10 +3011,11 @@ def main():
+                 )
+             else:
+                 logger.warning("[hash] No paths found in user hashing definitions")
+-                userdef_hash = hashlib.sha256(b"").hexdigest()
++                userdef_hash = hash_content([])
+ 
+             # write <wf>.hash (same as before)
+             hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_module_path)
++            logger.info("[hash] Aggregate format: jawm-file-manifest-v2 (relative paths, sizes, per-file SHA-256)")
+             logger.info(f"[hash] Generated hash from user definitions → {userdef_hash}")
+             matched, new = _write_and_compare_hash_cli(logger, userdef_hash, hash_out_path, overwrite=overwrite)
+ 
+diff --git a/jawm/utils.py b/jawm/utils.py
+index 09ca5a7..584b148 100644
+--- a/jawm/utils.py
++++ b/jawm/utils.py
+@@ -456,7 +456,7 @@ def kubernetes_available(v=False):
+ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256, 
+                     v=True, exclude_dirs=None, exclude_files=None,
+                     allowed_extensions=None, recursive=True,
+-                    consider_name=False):
++                    consider_name=True):
+     """
+     Compute the combined hash of files/folders and write it to a file.
+     If the file already exists, check if the stored hash matches the current hash
+@@ -471,7 +471,7 @@ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256,
+         exclude_files (list[str], optional): File patterns to exclude.
+         allowed_extensions (list[str] | None): When hashing directories, only count these extensions.
+         recursive (bool): Recurse into subdirectories (default: True).
+-        consider_name (bool, optional): Whether to consider the file names while hashing (default: False).
++        consider_name (bool, optional): Whether to include relative file paths (default: True).
+ 
+     Returns:
+         bool: True if the hash was written or matched the existing hash, 
+@@ -482,7 +482,7 @@ def write_hash_file(paths, hash_file, hash_func=hashlib.sha256,
+                                 allowed_extensions=allowed_extensions, 
+                                 exclude_dirs=exclude_dirs, 
+                                 exclude_files=exclude_files,
+-                                recursive=recursive)
++                                recursive=recursive, consider_name=consider_name)
+     hash_file = Path(hash_file)
+ 
+     if hash_file.exists():
+diff --git a/test/base_test.py b/test/base_test.py
+index 0e5bad8..966e05f 100644
+--- a/test/base_test.py
++++ b/test/base_test.py
+@@ -2276,10 +2276,10 @@ try:
+     with open(f3, "w") as fh: fh.write("hello world!!\n")  # slightly different
+ 
+     # --- A) Content-only mode ---
+-    h1 = utils.hash_content([f1, f2])
+-    h2 = utils.hash_content([f2, f1])
+-    h3 = utils.hash_content([f1])
+-    h4 = utils.hash_content([f3])
++    h1 = utils.hash_content([f1, f2], consider_name=False)
++    h2 = utils.hash_content([f2, f1], consider_name=False)
++    h3 = utils.hash_content([f1], consider_name=False)
++    h4 = utils.hash_content([f3], consider_name=False)
+ 
+     assert h1 == h2, "❌ Hash should be order-independent in content-only mode"
+     assert h1 != h3, "❌ Combined hash should differ from a single file (aggregate content)"
+diff --git a/test/cli_exit_test.py b/test/cli_exit_test.py
+index ab2c8e0..21a36cd 100644
+--- a/test/cli_exit_test.py
++++ b/test/cli_exit_test.py
+@@ -1,5 +1,6 @@
+ """Check CLI exit precedence with synthetic workflows: python3 test/cli_exit_test.py."""
+ import hashlib
++import json
+ import os
+ from pathlib import Path
+ import subprocess
+@@ -11,6 +12,12 @@ import unittest
+ REPO = Path(__file__).resolve().parents[1]
+ 
+ 
++def output_digest():
++    payload = ["jawm-file-manifest-v2", True,
++               [["output.txt", 6, hashlib.sha256(b"actual").hexdigest()]]]
++    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
++
++
+ class CliExitTests(unittest.TestCase):
+     def setUp(self):
+         self.tmp = tempfile.TemporaryDirectory(prefix="jawm_cli_exit_")
+@@ -55,14 +62,14 @@ class CliExitTests(unittest.TestCase):
+                 self.assert_exit(result, 73)
+                 self.assertIn("does NOT match reference", result.stdout + result.stderr)
+                 history = self.root / "logs/jawm_hashes/workflow_user_defined.history"
+-                self.assertIn(hashlib.sha256(b"actual").hexdigest(), history.read_text())
++                self.assertIn(output_digest(), history.read_text())
+ 
+     def test_inprocess_api_preserves_reference_failure(self):
+         self.assert_exit(self.run_workflow("import sys\nsys.exit(0)\n",
+                                           reference="0" * 64, inprocess=True), 73)
+ 
+     def test_successful_checks_preserve_workflow_exit(self):
+-        reference = hashlib.sha256(b"actual").hexdigest()
++        reference = output_digest()
+         for script, expected in [("pass\n", 0), ("import sys\nsys.exit(0)\n", 0),
+                                  ("import sys\nsys.exit()\n", 0),
+                                  ("import sys\nsys.exit(7)\n", 7),
+@@ -97,7 +104,7 @@ class CliExitTests(unittest.TestCase):
+ 
+     def assert_history_retained(self):
+         history = self.root / "logs/jawm_hashes/workflow_user_defined.history"
+-        self.assertIn(hashlib.sha256(b"actual").hexdigest(), history.read_text())
++        self.assertIn(output_digest(), history.read_text())
+ 
+     def test_child_failure_without_explicit_wait_fails_after_hashing(self):
+         result = self.run_workflow(
+diff --git a/test/runner_test.py b/test/runner_test.py
+index 3a620a0..7b31613 100644
+--- a/test/runner_test.py
++++ b/test/runner_test.py
+@@ -4,6 +4,7 @@ Run with: python3 test/runner_test.py
+ Uses the checkout and synthetic files, without installs or remote services.
+ """
+ import hashlib
++import json
+ import os
+ from pathlib import Path
+ import shlex
+@@ -16,8 +17,11 @@ import unittest
+ REPO = Path(__file__).resolve().parents[1]
+ 
+ 
+-def digest(value):
+-    return hashlib.sha256(value.encode()).hexdigest()
++def digest(value, filename="output.txt"):
++    data = value.encode()
++    payload = ["jawm-file-manifest-v2", True,
++               [[filename, len(data), hashlib.sha256(data).hexdigest()]]]
++    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
+ 
+ 
+ class RunnerTests(unittest.TestCase):
+@@ -108,7 +112,7 @@ class RunnerTests(unittest.TestCase):
+             "- scope: hash\n  include: [other.txt]\n  overwrite: false\n"
+         )
+         with self.tests_file.open("a") as f:
+-            f.write('workflow.py;main;other.yaml;"other";' + digest("other") + '\n')
++            f.write('workflow.py;main;other.yaml;"other";' + digest("other", "other.txt") + '\n')
+         self.assert_rc(self.run_runner(), 0)
+ 
+     def test_missing_hash_cannot_reuse_previous_result_even_with_override(self):
+diff --git a/test/hash_content_test.py b/test/hash_content_test.py
+new file mode 100644
+index 0000000..b48de88
+--- /dev/null
++++ b/test/hash_content_test.py
+@@ -0,0 +1,141 @@
++"""Canonical dataset hash regression tests: python test/hash_content_test.py."""
++import hashlib
++import json
++import os
++from pathlib import Path
++import shutil
++import subprocess
++import sys
++import tempfile
++import unittest
++from unittest.mock import patch
++
++REPO = Path(__file__).resolve().parents[1]
++sys.path.insert(0, str(REPO))
++from jawm.utils import hash_content, write_hash_file
++
++
++class HashContentTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory(prefix='jawm_hash_content_')
++        self.addCleanup(self.tmp.cleanup)
++        self.root = Path(self.tmp.name)
++        self.data = self.root / 'data'
++        self.data.mkdir()
++
++    def put(self, name, data):
++        path = self.data / name
++        path.parent.mkdir(parents=True, exist_ok=True)
++        path.write_bytes(data)
++        return path
++
++    def test_known_versioned_encoding(self):
++        self.put('a.txt', b'ABC')
++        payload = b'["jawm-file-manifest-v2",true,[["a.txt",3,"b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"]]]'
++        self.assertEqual(hash_content(self.data), hashlib.sha256(payload).hexdigest())
++        self.assertNotEqual(hash_content(self.data), hashlib.sha256(b'ABC').hexdigest())
++
++    def test_changed_file_boundaries_fail_in_both_modes(self):
++        for names in (True, False):
++            self.put('a', b'AB'); self.put('b', b'C')
++            baseline = hash_content(self.data, consider_name=names)
++            self.put('a', b'A'); self.put('b', b'BC')
++            self.assertNotEqual(baseline, hash_content(self.data, consider_name=names))
++
++    def test_empty_file_addition_and_removal_change_hash(self):
++        self.put('a', b'ABC')
++        original = hash_content(self.data)
++        empty = self.put('empty', b'')
++        self.assertNotEqual(original, hash_content(self.data))
++        empty.unlink()
++        self.assertEqual(original, hash_content(self.data))
++        self.assertNotEqual(hash_content([]), hash_content(self.put('empty', b'')))
++
++    def test_relative_paths_distinguish_moves_with_same_basename(self):
++        source = self.put('left/file', b'ABC')
++        original = hash_content(self.data)
++        content = hash_content(self.data, consider_name=False)
++        (self.data / 'right').mkdir()
++        source.rename(self.data / 'right/file')
++        self.assertNotEqual(original, hash_content(self.data))
++        self.assertEqual(content, hash_content(self.data, consider_name=False))
++
++    def test_names_are_unambiguously_framed(self):
++        a = self.put('A', b'BC')
++        old = hash_content(self.data)
++        a.unlink(); self.put('AB', b'C')
++        self.assertNotEqual(old, hash_content(self.data))
++
++    def test_relocation_order_and_overlapping_selections(self):
++        a = self.put('a', b'A'); b = self.put('nested/b', b'B')
++        baseline = hash_content(self.data)
++        self.assertEqual(baseline, hash_content([b, a]))
++        self.assertEqual(baseline, hash_content([a, b, self.data, a]))
++        copy = self.root / 'copy'
++        shutil.copytree(self.data, copy)
++        self.assertEqual(baseline, hash_content(copy))
++
++    def test_identical_content_in_distinct_files_is_counted(self):
++        a = self.put('a', b'A'); b = self.put('b', b'A')
++        self.assertNotEqual(hash_content(a, consider_name=False),
++                            hash_content([a, b], consider_name=False))
++
++    def test_filters_and_nonrecursive_mode(self):
++        a = self.put('a.txt', b'A')
++        self.put('b.bin', b'B'); self.put('nested/c.txt', b'C')
++        self.assertEqual(hash_content(a), hash_content(self.data, allowed_extensions=['txt'], recursive=False))
++        baseline = hash_content(self.data, exclude_dirs=['nested'], exclude_files=['*.bin'])
++        self.assertEqual(hash_content(a), baseline)
++        self.put('b.bin', b'CHANGED')
++        self.assertEqual(baseline, hash_content(self.data, exclude_dirs=['nested'], exclude_files=['*.bin']))
++
++    def test_missing_input_fails_instead_of_silent_omission(self):
++        a = self.put('a', b'A')
++        with self.assertRaises(FileNotFoundError):
++            hash_content([a, self.data / 'missing'])
++
++    def test_symlinks_and_nonregular_files_are_rejected(self):
++        self.put('a', b'A')
++        link = self.data / 'link'
++        link.symlink_to('a')
++        with self.assertRaises(ValueError): hash_content(self.data)
++        link.unlink(); link.symlink_to('absent')
++        with self.assertRaises(ValueError): hash_content(self.data)
++        link.unlink(); link.symlink_to('.', target_is_directory=True)
++        with self.assertRaises(ValueError): hash_content(self.data)
++        link.unlink(); os.mkfifo(link)
++        with self.assertRaises(ValueError): hash_content(self.data)
++
++    def test_unreadable_file_and_directory_fail(self):
++        self.put('a', b'A')
++        with patch('builtins.open', side_effect=PermissionError('unreadable')):
++            with self.assertRaises(PermissionError): hash_content(self.data)
++        with patch('os.scandir', side_effect=PermissionError('unreadable directory')):
++            with self.assertRaises(PermissionError): hash_content(self.data)
++
++    def test_write_hash_file_forwards_explicit_content_only_option(self):
++        a = self.put('a', b'A')
++        target = self.root / 'expected.hash'
++        self.assertTrue(write_hash_file(a, target, consider_name=False, v=False))
++        a.rename(self.data / 'b')
++        self.assertTrue(write_hash_file(self.data / 'b', target, consider_name=False, v=False))
++        self.assertFalse(write_hash_file(self.data / 'b', target, v=False))
++
++    def test_cli_reference_rejects_former_boundary_collision(self):
++        self.put('a', b'AB'); self.put('b', b'C')
++        reference = hash_content(self.data)
++        self.put('a', b'A'); self.put('b', b'BC')
++        (self.root / 'workflow.py').write_text('import sys\nsys.exit(0)\n')
++        (self.root / 'params.yaml').write_text('- scope: hash\n  include: [data]\n  reference: ' + reference + '\n')
++        env = {k: v for k, v in os.environ.items() if not k.startswith('JAWM_')}
++        env.update(PYTHONPATH=str(REPO), JAWM_CONFIG_FILE='/dev/null',
++                   JAWM_MONITORING_DIRECTORY=str(self.root / 'monitoring'))
++        result = subprocess.run([sys.executable, '-m', 'jawm.cli', 'workflow.py', '-p', 'params.yaml'],
++                                cwd=self.root, env=env, capture_output=True, text=True, timeout=30)
++        self.assertEqual(result.returncode, 73, result.stdout + result.stderr)
++        manifest = json.loads(next((self.root / 'logs/jawm_hashes').glob('*manifest.json')).read_text())
++        self.assertEqual(manifest['aggregate_format'], 'jawm-file-manifest-v2')
++
++
++if __name__ == '__main__':
++    unittest.main(verbosity=2)

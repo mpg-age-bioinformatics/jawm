@@ -1,0 +1,55 @@
+{
+  "base_commit": "747bec935ddfca1e628389429a7d88f4a02b274c",
+  "state": "Uncommitted canonical hashing changes. See working-tree.patch. Test execution timestamps are in transcripts; recording time is separate.",
+  "recorded_utc": "2026-09-09T06:13:14.958611+00:00",
+  "python": "3.11.6 (main, Oct  2 2023, 13:45:54) [Clang 15.0.0 (clang-1500.0.40.1)]",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "source_sha256": {
+    "jawm/_utils.py": "4c424eb592ca9e528f3cec357df7413ff69bdf545151c200da0235dfcc92977a",
+    "jawm/utils.py": "79b68e060c7bb5494919b252fd31b0a37aeec5d77f79dcb56dfd12fbed6a85f8",
+    "jawm/cli.py": "25e79f5c02e740b01049e87ef47133b9a33b59b9eaf266531c4a5c54849e33cd",
+    "test/hash_content_test.py": "d5f29bdcc1e6c9c5d96d8c7467c6079ab036aa5830b4be4ff4abde1758495b56",
+    "test/runner_test.py": "5aaf96c460daf610f368dd48e3fb858a943d3f2159cb17855576cda2a9752909",
+    "test/cli_exit_test.py": "abe3ccc13d71254cb75d844796248459ed01e9d78226416e1cbda59accb8082f",
+    "test/base_test.py": "e7e64cbd4d12cb6ee8db1c92e5bb045c6204a2d5488061e55f2abcf92ebcd403",
+    "test/retry_records_test.py": "b18b3b6288282f33df1cd5659cdfc1abef0f60bc730c7e4d6852a9d9cf4ed357",
+    ".github/workflows/smoke_test.yaml": "b78ff41ecd1eedad2e9cfe834ae2810226bcbd97eed071be5b45343d3bb5a3cf"
+  },
+  "broad_suites": {
+    "commands": {
+      "base": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "-m",
+        "jawm.cli",
+        "/Users/jboucas/jawm/test/base_test.py"
+      ],
+      "cli_exit": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "/Users/jboucas/jawm/test/cli_exit_test.py"
+      ],
+      "runner": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "/Users/jboucas/jawm/test/runner_test.py"
+      ],
+      "retry": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "/Users/jboucas/jawm/test/retry_records_test.py"
+      ]
+    },
+    "results": {
+      "base": 0,
+      "cli_exit": 0,
+      "runner": 0,
+      "retry": 0
+    }
+  },
+  "hash_suite": {
+    "argv": [
+      "/opt/homebrew/opt/python@3.11/bin/python3.11",
+      "test/hash_content_test.py"
+    ],
+    "returncode": 0,
+    "passed": 13
+  },
+  "scope": "Local Python 3.11/macOS. Backend availability skips remain in base suite; no live remote qualification. Historical original probes retained unchanged, including their obsolete raw-content expected baselines."
+}

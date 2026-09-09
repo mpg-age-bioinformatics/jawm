@@ -1,0 +1,478 @@
+diff --git a/.github/workflows/smoke_test.yaml b/.github/workflows/smoke_test.yaml
+index e1c37d2..4b31bc6 100644
+--- a/.github/workflows/smoke_test.yaml
++++ b/.github/workflows/smoke_test.yaml
+@@ -45,6 +45,9 @@ jobs:
+ 
+       - name: Test CLI exit precedence
+         run: python test/cli_exit_test.py
++
++      - name: Test retry record retention
++        run: python test/retry_records_test.py
+   
+   # ─────────────────────────────
+   #  Slurm integration test (matrix)
+diff --git a/docs/debug/logs.md b/docs/debug/logs.md
+index 87daf66..184fad9 100644
+--- a/docs/debug/logs.md
++++ b/docs/debug/logs.md
+@@ -19,6 +19,7 @@ logs/
+ │   ├── <name>.id                       # PID (local) or job ID (Slurm/K8s)
+ │   ├── <name>.slurm                    # Slurm job script (Slurm only)
+ │   ├── <name>.k8s.json                 # Kubernetes manifest (K8s only)
++│   ├── attempts/                      # independent per-attempt records (see below)
+ │   └── stats.json                      # resource stats (when --stats is enabled)
+ │
+ ├── error.log                           # aggregated error summary (all failed processes)
+@@ -45,6 +46,30 @@ For example: `logs/bwa_align_20240315_142301_a3f9bc/`
+ 
+ The `<hash>` is a 10-character identifier partly derived from the Process parameters — the same hash used to reference the process in `depends_on`, `Process.wait()`, and the registry.
+ 
++#### Retry attempt records
++
++Local, Slurm and Kubernetes executors preserve each JAWM attempt under:
++
++```text
++<process-log-directory>/attempts/attempt-0001-<unique-suffix>/
++    started.json
++    <name>.script
++    <name>.command
++    <name>.output
++    <name>.error
++    <name>.id
++    <name>.exitcode
++    completed.json
++```
++
++Only records actually produced are copied; Slurm scripts/submission responses and Kubernetes manifests/apply responses are also included when present. Every attempt, including the final successful or exhausted attempt, is copied before the executor proceeds. Copies are independent files. The existing top-level files and `get_stdout()`, `get_stderr()` and `get_exitcode()` continue to describe the current/latest attempt.
++
++`started.json` records the process identity, attempt number, UTC start time and selected effective configuration after retry overrides (variables, declared inputs/outputs, local/Slurm settings, environment/container selection and script wrappers). It does not dump the inherited environment or provide a complete environment attestation. `completed.json` records the end time, executor outcome, any propagated exception and SHA-256 values for the copied records. The copied exit-code file retains backend detail, such as Slurm `7:0`, separately from the executor's normalized outcome. Submission failures without an exit-code file receive the executor's failure code.
++
++If copying or writing the attempt record fails, the executor fails and does not start another retry. A `started.json` without `completed.json` identifies an incomplete archive. Existing current files found at the start of a repeated execution are copied to a unique `previous-*` directory before reuse; those records have no newly inferred attempt identity.
++
++This preserves JAWM-owned execution records after an attempt returns. It does not archive scientific output files outside those records, custom scheduler stdout/stderr destinations, cluster-side pod/job records, or every scheduler-internal retry. Abrupt termination and inaccessible or late-arriving remote logs can leave incomplete evidence. Files remain subject to normal filesystem permissions and retention policies; checksums do not make them tamper-proof. Archive storage grows with retained stdout/stderr and scripts, so include `attempts/` in the deployment's storage and retention planning.
++
+ #### `<name>.output` — stdout
+ 
+ Everything the process writes to standard output. For bash scripts, this is any `echo` or command output. For Python scripts, this is `print()` output.
+diff --git a/docs/process/parameters.md b/docs/process/parameters.md
+index 03ca6cb..59759d4 100644
+--- a/docs/process/parameters.md
++++ b/docs/process/parameters.md
+@@ -1833,7 +1833,7 @@ If `retries=2`, jawm can try up to **3 total attempts**:
+ - 1 initial attempt
+ - 2 retry attempts
+ 
+-Retries are handled by jawm for supported backends such as local, Slurm, and Kubernetes.
++Retries are handled by jawm for supported backends such as local, Slurm, and Kubernetes. Each JAWM attempt retains its generated execution records in a unique `attempts/attempt-<number>-<suffix>/` directory before the next attempt starts. The usual process log files remain the latest-attempt view. If record preservation fails, execution fails instead of retrying. See [retry attempt records](../debug/logs.md#retry-attempt-records) for contents and scope.
+ 
+ _**Note**_: `retries` works together with `error_strategy`. If `error_strategy="fail"`, jawm forces `retries=0`.
+ 
+diff --git a/jawm/_process_internal.py b/jawm/_process_internal.py
+index a67c524..9ca885e 100644
+--- a/jawm/_process_internal.py
++++ b/jawm/_process_internal.py
+@@ -6,6 +6,9 @@ import shlex
+ import hashlib
+ import time
+ import glob
++import json
++import tempfile
++from datetime import timezone
+ from functools import reduce
+ from datetime import datetime
+ from urllib.parse import urlparse
+@@ -704,6 +707,91 @@ def _monitoring_completed_file(self, job_id, script_path, exit_code):
+             self.logger.warning(f"Failed to create completed file for {self.name} in Monitoring: {str(e)}")
+ 
+ 
++@register
++def _run_recorded_attempt(self, run_once, attempt_i, total_attempts):
++    """Preserve JAWM-owned records before another attempt can replace them.
++
++    The top-level files remain the current-attempt API. Independent copies in
++    attempts/ are never reused. An archive error propagates to the executor's
++    failure handler, preventing a retry from destroying uncopied evidence.
++    """
++    suffixes = ("output", "error", "exitcode", "id", "script", "command",
++                "slurm", "k8s.json", "kubectl_apply.log", "sbatch_submit.log")
++    paths = [os.path.join(self.log_path, self.name + "." + ext) for ext in suffixes]
++    archive_root = os.path.join(self.log_path, "attempts")
++    os.makedirs(archive_root, exist_ok=True)
++
++    def copy_records(destination):
++        records = {}
++        for path in paths:
++            if os.path.isfile(path):
++                target = os.path.join(destination, os.path.basename(path))
++                # Exclusive creation: never replace an existing archived record.
++                with open(path, "rb") as src, open(target, "xb") as dst:
++                    digest = hashlib.sha256()
++                    for block in iter(lambda: src.read(1024 * 1024), b""):
++                        dst.write(block)
++                        digest.update(block)
++                records[os.path.basename(path)] = digest.hexdigest()
++        return records
++
++    # A repeated execution can reuse a log directory. Preserve its existing
++    # current view too; do not mislabel those files as this execution's attempt.
++    if attempt_i == 1 and any(os.path.isfile(p) for p in paths):
++        previous = tempfile.mkdtemp(prefix="previous-", dir=archive_root)
++        copy_records(previous)
++
++    # Earlier attempts have already been copied successfully. Clearing the
++    # current view prevents stale IDs/exit codes and append-mode stderr leaks
++    # from being attributed to the next attempt (including launch failures).
++    for path in paths:
++        if os.path.lexists(path):
++            os.unlink(path)
++    self.base_script_path = None
++
++    attempt_path = tempfile.mkdtemp(prefix=f"attempt-{attempt_i:04d}-", dir=archive_root)
++    self._apply_retry_parameters(attempt_i - 1)
++    # Capture effective explicit configuration after overrides. Do not dump
++    # the inherited environment; scripts/manifests remain the execution record.
++    config_keys = ("var", "inputs", "outputs", "manager", "manager_local",
++                   "manager_slurm", "environment", "container", "retries",
++                   "error_strategy", "before_script", "after_script")
++    metadata = {
++        "schema_version": 1, "process": self.name, "process_hash": self.hash,
++        "attempt": attempt_i, "total_attempts": total_attempts,
++        "execution_started_at": self.execution_start_at,
++        "started_at": datetime.now(timezone.utc).isoformat(),
++        "effective_configuration": {k: getattr(self, k, None) for k in config_keys},
++    }
++    with open(os.path.join(attempt_path, "started.json"), "x") as f:
++        json.dump(metadata, f, indent=2, default=str)
++        f.write("\n")
++    self.logger.info(f"Attempt {attempt_i} records: {attempt_path}")
++    outcome = None
++    failure = None
++    try:
++        outcome = run_once(attempt_i, total_attempts)
++        return outcome
++    except Exception as exc:
++        failure = str(exc)
++        raise
++    finally:
++        exit_path = os.path.join(self.log_path, self.name + ".exitcode")
++        if not os.path.exists(exit_path):
++            with open(exit_path, "x") as f:
++                f.write(str(outcome if outcome is not None else 127))
++        records = copy_records(attempt_path)
++        result = {
++            "ended_at": datetime.now(timezone.utc).isoformat(),
++            "outcome": outcome, "exception": failure,
++            "records_sha256": records,
++        }
++        # A started record without completed.json signals an incomplete archive.
++        with open(os.path.join(attempt_path, "completed.json"), "x") as f:
++            json.dump(result, f, indent=2)
++            f.write("\n")
++
++
+ @register
+ def _apply_retry_parameters(self, attempt_i):
+     """
+@@ -1012,7 +1100,7 @@ def _proc_exception_handler(self, e, location= "execution", type_text="Error"):
+     try:
+         if hasattr(self, "log_path") and self.log_path:
+             error_path = os.path.join(self.log_path, f"{self.name}.error")
+-            with open(error_path, "w") as f:
++            with open(error_path, "a") as f:
+                 f.write(msg + "\n")
+     except Exception:
+         pass
+diff --git a/jawm/_process_kubernetes.py b/jawm/_process_kubernetes.py
+index e5fa6e2..9cba5a7 100644
+--- a/jawm/_process_kubernetes.py
++++ b/jawm/_process_kubernetes.py
+@@ -1292,8 +1292,7 @@ def _execute_kubernetes(self):
+             try:
+                 total_attempts = self.retries + 1
+                 for attempt_i in range(1, total_attempts + 1):
+-                    self._apply_retry_parameters(attempt_i - 1)
+-                    rc = run_once(attempt_i, total_attempts)
++                    rc = self._run_recorded_attempt(run_once, attempt_i, total_attempts)
+                     if rc == 0:
+                         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+                         self.finished_event.set()
+diff --git a/jawm/_process_local.py b/jawm/_process_local.py
+index eba0219..4f7d54e 100644
+--- a/jawm/_process_local.py
++++ b/jawm/_process_local.py
+@@ -141,8 +141,7 @@ def _execute_local(self):
+                 last_exit_code = None
+ 
+                 for attempt_i in range(1, total_attempts + 1):
+-                    self._apply_retry_parameters(attempt_i - 1)
+-                    exit_code = run_process_once(attempt_i, total_attempts)
++                    exit_code = self._run_recorded_attempt(run_process_once, attempt_i, total_attempts)
+                     last_exit_code = exit_code
+ 
+                     # If success, we're done
+diff --git a/jawm/_process_slurm.py b/jawm/_process_slurm.py
+index 0084afd..e8cf130 100644
+--- a/jawm/_process_slurm.py
++++ b/jawm/_process_slurm.py
+@@ -220,6 +220,10 @@ def _execute_slurm(self):
+                 text=True
+             )
+ 
++            self._safe_write_file(
++                os.path.join(self.log_path, f"{self.name}.sbatch_submit.log"),
++                (result.stdout or "") + ("\n" + result.stderr if result.stderr else ""))
++
+             # Check submission result
+             if result.returncode != 0:
+                 stderr = (result.stderr or "").strip()
+@@ -385,8 +389,7 @@ def _execute_slurm(self):
+             try:
+                 total_attempts = self.retries + 1
+                 for attempt_i in range(1, total_attempts + 1):
+-                    self._apply_retry_parameters(attempt_i - 1)
+-                    exit_code = run_process_once_slurm(attempt_i, total_attempts)
++                    exit_code = self._run_recorded_attempt(run_process_once_slurm, attempt_i, total_attempts)
+                     if exit_code == 0:
+                         # success on this attempt
+                         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
+diff --git a/test/retry_records_test.py b/test/retry_records_test.py
+new file mode 100644
+index 0000000..c9792fa
+--- /dev/null
++++ b/test/retry_records_test.py
+@@ -0,0 +1,234 @@
++"""Retry evidence regression tests: python test/retry_records_test.py."""
++import hashlib
++import json
++import os
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import unittest
++
++REPO = Path(__file__).resolve().parents[1]
++
++
++class RetryRecordsTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory(prefix="jawm_retry_records_")
++        self.addCleanup(self.tmp.cleanup)
++        self.root = Path(self.tmp.name)
++        self.env = {k: v for k, v in os.environ.items() if not k.startswith("JAWM_")}
++        self.env.update(PYTHONPATH=str(REPO), PYTHONDONTWRITEBYTECODE="1",
++                        JAWM_CONFIG_FILE="/dev/null",
++                        JAWM_MONITORING_DIRECTORY=str(self.root / "monitoring"))
++
++    def run_workflow(self, source, expected):
++        (self.root / "workflow.py").write_text(source)
++        result = subprocess.run([sys.executable, "-m", "jawm.cli", "workflow.py"],
++                                cwd=self.root, env=self.env, capture_output=True,
++                                text=True, timeout=60)
++        self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
++        self.log = next((self.root / "logs").glob("step_*"))
++        attempts = sorted((self.log / "attempts").glob("attempt-*"))
++        for attempt in attempts:
++            start = json.loads((attempt / "started.json").read_text())
++            end = json.loads((attempt / "completed.json").read_text())
++            self.assertLessEqual(start["started_at"], end["ended_at"])
++            for name, digest in end["records_sha256"].items():
++                self.assertEqual(hashlib.sha256((attempt / name).read_bytes()).hexdigest(), digest)
++        return attempts
++
++    def test_failed_then_successful_retry_preserves_both_attempts(self):
++        attempts = self.run_workflow(r"""
++from jawm import Process
++p = Process(name='step', retries=1,
++    script='#!/bin/bash\nif [ ! -f tried ]; then touch tried; echo FIRST_ATTEMPT; echo FIRST_ERROR >&2; exit 7; fi\necho SECOND_ATTEMPT\necho SECOND_ERROR >&2\n',
++    retry_overrides={1: {'manager_local': {'memory': '2G'}}})
++p.execute()
++""", 0)
++        self.assertEqual(len(attempts), 2)
++        for i, (label, code) in enumerate([("FIRST", "7"), ("SECOND", "0")]):
++            attempt = attempts[i]
++            self.assertEqual((attempt / "step.output").read_text(), label + "_ATTEMPT\n")
++            self.assertEqual((attempt / "step.error").read_text(), label + "_ERROR\n")
++            self.assertEqual((attempt / "step.exitcode").read_text(), code)
++            self.assertIn(label, (attempt / "step.script").read_text())
++            self.assertTrue((attempt / "step.command").read_text())
++            self.assertTrue((attempt / "step.id").read_text().isdigit())
++        config = json.loads((attempts[1] / "started.json").read_text())["effective_configuration"]
++        self.assertEqual(config["manager_local"]["memory"], "2G")
++        self.assertEqual((self.log / "step.output").read_text(), "SECOND_ATTEMPT\n")
++        # Archives are independent copies, not aliases to the current files.
++        (self.log / "step.output").write_text("replaced")
++        self.assertEqual((attempts[1] / "step.output").read_text(), "SECOND_ATTEMPT\n")
++
++    def test_exhausted_retries_preserve_every_exit(self):
++        attempts = self.run_workflow(r"""
++from jawm import Process
++p = Process(name='step', retries=1, script='#!/bin/bash\necho failed\nexit 7\n')
++p.execute()
++""", 1)
++        self.assertEqual(len(attempts), 2)
++        self.assertEqual([(a / "step.exitcode").read_text() for a in attempts], ["7", "7"])
++
++    def test_launch_failure_does_not_inherit_previous_pid_or_stdout(self):
++        attempts = self.run_workflow(r"""
++from jawm import Process
++import jawm._process_local as backend
++original_popen = backend.subprocess.Popen
++calls = 0
++def launch(*args, **kwargs):
++    global calls
++    calls += 1
++    if calls == 2:
++        raise OSError('synthetic launch failure')
++    return original_popen(*args, **kwargs)
++backend.subprocess.Popen = launch
++p = Process(name='step', retries=1, script='#!/bin/bash\necho FIRST\nexit 7\n')
++p.execute()
++""", 1)
++        self.assertEqual(len(attempts), 2)
++        self.assertFalse((attempts[1] / "step.id").exists())
++        self.assertEqual((attempts[1] / "step.output").read_text(), "")
++        self.assertEqual((attempts[1] / "step.exitcode").read_text(), "127")
++        self.assertIn("FIRST", (attempts[0] / "step.output").read_text())
++
++    def test_archive_failure_stops_retry_and_fails_cli(self):
++        self.assert_archive_failure(7)
++
++    def test_archive_failure_after_success_still_fails_cli(self):
++        self.assert_archive_failure(0)
++
++    def assert_archive_failure(self, child_exit):
++        # Fail the first archive copy, after the child has written its evidence.
++        result_source = r"""
++import builtins
++from jawm import Process
++original_open = builtins.open
++def fail_archive(path, mode='r', *args, **kwargs):
++    if '/attempts/attempt-' in str(path) and str(path).endswith('.output') and mode == 'xb':
++        raise OSError('synthetic archive failure')
++    return original_open(path, mode, *args, **kwargs)
++builtins.open = fail_archive
++p = Process(name='step', retries=1, script='#!/bin/bash\nif [ -f tried ]; then touch SHOULD_NOT_RUN; fi\ntouch tried\necho ORIGINAL\nexit 7\n')
++p.execute()
++"""
++        (self.root / "workflow.py").write_text(result_source.replace("exit 7", "exit " + str(child_exit)))
++        r = subprocess.run([sys.executable, "-m", "jawm.cli", "workflow.py"],
++                           cwd=self.root, env=self.env, capture_output=True, text=True, timeout=45)
++        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
++        self.assertFalse((self.root / "SHOULD_NOT_RUN").exists())
++        log = next((self.root / "logs").glob("step_*"))
++        self.assertEqual((log / "step.output").read_text(), "ORIGINAL\n")
++        attempt = next((log / "attempts").glob("attempt-*"))
++        self.assertTrue((attempt / "started.json").exists())
++        self.assertFalse((attempt / "completed.json").exists())
++
++    def test_slurm_submission_failures_preserve_scripts_and_full_response(self):
++        attempts = self.run_workflow(r"""
++from types import SimpleNamespace
++import jawm._process_slurm as backend
++from jawm import Process
++backend.subprocess.run = lambda *a, **k: SimpleNamespace(returncode=1, stdout='', stderr='submission rejected')
++p = Process(name='step', manager='slurm', retries=1, script='#!/bin/bash\necho hello\n')
++p.execute()
++""", 1)
++        self.assertEqual(len(attempts), 2)
++        for attempt in attempts:
++            self.assertEqual((attempt / "step.exitcode").read_text(), "127")
++            self.assertIn("submission rejected", (attempt / "step.sbatch_submit.log").read_text())
++            self.assertTrue((attempt / "step.slurm").exists())
++            self.assertTrue((attempt / "step.script").exists())
++
++    def test_kubernetes_submission_failures_preserve_manifests_and_response(self):
++        attempts = self.run_workflow(r"""
++from pathlib import Path
++from types import SimpleNamespace
++import jawm._process_kubernetes as backend
++from jawm import Process
++backend.subprocess.run = lambda *a, **k: SimpleNamespace(returncode=1, stdout='', stderr='apply rejected')
++def manifest(self, attempt_i=None):
++    self._generate_base_script()
++    path = Path(self.log_path) / (self.name + '.k8s.json')
++    path.write_text('{"attempt": %d}' % attempt_i)
++    return str(path)
++Process._generate_k8s_manifest = manifest
++p = Process(name='step', manager='kubernetes', retries=1, script='#!/bin/bash\necho hello\n')
++p.execute()
++""", 1)
++        self.assertEqual(len(attempts), 2)
++        for i, attempt in enumerate(attempts, 1):
++            self.assertEqual(json.loads((attempt / "step.k8s.json").read_text())["attempt"], i)
++            self.assertIn("apply rejected", (attempt / "step.kubectl_apply.log").read_text())
++            self.assertEqual((attempt / "step.exitcode").read_text(), "127")
++
++    def test_repeated_attempt_numbers_cannot_replace_previous_archives(self):
++        attempts = self.run_workflow(r"""
++from pathlib import Path
++from jawm import Process
++p = Process(name='step', script='#!/bin/bash\necho unused\n')
++Path(p.log_path).mkdir(parents=True)
++def attempt(number, total):
++    (Path(p.log_path) / 'step.output').write_text(str(number))
++    return 0
++p._run_recorded_attempt(attempt, 1, 1)
++first = next((Path(p.log_path) / 'attempts').glob('attempt-*'))
++original = {f.name: f.read_bytes() for f in first.iterdir()}
++p._run_recorded_attempt(attempt, 1, 1)
++assert original == {f.name: f.read_bytes() for f in first.iterdir()}
++""", 0)
++        self.assertEqual(len(attempts), 2)
++        self.assertEqual(len(list((self.log / "attempts").glob("previous-*"))), 1)
++
++    def test_unexpected_exception_preserves_partial_records(self):
++        attempts = self.run_workflow(r"""
++from pathlib import Path
++from jawm import Process
++p = Process(name='step', script='#!/bin/bash\necho unused\n')
++Path(p.log_path).mkdir(parents=True)
++def attempt(number, total):
++    (Path(p.log_path) / 'step.output').write_text('partial stdout')
++    (Path(p.log_path) / 'step.error').write_text('partial stderr')
++    raise RuntimeError('synthetic monitoring error')
++try:
++    p._run_recorded_attempt(attempt, 1, 1)
++except RuntimeError as exc:
++    p._proc_exception_handler(exc)
++""", 1)
++        self.assertEqual(len(attempts), 1)
++        self.assertEqual((attempts[0] / "step.error").read_text(), "partial stderr")
++        self.assertIn("partial stderr", (self.log / "step.error").read_text())
++        self.assertEqual(json.loads((attempts[0] / "completed.json").read_text())["exception"],
++                         "synthetic monitoring error")
++
++    def test_slurm_completed_attempts_preserve_raw_exit_codes_and_streams(self):
++        attempts = self.run_workflow(r"""
++from pathlib import Path
++from types import SimpleNamespace
++from jawm import Process
++import jawm._process_slurm as backend
++job = 0
++def scheduler(command, **kwargs):
++    global job
++    if command[0] == 'sbatch':
++        job += 1
++        Path(command[command.index('--output') + 1]).write_text('output ' + str(job))
++        Path(command[command.index('--error') + 1]).write_text('error ' + str(job))
++        return SimpleNamespace(returncode=0, stdout=str(job), stderr='')
++    if command[0] == 'sacct':
++        state = 'FAILED 7:0' if job == 1 else 'COMPLETED 0:0'
++        return SimpleNamespace(returncode=0, stdout=str(job) + ' ' + state, stderr='')
++    raise AssertionError(command)
++backend.subprocess.run = scheduler
++Process._finish_wait_and_settle = lambda *a, **k: None
++p = Process(name='step', manager='slurm', retries=1, script='#!/bin/bash\necho hello\n')
++p.execute()
++""", 0)
++        self.assertEqual(len(attempts), 2)
++        for i, raw_code in enumerate(["7:0", "0:0"]):
++            self.assertEqual((attempts[i] / "step.exitcode").read_text(), raw_code)
++            self.assertEqual((attempts[i] / "step.output").read_text(), "output " + str(i + 1))
++            self.assertEqual((attempts[i] / "step.error").read_text(), "error " + str(i + 1))
++
++
++if __name__ == "__main__":
++    unittest.main(verbosity=2)

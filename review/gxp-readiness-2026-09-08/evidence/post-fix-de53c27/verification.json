@@ -1,0 +1,34 @@
+{
+  "source_commit": "de53c274c8e1bb3b3b13b902bb7488151cea2714",
+  "started_utc": "2026-09-08T08:08:42.771138+00:00",
+  "finished_utc": "2026-09-08T08:09:30.634609+00:00",
+  "python": "3.11.6 (main, Oct  2 2023, 13:45:54) [Clang 15.0.0 (clang-1500.0.40.1)]",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "commands": {
+    "runner_tests": {
+      "command": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "test/runner_test.py"
+      ],
+      "exit_code": 0
+    },
+    "probes": {
+      "command": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "/Users/jboucas/jawm/review/gxp-readiness-2026-09-08/probes.py",
+        "/Users/jboucas/jawm"
+      ],
+      "exit_code": 0
+    }
+  },
+  "source_sha256": {
+    "jawm/data/jawm-test": "c7dbcef1c1d5fa28b8a738af31cc363dbaea64e0eb42e2b3200d214a3fe13481",
+    "test/runner_test.py": "718b65e7ff349191ecc13843ddd280f95cb79ee8d39bb6ac67ff55088f14f7ec",
+    ".github/workflows/smoke_test.yaml": "5a9adc109336bf70c1f01b971d64c0830edbbcf303317f2d8c6a494f6b9d0d56",
+    "jawm/cli.py": "57cde90095d9bc83b92355a45eb4fc78f351ec54060b65d4baec4fb7b22c767d",
+    "jawm/_process_internal.py": "b389c66ce6a1cdd9beabfff1e099e60efbb021eb31e4b46df596ad4af44eff8a",
+    "jawm/_process_local.py": "063a8e190173d25623e6cacc4c2c4f7e65cd6e3e5c5dcfc69a617b704536051e",
+    "jawm/_utils.py": "ec299b6cada54fd091c2022ab61dc39a4b5c244dd30d689b359d497a5836de6a"
+  },
+  "limitations": "Local synthetic verification; full base/Git/backend suites and remote CI execution not verified."
+}

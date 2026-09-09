@@ -1,0 +1,41 @@
+**Review evidence index — 8 September 2026**
+
+[assessment.md](assessment.md) is the current GLP/GCP readiness assessment, updated 9 September for the canonical-hashing working-tree fix based on `747bec9`. Five of the six original observed findings are resolved locally; resume reuse remains open. This is not a compliance score or deployment approval.
+
+| Record | Purpose |
+|---|---|
+| [assessment.initial.md](assessment.initial.md) | Unchanged initial assessment of `9e51907`. |
+| [assessment.post-runner-de53c27.md](assessment.post-runner-de53c27.md), [earlier index](README.post-runner-de53c27.md) | Preserved assessment/index after the first fix; their one-resolved/five-open status is historical. |
+| [original observations](evidence/observations.json) and sibling `.log` files | Original six probe groups; retained unchanged. |
+| [first-fix observations](evidence/post-fix-de53c27/observations.json) and sibling evidence | Runner fix verification at `de53c27`, retained unchanged. |
+| [preceding observations](evidence/post-fix-a6ec93a/observations.json) and sibling `.log` files | Execution of all six original diagnostic groups before the retry-record fix. |
+| [runner tests](evidence/post-fix-a6ec93a/runner_tests.txt), [CLI exit tests](evidence/post-fix-a6ec93a/cli_exit_tests.txt) | Eight and sixteen passing focused tests respectively. |
+| [current verification metadata](evidence/post-fix-a6ec93a/verification.json) | Exact commit, commands, process exits, UTC times, environment and selected source SHA-256 values. |
+| [prior base-suite transcript](evidence/prior-base-suite/passed.txt), [initial failed attempt](evidence/prior-base-suite/initial-failed.txt), [provenance](evidence/prior-base-suite/provenance.json) | Earlier implementation-session evidence: final summary 57 passed, 0 failed with unavailable backends skipped. Predates the merge; not a fresh full-suite verification of this HEAD. Initial fixture-state failure retained for traceability. |
+| [probes.py](probes.py) | Unchanged diagnostic script. Its own exit 0 means observations were collected, not that integrity controls passed. |
+| [original inventory](sha256.initial.json), [post-runner inventory](sha256.post-runner-de53c27.json) | Preserved inventories. Their `assessment.md` entries correspond to the respective archived assessments. The post-runner `README.md` entry corresponds to the archived index. |
+| [preceding assessment](assessment.post-exits-a6ec93a.md), [index](README.post-exits-a6ec93a.md), [inventory](sha256.post-exits-a6ec93a.json) | Preserved three-resolved/three-open reassessment. Inventory entries for `assessment.md` and `README.md` now correspond to these snapshots. |
+| [retry-fix observations](evidence/retry-fix-worktree/observations.json), [retention check](evidence/retry-fix-worktree/retry_retention.json) and `retry-attempts/` records | Fresh original probes plus inspection and copies of both attempt archives. The unchanged original probe examines only top-level stdout; supplemental inspection establishes preservation. |
+| [retry tests](evidence/retry-fix-worktree/retry_tests.txt), [verification metadata](evidence/retry-fix-worktree/verification.json), [working-tree patch](evidence/retry-fix-worktree/working-tree.patch) | Ten retention tests, sixteen CLI exit tests, eight runner tests and exact working-tree evidence. A fresh [base suite](evidence/retry-fix-worktree/base_tests.txt) reports 57 passed, 0 failed and CLI exit 0, with unavailable backends skipped. Slurm/Kubernetes coverage is mocked, not live backend qualification. |
+| [preceding retry assessment](assessment.post-retry-747bec9.md), [index](README.post-retry-747bec9.md), [inventory](sha256.post-retry-747bec9.json) | Preserved four-resolved/ two-open assessment; inventory `assessment.md` and `README.md` entries correspond to these snapshots. |
+| [hashing tests](evidence/hash-fix-worktree/hash_tests.txt), [metadata](evidence/hash-fix-worktree/verification.json), [patch](evidence/hash-fix-worktree/working-tree.patch) | 13 hashing tests, 34 existing focused tests and 57 base cases passed; backend skips remain. Captured transcripts are alongside metadata. |
+| [current inventory](sha256.json) | SHA-256 of every file in this review folder except this inventory itself. |
+
+| Original probe | Initial result | Current result |
+|---|---|---|
+| Changed runner output | CLI runner exit 0 from old hash | Exit 1 from current invocation hash |
+| Reference mismatch after workflow `sys.exit(0)` | Exit 0 | Exit 73 |
+| Child exit 7 without explicit checking wait | CLI exit 0 | CLI exit 1 |
+| Resume after changed input/deleted output | Successful skip; stale/missing output | Unchanged; open |
+| Two-attempt stdout retention | Only second attempt retained | Both attempts retained in independent archives; top-level stdout remains the latest attempt |
+| Aggregate `AB+C` versus `A+BC` | Equal digest | Different v2 digests; CLI rejects a mismatching reference with exit 73 |
+
+The runner now creates a fresh `test/logs/run.XXXXXX/` directory for each invocation. The probe's `cli_mismatch_reported` field is therefore false: it searches for the CLI's old `STATUS: MISMATCHED` message. The runner independently compares the fresh result with `tests.txt` and correctly exits 1.
+
+Verification is local and synthetic. Live Git/backend suites, remote CI results and deployed GLP/GCP controls remain unverified. `--ignore` deliberately permits successful runner exit after a failed test; `--override` and empty expected hashes accept new baselines. `JAWM_WAIT_CLI=0` disables the CLI's automatic child-outcome check. These settings need controlled use when relying on the repaired controls.
+
+Historical local source links open the current checkout; inspect the named historical commit for the original source. Temporary work-area paths record execution locations, not durable archives. The prior inventory was verified before this reassessment, and historical records were preserved.
+
+The root `.gitignore` excludes `review`. These files are local artifacts, absent from normal commits/clones. Checksums are an integrity inventory, not signatures or protected storage. Preserve this folder in the chosen controlled record system if retained as formal evidence.
+
+The v2 aggregate encoding changes all legacy aggregate values. Historical probe scripts/evidence remain unchanged; their raw-content expected runner hashes belong to the legacy format. Current runner fixtures explicitly encode v2, and the new hashing suite includes an independently specified known vector and the original boundary-ambiguity example. No existing deployment references were automatically migrated.

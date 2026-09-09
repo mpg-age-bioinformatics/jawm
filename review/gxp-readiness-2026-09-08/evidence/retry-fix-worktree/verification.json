@@ -1,0 +1,61 @@
+{
+  "base_commit": "a6ec93a2bba5ca54944a6d495fce5315e9154826",
+  "state": "Uncommitted working-tree retry-record changes; see working-tree.patch. No app-code changes during the broad suite except removal of an unused import.",
+  "recorded_utc": "2026-09-08T14:32:25.390930+00:00",
+  "python": "3.11.6 (main, Oct  2 2023, 13:45:54) [Clang 15.0.0 (clang-1500.0.40.1)]",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "source_sha256": {
+    "jawm/_process_internal.py": "d97f3e259e85d369b38c50dc17ca023cb0d5550cb4f10dd1d7f093147730765d",
+    "jawm/_process_local.py": "b6903ae8f9350d5e444d92b0f317f5283e40ccf8531232ace35a290f210bdd1c",
+    "jawm/_process_slurm.py": "edd61df73b63b07249c5ac4c8ee6b375eda8a67411df27728ba676cf07e04b4e",
+    "jawm/_process_kubernetes.py": "3a3bcee04c012f2fb58b69400bce821bb71c9e74a13abcf0834df1df62db766b",
+    "jawm/cli.py": "06c528c424159df82e5a6954160e5e176f7d77f8edf3c4437c237c9274ac77ae",
+    "jawm/process.py": "f3d8486807c786f7fb4377ca9e107e9327c07ff141d349c636bc6beeb14a18c6",
+    "test/retry_records_test.py": "b18b3b6288282f33df1cd5659cdfc1abef0f60bc730c7e4d6852a9d9cf4ed357",
+    "test/base_test.py": "7868fcec437101aefd09f758ed1f74da1af040a9f3e5f80f152f932a0444ef2c",
+    "test/cli_exit_test.py": "f1874c91e3870e173953ace8db8cf270a2b97798cf3e10e2c0afdbb804a62493",
+    "test/runner_test.py": "718b65e7ff349191ecc13843ddd280f95cb79ee8d39bb6ac67ff55088f14f7ec",
+    ".github/workflows/smoke_test.yaml": "94f65754b45f06617c4028d39c86e1e02ae274f2d889c7518e7fe95c7d11a97f"
+  },
+  "broad_suite": {
+    "commands": {
+      "base": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "-m",
+        "jawm.cli",
+        "/Users/jboucas/jawm/test/base_test.py"
+      ],
+      "cli_exit": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "/Users/jboucas/jawm/test/cli_exit_test.py"
+      ],
+      "runner": [
+        "/opt/homebrew/opt/python@3.11/bin/python3.11",
+        "/Users/jboucas/jawm/test/runner_test.py"
+      ]
+    },
+    "results": {
+      "base": 0,
+      "cli_exit": 0,
+      "runner": 0
+    }
+  },
+  "retry_suite": {
+    "argv": [
+      "/opt/homebrew/opt/python@3.11/bin/python3.11",
+      "test/retry_records_test.py"
+    ],
+    "returncode": 0,
+    "passed": 10
+  },
+  "original_probes": {
+    "argv": [
+      "/opt/homebrew/opt/python@3.11/bin/python3.11",
+      "review/gxp-readiness-2026-09-08/probes.py",
+      "/Users/jboucas/jawm"
+    ],
+    "returncode": 0,
+    "supplemental_check": "Both archived stdout records and exit codes verified; see retry_retention.json and retry-attempts/."
+  },
+  "limitations": "Local execution plus mocked Slurm completed/submission and Kubernetes submission paths. No live Slurm, Kubernetes, Docker or Apptainer qualification. Base-suite unavailable-backend cases skipped."
+}
