@@ -209,3 +209,8 @@ For dispatched workflows (manual triggers), pass `--dispatch` to test both the c
 |------|---------|
 | `0` | All tests passed |
 | `1` | One or more tests failed, hash mismatch, download error, or invalid arguments |
+
+
+### Aggregate hash format migration
+
+Output aggregates now use `jawm-file-manifest-v2`: relative paths, byte sizes and individual SHA-256 values are encoded with explicit boundaries. Existing `tests.txt` hashes must be deliberately regenerated after reviewing the outputs; the runner does not accept legacy aggregates as equivalent. Keep the previous test references and software version as historical evidence. See [hashing semantics and migration](../utils.md#hash_content) before updating baselines.

@@ -1,5 +1,6 @@
 """Check CLI exit precedence with synthetic workflows: python3 test/cli_exit_test.py."""
 import hashlib
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -9,6 +10,12 @@ import unittest
 
 
 REPO = Path(__file__).resolve().parents[1]
+
+
+def output_digest():
+    payload = ["jawm-file-manifest-v2", True,
+               [["output.txt", 6, hashlib.sha256(b"actual").hexdigest()]]]
+    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
 
 class CliExitTests(unittest.TestCase):
@@ -55,14 +62,14 @@ class CliExitTests(unittest.TestCase):
                 self.assert_exit(result, 73)
                 self.assertIn("does NOT match reference", result.stdout + result.stderr)
                 history = self.root / "logs/jawm_hashes/workflow_user_defined.history"
-                self.assertIn(hashlib.sha256(b"actual").hexdigest(), history.read_text())
+                self.assertIn(output_digest(), history.read_text())
 
     def test_inprocess_api_preserves_reference_failure(self):
         self.assert_exit(self.run_workflow("import sys\nsys.exit(0)\n",
                                           reference="0" * 64, inprocess=True), 73)
 
     def test_successful_checks_preserve_workflow_exit(self):
-        reference = hashlib.sha256(b"actual").hexdigest()
+        reference = output_digest()
         for script, expected in [("pass\n", 0), ("import sys\nsys.exit(0)\n", 0),
                                  ("import sys\nsys.exit()\n", 0),
                                  ("import sys\nsys.exit(7)\n", 7),
@@ -97,7 +104,7 @@ class CliExitTests(unittest.TestCase):
 
     def assert_history_retained(self):
         history = self.root / "logs/jawm_hashes/workflow_user_defined.history"
-        self.assertIn(hashlib.sha256(b"actual").hexdigest(), history.read_text())
+        self.assertIn(output_digest(), history.read_text())
 
     def test_child_failure_without_explicit_wait_fails_after_hashing(self):
         result = self.run_workflow(

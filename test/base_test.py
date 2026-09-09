@@ -2276,10 +2276,10 @@ try:
     with open(f3, "w") as fh: fh.write("hello world!!\n")  # slightly different
 
     # --- A) Content-only mode ---
-    h1 = utils.hash_content([f1, f2])
-    h2 = utils.hash_content([f2, f1])
-    h3 = utils.hash_content([f1])
-    h4 = utils.hash_content([f3])
+    h1 = utils.hash_content([f1, f2], consider_name=False)
+    h2 = utils.hash_content([f2, f1], consider_name=False)
+    h3 = utils.hash_content([f1], consider_name=False)
+    h4 = utils.hash_content([f3], consider_name=False)
 
     assert h1 == h2, "❌ Hash should be order-independent in content-only mode"
     assert h1 != h3, "❌ Combined hash should differ from a single file (aggregate content)"

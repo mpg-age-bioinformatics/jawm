@@ -906,6 +906,7 @@ def _write_hash_manifest(manifest_path, timestamp, combined_hash, file_hashes):
     data = {
         "timestamp": timestamp,
         "combined_hash": combined_hash,
+        "aggregate_format": "jawm-file-manifest-v2",
         "files": file_hashes,
     }
     Path(manifest_path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -2916,7 +2917,7 @@ def main():
                     recursive=True,
                 )
             else:
-                auto_hash = hashlib.sha256(b"").hexdigest()
+                auto_hash = hash_content([])
 
         # Append to <wf>_input.history
         _append_history_line_cli(
@@ -3010,10 +3011,11 @@ def main():
                 )
             else:
                 logger.warning("[hash] No paths found in user hashing definitions")
-                userdef_hash = hashlib.sha256(b"").hexdigest()
+                userdef_hash = hash_content([])
 
             # write <wf>.hash (same as before)
             hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_module_path)
+            logger.info("[hash] Aggregate format: jawm-file-manifest-v2 (relative paths, sizes, per-file SHA-256)")
             logger.info(f"[hash] Generated hash from user definitions → {userdef_hash}")
             matched, new = _write_and_compare_hash_cli(logger, userdef_hash, hash_out_path, overwrite=overwrite)
 

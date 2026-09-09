@@ -13,6 +13,8 @@ import yaml
 import fnmatch
 import inspect
 import hashlib
+import json
+import stat
 from pathlib import Path
 
 
@@ -109,108 +111,88 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
 def hash_content(paths, hash_func=hashlib.sha256,
                  exclude_dirs=None, exclude_files=None,
                  allowed_extensions=None, recursive=True,
-                 consider_name=False):
+                 consider_name=True):
+    """Hash the canonical jawm-file-manifest-v2 encoding of a file set.
+
+    Entries contain relative path, byte size and per-file SHA-256. Paths are
+    relative to the common root of selected directories and explicit files'
+    parents, making a relocated dataset stable. Input order and duplicate
+    selections do not matter. Empty files count; empty directories do not.
+    Explicit consider_name=False omits paths but still frames each file.
+    Missing/unreadable paths, symlinks and non-regular files raise errors.
+    Extension filters apply inside directories (explicit files remain included).
+    This encoding intentionally changes all legacy aggregate baselines.
     """
-    Return a combined hash digest for multiple files and/or folders,
-    including their contents and (optionally) their basenames.
-
-    The traversal order is deterministic across platforms: top-level paths
-    are processed in the order given, and within each directory both
-    subdirectories and files are visited in sorted order.
-
-    When `consider_name=True`, only the file's basename is included in the
-    hash — never its parent directories or absolute path. This means hashing
-    a file directly and hashing it as part of a containing directory record
-    the same name for that file.
-
-    Args:
-        paths (str or Path or list[str | Path]): A single file/folder path or
-            a list of paths to include in the hash.
-        hash_func (callable, optional): Hash function from hashlib (default: sha256).
-        exclude_dirs (list[str], optional): List of directory name patterns to exclude.
-        exclude_files (list[str], optional): List of file name patterns to exclude.
-        allowed_extensions (list[str], optional): Only consider allowed files if a directory is provided.
-        recursive (bool, optional): Whether to descend into subdirectories (default: True).
-        consider_name (bool, optional): Whether to consider file basenames while hashing (default: False).
-
-    Returns:
-        str: Hex digest representing the combined hash of all provided files
-            and folder contents.
-    """
-    if exclude_dirs is None:
-        exclude_dirs = []
-    if exclude_files is None:
-        exclude_files = []
-
     if isinstance(paths, (str, Path)):
         paths = [paths]
+    paths = sorted(set(os.path.abspath(p) for p in paths))
+    exclude_dirs = exclude_dirs or []
+    exclude_files = exclude_files or []
+    extensions = {(e if e.startswith('.') else '.' + e).lower()
+                  for e in allowed_extensions or []}
+    selected = set()
+    roots = []
 
-    # Normalize extension list
-    allowed_exts = None
-    if allowed_extensions:
-        allowed_exts = {
-            (e if e.startswith(".") else "." + e).lower()
-            for e in allowed_extensions
-        }
+    def excluded(name, patterns):
+        return any(fnmatch.fnmatch(name, pattern) for pattern in patterns)
 
-    def _file_excluded(name):
-        return any(fnmatch.fnmatch(name, pat) for pat in exclude_files)
+    def checked_stat(path):
+        info = os.lstat(path)
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError(f"Cannot hash symbolic link: {path}")
+        if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+            raise ValueError(f"Cannot hash non-regular file: {path}")
+        return info
 
-    def _dir_excluded(name):
-        return any(fnmatch.fnmatch(name, pat) for pat in exclude_dirs)
-
-    def _ext_allowed(name):
-        if allowed_exts is None:
-            return True
-        return os.path.splitext(name)[1].lower() in allowed_exts
-
-    def _hash_file(h, fpath, name_to_record=None):
-        if name_to_record is not None and consider_name:
-            h.update(name_to_record.encode("utf-8"))
-        with open(fpath, "rb") as f:
-            while chunk := f.read(8192):
-                h.update(chunk)
-
-    h = hash_func()
+    def walk_error(error):
+        raise error
 
     for path in paths:
-        path = os.path.abspath(path)
-
-        if os.path.isfile(path):
-            fname = os.path.basename(path)
-            if _file_excluded(fname):
-                continue
-            _hash_file(h, path, name_to_record=fname)
-
-        elif os.path.isdir(path):
-            if recursive:
-                walker = os.walk(path)
-            else:
-                entries = os.listdir(path)
-                files_only = [
-                    e for e in entries
-                    if os.path.isfile(os.path.join(path, e))
-                ]
-                walker = [(path, [], files_only)]
-
-            for root, dirs, files in walker:
-                if recursive:
-                    dirs[:] = sorted(d for d in dirs if not _dir_excluded(d))
-
-                for fname in sorted(files):
-                    if _file_excluded(fname):
-                        continue
-                    if not _ext_allowed(fname):
-                        continue
-
-                    fpath = os.path.join(root, fname)
-                    # Record the basename only — matches the standalone-file branch
-                    _hash_file(h, fpath, name_to_record=fname)
-
-        else:
+        info = checked_stat(path)
+        if stat.S_ISREG(info.st_mode):
+            roots.append(os.path.dirname(path))
+            if not excluded(os.path.basename(path), exclude_files):
+                selected.add(path)
             continue
+        roots.append(path)
+        for root, dirs, files in os.walk(path, onerror=walk_error):
+            dirs[:] = sorted(d for d in dirs if not excluded(d, exclude_dirs)) if recursive else []
+            for dirname in dirs:
+                checked_stat(os.path.join(root, dirname))
+            for name in sorted(files):
+                if excluded(name, exclude_files):
+                    continue
+                if extensions and os.path.splitext(name)[1].lower() not in extensions:
+                    continue
+                file_path = os.path.join(root, name)
+                checked_stat(file_path)
+                selected.add(file_path)
 
-    return h.hexdigest()
+    common_root = os.path.commonpath(roots) if roots else None
+    entries = []
+    for path in sorted(selected):
+        checked_stat(path)
+        digest = hashlib.sha256()
+        size = 0
+        with open(path, "rb") as f:
+            before = os.fstat(f.fileno())
+            for block in iter(lambda: f.read(1024 * 1024), b""):
+                size += len(block)
+                digest.update(block)
+            after = os.fstat(f.fileno())
+        if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
+                after.st_size, after.st_mtime_ns, after.st_ctime_ns) or size != after.st_size:
+            raise OSError(f"File changed while hashing: {path}")
+        entry = [size, digest.hexdigest()]
+        if consider_name:
+            entry.insert(0, Path(os.path.relpath(path, common_root)).as_posix())
+        entries.append(entry)
+    entries.sort()
+    payload = json.dumps(["jawm-file-manifest-v2", bool(consider_name), entries],
+                         ensure_ascii=True, separators=(",", ":")).encode("ascii")
+    aggregate = hash_func()
+    aggregate.update(payload)
+    return aggregate.hexdigest()
 
 
 def _sanitize_vars(d, prefixes=("mk.", "map.")):

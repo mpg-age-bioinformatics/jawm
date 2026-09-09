@@ -357,3 +357,8 @@ jawm ./my_pipeline/ --no-web -p params.yaml
 # Change working directory before running
 jawm mymodule.py -w /scratch/project123 -p params.yaml
 ```
+
+
+### Dataset hash encoding
+
+`scope: hash` uses `jawm-file-manifest-v2` with relative file paths, sizes and per-file SHA-256 digests. The CLI reports the encoding in its log and records it in the diagnostic hash manifest. Explicit references created with the former concatenation encoding will mismatch and must be deliberately regenerated after review. See [hashing semantics and migration](../utils.md#hash_content).
