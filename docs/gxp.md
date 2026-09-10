@@ -43,7 +43,7 @@ logs/fastqc_20260623_123454_e4c18e6bw1/
 | `fastqc.exitcode` | The recorded exit status, such as `0` for success; Slurm can retain a value such as `7:0`. |
 | `fastqc.id` | The local operating-system process ID, Slurm job ID or Kubernetes Job name. |
 
-Depending on the executor and options, the process folder can also contain a Slurm submission script (`fastqc.slurm`) and response (`fastqc.sbatch_submit.log`), a Kubernetes manifest (`fastqc.k8s.json`) and response (`fastqc.kubectl_apply.log`), or resource measurements (`stats.json`). Scientific results, such as FastQC reports, remain in the output directories specified by the script.
+Depending on the executor and options, the process folder can also contain a Slurm submission script (`fastqc.slurm`), a Kubernetes manifest (`fastqc.k8s.json`) and apply response (`fastqc.kubectl_apply.log`), or resource measurements (`stats.json`). Scientific results, such as FastQC reports, remain in the output directories specified by the script.
 
 At the surrounding `logs/` level, `jawm_runs/` stores CLI run transcripts, and `jawm_hashes/` stores run hash history and any configured `scope: hash` baselines and manifests. See [Log Structure](debug/logs.md) for the complete layout.
 
@@ -126,7 +126,7 @@ jawm jawm_fastqc@6c73866 test \
   -l ./logs
 ```
 
-keep **both `jawm_fastqc/` and `logs/`**, together with the **`fastqc.yaml` used for that run**. The workflow folder preserves the staged workflow code and its version stamp; the logs preserve execution scripts, commands, statuses, histories and any per-attempt records. Keep the complete folders, including hidden files and the `attempts/` subdirectories.
+keep **both `jawm_fastqc/` and `logs/`**, together with the **`fastqc.yaml` used for that run**. The workflow folder preserves the staged workflow code and its version stamp; the logs preserve execution scripts, commands, statuses, histories and any failed-attempt copies made before retries. Keep the complete folders, including hidden files and any `attempts/` subdirectories.
 
 Once the workflow and all child processes have finished, create a separate ZIP file for each folder and copy the configuration into a new archive directory:
 
@@ -169,5 +169,3 @@ On macOS, generate the MD5 list with:
 MD5 can detect accidental changes; prefer SHA-256 for new integrity records. For example, `shasum -a 256 jawm_fastqc.zip logs.zip fastqc.yaml > SHA256SUMS`, run inside the archive directory, creates a SHA-256 list that can later be checked with `shasum -a 256 -c SHA256SUMS`.
 
 Keep the checksum list alongside the retained files and preserve a trusted copy separately or in version control. Checksums do not replace the files or their backups; the Git repository or archive storage must also be backed up.
-
-

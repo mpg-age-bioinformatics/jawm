@@ -141,7 +141,8 @@ def _execute_local(self):
                 last_exit_code = None
 
                 for attempt_i in range(1, total_attempts + 1):
-                    exit_code = self._run_recorded_attempt(run_process_once, attempt_i, total_attempts)
+                    self._apply_retry_parameters(attempt_i - 1)
+                    exit_code = run_process_once(attempt_i, total_attempts)
                     last_exit_code = exit_code
 
                     # If success, we're done
@@ -158,6 +159,7 @@ def _execute_local(self):
 
                     # If there's another attempt left, keep going
                     if attempt_i < total_attempts:
+                        self._copy_retry_records(attempt_i)
                         remaining = total_attempts - attempt_i
                         self.logger.info(f"Retrying process {self.name}, {remaining} retries left.")
                     else:

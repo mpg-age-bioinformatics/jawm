@@ -1833,7 +1833,7 @@ If `retries=2`, jawm can try up to **3 total attempts**:
 - 1 initial attempt
 - 2 retry attempts
 
-Retries are handled by jawm for supported backends such as local, Slurm, and Kubernetes. Each JAWM attempt retains its generated execution records in a unique `attempts/attempt-<number>-<suffix>/` directory before the next attempt starts. The usual process log files remain the latest-attempt view. If record preservation fails, execution fails instead of retrying. See [retry attempt records](../debug/logs.md#retry-attempt-records) for contents and scope.
+Retries are handled by jawm for supported backends such as local, Slurm, and Kubernetes. Before an actual retry starts, JAWM makes a best-effort copy of the failed attempt's existing execution records in `attempts/attempt-<number>/`. The final attempt remains in the usual top-level files. No `attempts/` directory is created when no retry occurs, and a copy problem is logged without changing retry execution. See [retry attempt records](../debug/logs.md#retry-attempt-records) for contents and scope.
 
 _**Note**_: `retries` works together with `error_strategy`. If `error_strategy="fail"`, jawm forces `retries=0`.
 

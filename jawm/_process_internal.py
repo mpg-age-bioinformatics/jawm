@@ -6,9 +6,7 @@ import shlex
 import hashlib
 import time
 import glob
-import json
-import tempfile
-from datetime import timezone
+import shutil
 from functools import reduce
 from datetime import datetime
 from urllib.parse import urlparse
@@ -708,88 +706,37 @@ def _monitoring_completed_file(self, job_id, script_path, exit_code):
 
 
 @register
-def _run_recorded_attempt(self, run_once, attempt_i, total_attempts):
-    """Preserve JAWM-owned records before another attempt can replace them.
-
-    The top-level files remain the current-attempt API. Independent copies in
-    attempts/ are never reused. An archive error propagates to the executor's
-    failure handler, preventing a retry from destroying uncopied evidence.
-    """
+def _copy_retry_records(self, attempt_i):
+    """Best-effort copy of a failed attempt before it is retried."""
     suffixes = ("output", "error", "exitcode", "id", "script", "command",
-                "slurm", "k8s.json", "kubectl_apply.log", "sbatch_submit.log")
+                "slurm", "k8s.json", "kubectl_apply.log")
     paths = [os.path.join(self.log_path, self.name + "." + ext) for ext in suffixes]
-    archive_root = os.path.join(self.log_path, "attempts")
-    os.makedirs(archive_root, exist_ok=True)
 
-    def copy_records(destination):
-        records = {}
-        for path in paths:
-            if os.path.isfile(path):
-                target = os.path.join(destination, os.path.basename(path))
-                # Exclusive creation: never replace an existing archived record.
-                with open(path, "rb") as src, open(target, "xb") as dst:
-                    digest = hashlib.sha256()
-                    for block in iter(lambda: src.read(1024 * 1024), b""):
-                        dst.write(block)
-                        digest.update(block)
-                records[os.path.basename(path)] = digest.hexdigest()
-        return records
+    existing_paths = [path for path in paths if os.path.isfile(path)]
+    if not existing_paths:
+        return
 
-    # A repeated execution can reuse a log directory. Preserve its existing
-    # current view too; do not mislabel those files as this execution's attempt.
-    if attempt_i == 1 and any(os.path.isfile(p) for p in paths):
-        previous = tempfile.mkdtemp(prefix="previous-", dir=archive_root)
-        copy_records(previous)
-
-    # Earlier attempts have already been copied successfully. Clearing the
-    # current view prevents stale IDs/exit codes and append-mode stderr leaks
-    # from being attributed to the next attempt (including launch failures).
-    for path in paths:
-        if os.path.lexists(path):
-            os.unlink(path)
-    self.base_script_path = None
-
-    attempt_path = tempfile.mkdtemp(prefix=f"attempt-{attempt_i:04d}-", dir=archive_root)
-    self._apply_retry_parameters(attempt_i - 1)
-    # Capture effective explicit configuration after overrides. Do not dump
-    # the inherited environment; scripts/manifests remain the execution record.
-    config_keys = ("var", "inputs", "outputs", "manager", "manager_local",
-                   "manager_slurm", "environment", "container", "retries",
-                   "error_strategy", "before_script", "after_script")
-    metadata = {
-        "schema_version": 1, "process": self.name, "process_hash": self.hash,
-        "attempt": attempt_i, "total_attempts": total_attempts,
-        "execution_started_at": self.execution_start_at,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "effective_configuration": {k: getattr(self, k, None) for k in config_keys},
-    }
-    with open(os.path.join(attempt_path, "started.json"), "x") as f:
-        json.dump(metadata, f, indent=2, default=str)
-        f.write("\n")
-    self.logger.info(f"Attempt {attempt_i} records: {attempt_path}")
-    outcome = None
-    failure = None
+    attempt_path = os.path.join(self.log_path, "attempts", f"attempt-{attempt_i:03d}")
     try:
-        outcome = run_once(attempt_i, total_attempts)
-        return outcome
-    except Exception as exc:
-        failure = str(exc)
-        raise
-    finally:
-        exit_path = os.path.join(self.log_path, self.name + ".exitcode")
-        if not os.path.exists(exit_path):
-            with open(exit_path, "x") as f:
-                f.write(str(outcome if outcome is not None else 127))
-        records = copy_records(attempt_path)
-        result = {
-            "ended_at": datetime.now(timezone.utc).isoformat(),
-            "outcome": outcome, "exception": failure,
-            "records_sha256": records,
-        }
-        # A started record without completed.json signals an incomplete archive.
-        with open(os.path.join(attempt_path, "completed.json"), "x") as f:
-            json.dump(result, f, indent=2)
-            f.write("\n")
+        os.makedirs(os.path.dirname(attempt_path), exist_ok=True)
+        os.mkdir(attempt_path)
+    except Exception as e:
+        self.logger.warning(f"Could not create retry records for attempt {attempt_i}: {e}")
+        return
+
+    failed = []
+    for path in existing_paths:
+        try:
+            shutil.copy2(path, os.path.join(attempt_path, os.path.basename(path)))
+        except Exception as e:
+            failed.append(f"{os.path.basename(path)} ({e})")
+
+    if failed:
+        self.logger.warning(
+            f"Could not copy all retry records for attempt {attempt_i}: " + "; ".join(failed)
+        )
+    else:
+        self.logger.info(f"Retry records for attempt {attempt_i}: {attempt_path}")
 
 
 @register
@@ -1100,7 +1047,7 @@ def _proc_exception_handler(self, e, location= "execution", type_text="Error"):
     try:
         if hasattr(self, "log_path") and self.log_path:
             error_path = os.path.join(self.log_path, f"{self.name}.error")
-            with open(error_path, "a") as f:
+            with open(error_path, "w") as f:
                 f.write(msg + "\n")
     except Exception:
         pass

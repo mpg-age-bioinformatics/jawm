@@ -1292,13 +1292,15 @@ def _execute_kubernetes(self):
             try:
                 total_attempts = self.retries + 1
                 for attempt_i in range(1, total_attempts + 1):
-                    rc = self._run_recorded_attempt(run_once, attempt_i, total_attempts)
+                    self._apply_retry_parameters(attempt_i - 1)
+                    rc = run_once(attempt_i, total_attempts)
                     if rc == 0:
                         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
                         self.finished_event.set()
                         return
                     self.logger.error(f"K8s attempt {attempt_i}/{total_attempts} failed! Summary can be found in: {self.error_summary_file}{self._elog_path()}")
                     if attempt_i < total_attempts:
+                        self._copy_retry_records(attempt_i)
                         self.logger.info(f"Retrying K8s job; {total_attempts - attempt_i} retries left")
                     else:
                         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')

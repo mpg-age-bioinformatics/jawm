@@ -220,10 +220,6 @@ def _execute_slurm(self):
                 text=True
             )
 
-            self._safe_write_file(
-                os.path.join(self.log_path, f"{self.name}.sbatch_submit.log"),
-                (result.stdout or "") + ("\n" + result.stderr if result.stderr else ""))
-
             # Check submission result
             if result.returncode != 0:
                 stderr = (result.stderr or "").strip()
@@ -389,7 +385,8 @@ def _execute_slurm(self):
             try:
                 total_attempts = self.retries + 1
                 for attempt_i in range(1, total_attempts + 1):
-                    exit_code = self._run_recorded_attempt(run_process_once_slurm, attempt_i, total_attempts)
+                    self._apply_retry_parameters(attempt_i - 1)
+                    exit_code = run_process_once_slurm(attempt_i, total_attempts)
                     if exit_code == 0:
                         # success on this attempt
                         self.execution_end_at = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -398,6 +395,7 @@ def _execute_slurm(self):
                     # Else it failed
                     self.logger.error(f"Attempt {attempt_i} for process {self.name} failed in Slurm{self._elog_path()}")
                     if attempt_i < total_attempts:
+                        self._copy_retry_records(attempt_i)
                         remaining = total_attempts - attempt_i
                         self.logger.info(f"Retrying process {self.name} in Slurm, {remaining} retries left")
                     else:
