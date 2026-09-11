@@ -13,8 +13,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def output_digest():
-    payload = ["jawm-file-manifest-v2", True,
-               [["output.txt", 6, hashlib.sha256(b"actual").hexdigest()]]]
+    payload = [False, [[6, hashlib.sha256(b"actual").hexdigest()]]]
     return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
 

@@ -13,6 +13,7 @@ from unittest.mock import patch
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 from jawm.utils import hash_content, write_hash_file
+from jawm.cli import _collect_hash_cfg_from_param_sources_cli
 
 
 class HashContentTests(unittest.TestCase):
@@ -29,9 +30,9 @@ class HashContentTests(unittest.TestCase):
         path.write_bytes(data)
         return path
 
-    def test_known_versioned_encoding(self):
+    def test_known_canonical_encoding(self):
         self.put('a.txt', b'ABC')
-        payload = b'["jawm-file-manifest-v2",true,[["a.txt",3,"b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"]]]'
+        payload = b'[false,[[3,"b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"]]]'
         self.assertEqual(hash_content(self.data), hashlib.sha256(payload).hexdigest())
         self.assertNotEqual(hash_content(self.data), hashlib.sha256(b'ABC').hexdigest())
 
@@ -53,18 +54,18 @@ class HashContentTests(unittest.TestCase):
 
     def test_relative_paths_distinguish_moves_with_same_basename(self):
         source = self.put('left/file', b'ABC')
-        original = hash_content(self.data)
+        original = hash_content(self.data, consider_name=True)
         content = hash_content(self.data, consider_name=False)
         (self.data / 'right').mkdir()
         source.rename(self.data / 'right/file')
-        self.assertNotEqual(original, hash_content(self.data))
+        self.assertNotEqual(original, hash_content(self.data, consider_name=True))
         self.assertEqual(content, hash_content(self.data, consider_name=False))
 
     def test_names_are_unambiguously_framed(self):
         a = self.put('A', b'BC')
-        old = hash_content(self.data)
+        old = hash_content(self.data, consider_name=True)
         a.unlink(); self.put('AB', b'C')
-        self.assertNotEqual(old, hash_content(self.data))
+        self.assertNotEqual(old, hash_content(self.data, consider_name=True))
 
     def test_relocation_order_and_overlapping_selections(self):
         a = self.put('a', b'A'); b = self.put('nested/b', b'B')
@@ -113,13 +114,53 @@ class HashContentTests(unittest.TestCase):
         with patch('os.scandir', side_effect=PermissionError('unreadable directory')):
             with self.assertRaises(PermissionError): hash_content(self.data)
 
-    def test_write_hash_file_forwards_explicit_content_only_option(self):
+    def test_write_hash_file_defaults_to_content_only_and_forwards_name_option(self):
         a = self.put('a', b'A')
         target = self.root / 'expected.hash'
-        self.assertTrue(write_hash_file(a, target, consider_name=False, v=False))
+        self.assertTrue(write_hash_file(a, target, v=False))
         a.rename(self.data / 'b')
-        self.assertTrue(write_hash_file(self.data / 'b', target, consider_name=False, v=False))
-        self.assertFalse(write_hash_file(self.data / 'b', target, v=False))
+        self.assertTrue(write_hash_file(self.data / 'b', target, v=False))
+        self.assertFalse(write_hash_file(
+            self.data / 'b', target, consider_name=True, v=False,
+        ))
+
+    def test_scope_hash_name_policy_uses_env_with_yaml_priority(self):
+        params = self.root / 'params.yaml'
+        params.write_text('- scope: hash\n  include: [data]\n')
+        with patch.dict(os.environ, {'JAWM_HASH_CONSIDER_NAME': 'false'}):
+            self.assertFalse(_collect_hash_cfg_from_param_sources_cli(params)['consider_name'])
+
+        params.write_text('- scope: hash\n  include: [data]\n  consider_name: true\n')
+        with patch.dict(os.environ, {'JAWM_HASH_CONSIDER_NAME': 'false'}):
+            self.assertTrue(_collect_hash_cfg_from_param_sources_cli(params)['consider_name'])
+
+        params.write_text('- scope: hash\n  include: [data]\n  consider_name: false\n')
+        with patch.dict(os.environ, {'JAWM_HASH_CONSIDER_NAME': 'true'}):
+            self.assertFalse(_collect_hash_cfg_from_param_sources_cli(params)['consider_name'])
+
+    def test_scope_hash_content_only_policy_reaches_cli_hash_and_manifest(self):
+        self.put('a', b'A')
+        (self.root / 'workflow.py').write_text('pass\n')
+        (self.root / 'params.yaml').write_text(
+            '- scope: hash\n  include: [data]\n  consider_name: false\n'
+        )
+        env = {k: v for k, v in os.environ.items() if not k.startswith('JAWM_')}
+        env.update(PYTHONPATH=str(REPO), JAWM_CONFIG_FILE='/dev/null',
+                   JAWM_HASH_CONSIDER_NAME='true',
+                   JAWM_MONITORING_DIRECTORY=str(self.root / 'monitoring'))
+        result = subprocess.run(
+            [sys.executable, '-m', 'jawm.cli', 'workflow.py', '-p', 'params.yaml'],
+            cwd=self.root, env=env, capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            (self.root / 'logs/jawm_hashes/workflow.hash').read_text().strip(),
+            hash_content(self.data, consider_name=False),
+        )
+        manifest = json.loads(
+            (self.root / 'logs/jawm_hashes/workflow_hash_manifest.json').read_text()
+        )
+        self.assertFalse(manifest['consider_name'])
 
     def test_cli_reference_rejects_former_boundary_collision(self):
         self.put('a', b'AB'); self.put('b', b'C')
@@ -134,7 +175,8 @@ class HashContentTests(unittest.TestCase):
                                 cwd=self.root, env=env, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 73, result.stdout + result.stderr)
         manifest = json.loads(next((self.root / 'logs/jawm_hashes').glob('*manifest.json')).read_text())
-        self.assertEqual(manifest['aggregate_format'], 'jawm-file-manifest-v2')
+        self.assertNotIn('aggregate_format', manifest)
+        self.assertFalse(manifest['consider_name'])
 
 
 if __name__ == '__main__':

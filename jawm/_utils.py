@@ -111,17 +111,17 @@ def read_variables(file_or_list_or_dir, process_name=None, output_type="var", na
 def hash_content(paths, hash_func=hashlib.sha256,
                  exclude_dirs=None, exclude_files=None,
                  allowed_extensions=None, recursive=True,
-                 consider_name=True):
-    """Hash the canonical jawm-file-manifest-v2 encoding of a file set.
+                 consider_name=False):
+    """Hash a canonical encoding of a file set.
 
     Entries contain relative path, byte size and per-file SHA-256. Paths are
     relative to the common root of selected directories and explicit files'
     parents, making a relocated dataset stable. Input order and duplicate
     selections do not matter. Empty files count; empty directories do not.
-    Explicit consider_name=False omits paths but still frames each file.
+    By default paths are omitted but each file remains explicitly framed.
+    Set consider_name=True to include relative paths.
     Missing/unreadable paths, symlinks and non-regular files raise errors.
     Extension filters apply inside directories (explicit files remain included).
-    This encoding intentionally changes all legacy aggregate baselines.
     """
     if isinstance(paths, (str, Path)):
         paths = [paths]
@@ -188,7 +188,7 @@ def hash_content(paths, hash_func=hashlib.sha256,
             entry.insert(0, Path(os.path.relpath(path, common_root)).as_posix())
         entries.append(entry)
     entries.sort()
-    payload = json.dumps(["jawm-file-manifest-v2", bool(consider_name), entries],
+    payload = json.dumps([bool(consider_name), entries],
                          ensure_ascii=True, separators=(",", ":")).encode("ascii")
     aggregate = hash_func()
     aggregate.update(payload)

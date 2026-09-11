@@ -317,6 +317,7 @@ These environment variables affect `jawm` behaviour without needing a command-li
 | `JAWM_GIT_CACHE` | `~/.jawm/git` | Override the Git clone cache directory. Use `.` to place it in `<cwd>/git`. |
 | `JAWM_WAIT_TIMEOUT` | `86400` (24h) | Timeout applied to each process wait after the module finishes. |
 | `JAWM_WAIT_CLI` | `1` | Set to `0` to skip the automatic post-module wait and its child-outcome check. |
+| `JAWM_HASH_CONSIDER_NAME` | `false` | Default path policy for `scope: hash`; an explicit YAML `consider_name` value takes precedence. |
 | `JAWM_RECORD_STAT` | `0` | Set to `1` to enable per-process resource stats (equivalent to `--stats`). |
 | `JAWM_LOG_EMOJI` | `1` | Set to `0` to strip emoji from log messages. |
 | `JAWM_ALLOW_URL_CONFIG` | `1` | Set to `0` to disallow remote HTTPS parameter files passed via `-p` / `-v`. |
@@ -361,4 +362,4 @@ jawm mymodule.py -w /scratch/project123 -p params.yaml
 
 ### Dataset hash encoding
 
-`scope: hash` uses `jawm-file-manifest-v2` with relative file paths, sizes and per-file SHA-256 digests. The CLI reports the encoding in its log and records it in the diagnostic hash manifest. Explicit references created with the former concatenation encoding will mismatch and must be deliberately regenerated after review. See [hashing semantics and migration](../utils.md#hash_content).
+`scope: hash` uses explicit file boundaries, sizes and per-file SHA-256 digests. It hashes file contents without paths by default. Set `consider_name: true` in that hash scope, or `JAWM_HASH_CONSIDER_NAME=true` as its fallback, to include relative paths; the YAML value takes precedence and the effective policy is recorded in the diagnostic hash manifest. See [hashing semantics](../utils.md#hash_content).

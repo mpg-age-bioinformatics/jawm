@@ -17,10 +17,9 @@ import unittest
 REPO = Path(__file__).resolve().parents[1]
 
 
-def digest(value, filename="output.txt"):
+def digest(value):
     data = value.encode()
-    payload = ["jawm-file-manifest-v2", True,
-               [[filename, len(data), hashlib.sha256(data).hexdigest()]]]
+    payload = [False, [[len(data), hashlib.sha256(data).hexdigest()]]]
     return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -112,7 +111,7 @@ class RunnerTests(unittest.TestCase):
             "- scope: hash\n  include: [other.txt]\n  overwrite: false\n"
         )
         with self.tests_file.open("a") as f:
-            f.write('workflow.py;main;other.yaml;"other";' + digest("other", "other.txt") + '\n')
+            f.write('workflow.py;main;other.yaml;"other";' + digest("other") + '\n')
         self.assert_rc(self.run_runner(), 0)
 
     def test_missing_hash_cannot_reuse_previous_result_even_with_override(self):

@@ -384,7 +384,7 @@ yaml_text = jawm.utils.script_to_yaml(
 
 Compute a hash of the content of one or more files/folders and write it to a file. If the file already exists, its stored hash is compared against the freshly computed one — making this a simple way to detect changes in inputs, references, or pipelines.
 
-- **Signature:** `jawm.utils.write_hash_file(paths, hash_file, hash_func=hashlib.sha256, v=True, exclude_dirs=None, exclude_files=None, allowed_extensions=None, recursive=True, consider_name=True)`
+- **Signature:** `jawm.utils.write_hash_file(paths, hash_file, hash_func=hashlib.sha256, v=True, exclude_dirs=None, exclude_files=None, allowed_extensions=None, recursive=True, consider_name=False)`
 - **Returns:** `bool` — `True` if the hash was written or matched the existing one; `False` if the existing hash differs.
 
 **Parameters**
@@ -398,7 +398,7 @@ Compute a hash of the content of one or more files/folders and write it to a fil
 | `exclude_files` | File name patterns to skip. |
 | `allowed_extensions` | Restrict hashing to files with these extensions when scanning a directory. |
 | `recursive` | Recurse into subdirectories. Default: `True`. |
-| `consider_name` | Include relative file paths. Default: `True`. Explicit `False` hashes a framed collection of file sizes/digests without paths. |
+| `consider_name` | Include relative file paths. Default: `False`, which hashes a framed collection of file sizes/digests without paths. |
 
 ```python
 import jawm
@@ -418,7 +418,7 @@ if not ok:
 
 Compute a combined hash digest for files and/or folders, **without** writing it to disk. This is the lower-level primitive that `write_hash_file()` uses internally.
 
-- **Signature:** `jawm.utils.hash_content(paths, hash_func=hashlib.sha256, exclude_dirs=None, exclude_files=None, allowed_extensions=None, recursive=True, consider_name=True)`
+- **Signature:** `jawm.utils.hash_content(paths, hash_func=hashlib.sha256, exclude_dirs=None, exclude_files=None, allowed_extensions=None, recursive=True, consider_name=False)`
 - **Returns:** `str` — the hex digest.
 
 ```python
@@ -428,16 +428,13 @@ print(digest)
 
 The arguments mirror `write_hash_file()` exactly (minus `hash_file` and `v`).
 
-Both functions now use the **`jawm-file-manifest-v2`** encoding. The default aggregate hashes a canonical JSON array containing the format identifier, the name-policy boolean, and sorted entries of `[relative_path, byte_size, per_file_sha256]`. JSON uses ASCII escaping and compact separators, without a trailing newline. File bytes are streamed into individual SHA-256 digests; `hash_func` selects the outer aggregate algorithm.
+Both functions hash a canonical JSON array containing the name-policy boolean and sorted entries of `[byte_size, per_file_sha256]`. With `consider_name=True`, each entry also starts with its relative path. JSON uses ASCII escaping and compact separators, without a trailing newline. File bytes are streamed into individual SHA-256 digests; `hash_func` selects the outer aggregate algorithm.
 
-Relative paths use `/` separators and are measured from the common root of selected directories and the parent directories of explicitly selected files. Moving the whole dataset preserves its hash; changing a relative filename or directory changes it. For a stable directory boundary, pass that directory as the dataset root. Selection order and overlapping/duplicate selections do not affect the result. Distinct files with identical content still count separately. Empty files count; empty directories do not.
+When enabled, relative paths use `/` separators and are measured from the common root of selected directories and the parent directories of explicitly selected files. Moving the whole dataset preserves its hash; changing a relative filename or directory changes it. For a stable directory boundary, pass that directory as the dataset root. Selection order and overlapping/duplicate selections do not affect the result. Distinct files with identical content still count separately. Empty files count; empty directories do not.
 
-With explicit `consider_name=False`, entries contain only `[byte_size, per_file_sha256]`. File boundaries and multiplicity remain preserved, but renames or swaps of identical file-content collections are intentionally ignored. Neither mode concatenates raw contents.
+With the default `consider_name=False`, file boundaries and multiplicity remain preserved, but renames or swaps of identical file-content collections are intentionally ignored. Neither mode concatenates raw contents.
 
 Missing or unreadable selected inputs, selected symlinks (including directory symlinks during recursive traversal), and non-regular files cause an error. Exclusion filters omit matching entries; extension filters apply to directory contents, while explicitly selected files are included regardless of extension. `recursive=False` ignores subdirectories. Use stable input files: this is not an atomic filesystem snapshot, although changes to an individual file during reading are checked.
-
-**Migration:** all legacy aggregate values, including single-file and empty-set hashes, change. Existing `.hash` files, `tests.txt` entries and explicit references are not silently converted or accepted using the old encoding. Preserve the old references with the old software version, review the dataset with the new version, then deliberately capture approved new baselines. Process hash prefixes that incorporate file digests can change too; previously cached/resumed results may no longer match. This change does not resolve the separate resume-verification limitation.
-
 
 ---
 

@@ -249,6 +249,7 @@ When jawm encounters a `scope: hash` entry, it computes a SHA-256 hash from the 
 | `exclude_dirs` | list of str | none | Skip directories matching these patterns (e.g., `[__pycache__, .git]`) |
 | `exclude_files` | list of str | none | Skip files matching these patterns (e.g., `["*.tmp", "*.swp"]`) |
 | `recursive` | bool | `true` | Whether to recurse into subdirectories |
+| `consider_name` | bool | `JAWM_HASH_CONSIDER_NAME` or `false` | Include relative file paths in the hash. By default, only the framed collection of file sizes and contents is hashed. |
 | `overwrite` | bool | `false` | Whether to overwrite the hash file if it already exists |
 | `reference` | str | none | A hex hash string or path to a file containing a hash, used for validation |
 

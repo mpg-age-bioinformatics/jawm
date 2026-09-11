@@ -645,6 +645,18 @@ def _parse_git_target(target):
 # ------------------------------------------------------------
 #   Hashing helper methods
 # ------------------------------------------------------------
+def _parse_hash_consider_name_cli(value, default=False):
+    """Parse the optional scope-hash path policy, failing safely to names on."""
+    if value is None:
+        return default
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 def _collect_hash_cfg_from_param_sources_cli(param_sources):
     """
     Look through param file(s)/dir for entries with `scope: hash`
@@ -657,6 +669,7 @@ def _collect_hash_cfg_from_param_sources_cli(param_sources):
         "exclude_dirs": [...],         # or None
         "exclude_files": [...],        # or None
         "recursive": True/False,
+        "consider_name": True/False,
         "overwrite": True/False,
         "reference": hash string/path
     }
@@ -690,6 +703,7 @@ def _collect_hash_cfg_from_param_sources_cli(param_sources):
         "exclude_dirs": None,
         "exclude_files": None,
         "recursive": True,
+        "consider_name": None,
         "overwrite": False,
         "reference": None
     }
@@ -725,6 +739,7 @@ def _collect_hash_cfg_from_param_sources_cli(param_sources):
             _take_last_scalar("exclude_dirs", entry.get("exclude_dirs"))
             _take_last_scalar("exclude_files", entry.get("exclude_files"))
             _take_last_scalar("recursive", entry.get("recursive"))
+            _take_last_scalar("consider_name", entry.get("consider_name"))
             _take_last_scalar("overwrite", entry.get("overwrite"))
             _take_last_scalar("reference", entry.get("reference"))
 
@@ -745,6 +760,10 @@ def _collect_hash_cfg_from_param_sources_cli(param_sources):
         "exclude_dirs": merged["exclude_dirs"],
         "exclude_files": merged["exclude_files"],
         "recursive": True if merged["recursive"] is None else bool(merged["recursive"]),
+        "consider_name": _parse_hash_consider_name_cli(
+            merged["consider_name"],
+            _parse_hash_consider_name_cli(os.getenv("JAWM_HASH_CONSIDER_NAME"), False),
+        ),
         "overwrite": False if merged["overwrite"] is None else bool(merged["overwrite"]),
         "reference": merged.get("reference"),
     }
@@ -901,12 +920,13 @@ def _compute_file_hashes(file_list):
     return result
 
 
-def _write_hash_manifest(manifest_path, timestamp, combined_hash, file_hashes):
+def _write_hash_manifest(manifest_path, timestamp, combined_hash, file_hashes,
+                         consider_name=False):
     """Write <module>_hash_manifest.json, always overwriting."""
     data = {
         "timestamp": timestamp,
         "combined_hash": combined_hash,
-        "aggregate_format": "jawm-file-manifest-v2",
+        "consider_name": bool(consider_name),
         "files": file_hashes,
     }
     Path(manifest_path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -2948,6 +2968,7 @@ def main():
             exclude_dirs: [__pycache__]       # skip directories by pattern
             exclude_files: ["*.tmp", "*.swp"] # skip files by pattern
             recursive: true                   # default: true
+            consider_name: false              # default: JAWM_HASH_CONSIDER_NAME or false
 
             # Output policies:
             overwrite: false                  # default: false; overwrite <wf>.hash if true
@@ -3008,6 +3029,7 @@ def main():
                     exclude_dirs=cfg.get("exclude_dirs"),
                     exclude_files=cfg.get("exclude_files"),
                     recursive=cfg.get("recursive", True),
+                    consider_name=cfg.get("consider_name", False),
                 )
             else:
                 logger.warning("[hash] No paths found in user hashing definitions")
@@ -3015,7 +3037,6 @@ def main():
 
             # write <wf>.hash (same as before)
             hash_out_path = _default_hash_output_path_cli(logs_dir, resolved_module_path)
-            logger.info("[hash] Aggregate format: jawm-file-manifest-v2 (relative paths, sizes, per-file SHA-256)")
             logger.info(f"[hash] Generated hash from user definitions → {userdef_hash}")
             matched, new = _write_and_compare_hash_cli(logger, userdef_hash, hash_out_path, overwrite=overwrite)
 
@@ -3029,7 +3050,10 @@ def main():
                 if not matched:
                     _diff_hash_manifest(logger, manifest_path, current_file_hashes)
                 if not os.path.exists(manifest_path) or overwrite:
-                    _write_hash_manifest(manifest_path, timestamp_iso, userdef_hash, current_file_hashes)
+                    _write_hash_manifest(
+                        manifest_path, timestamp_iso, userdef_hash, current_file_hashes,
+                        consider_name=cfg.get("consider_name", False),
+                    )
                     logger.info(f"[hash] Manifest written → {manifest_path}")
             except Exception as _manifest_err:
                 logger.warning(f"[hash] Manifest operation failed (non-fatal): {_manifest_err}")

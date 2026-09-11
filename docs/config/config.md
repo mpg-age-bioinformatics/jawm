@@ -142,7 +142,7 @@ JAWM_ERROR_LINES=20
 ### `JAWM_EXPAND_PATH`
 
 - **Type:** `bool`
-- **Default:** `true`
+- **Default:** `false`
 - **Values:** `true`, `1`, `yes` to enable; `false`, `0`, `no` to disable
 
 When enabled, jawm automatically expands relative paths starting with `./` or `../` to absolute paths. This is the default behavior.
@@ -163,6 +163,24 @@ When enabled, jawm expands `~` in path values to the user's home directory.
 
 ```text
 JAWM_EXPAND_HOME=true
+```
+
+---
+
+## Hashing
+
+---
+
+### `JAWM_HASH_CONSIDER_NAME`
+
+- **Type:** `bool`
+- **Default:** `true`
+- **Values:** `true`, `1`, `yes`, `on` to enable; `false`, `0`, `no`, `off` to disable
+
+Sets the default path policy for CLI `scope: hash` entries. By default, only the framed collection of file sizes and contents is considered. When enabled, relative file paths are also included. An explicit `consider_name` value in `scope: hash` takes precedence.
+
+```text
+JAWM_HASH_CONSIDER_NAME=false
 ```
 
 ---
