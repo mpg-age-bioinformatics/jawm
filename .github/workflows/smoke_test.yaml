@@ -46,9 +46,6 @@ jobs:
       - name: Test CLI exit precedence
         run: python test/cli_exit_test.py
 
-      - name: Test retry record retention
-        run: python test/retry_records_test.py
-
       - name: Test canonical dataset hashing
         run: python test/hash_content_test.py
   

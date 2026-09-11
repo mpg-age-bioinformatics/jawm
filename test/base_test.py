@@ -4506,6 +4506,58 @@ finally:
     _restore_params(bak_default, bak_override)
 
 
+print("\n>>> Test 58: Retry records — copy failed attempt before retry")
+retry_records_tmpdir = tempfile.mkdtemp(prefix="retry_records_", dir=base_tmp)
+try:
+    Process.reset_stop()
+    assert not os.path.exists(os.path.join(proc1.log_path, "attempts")), \
+        "❌ A successful process without retries should not create attempt records"
+
+    retry_marker = os.path.join(retry_records_tmpdir, "first_attempt_done")
+    retry_logs = os.path.join(retry_records_tmpdir, "logs")
+    retry_proc = Process(
+        name="retry_records",
+        manager="local",
+        retries=1,
+        logs_directory=retry_logs,
+        script=f"""#!/bin/bash
+if [ ! -f "{retry_marker}" ]; then
+    touch "{retry_marker}"
+    echo FIRST_ATTEMPT
+    exit 7
+fi
+echo FINAL_ATTEMPT
+""",
+    )
+    retry_proc.execute()
+    assert Process.wait(retry_proc.hash), "❌ Retry process did not finish successfully"
+
+    attempts_dir = os.path.join(retry_proc.log_path, "attempts")
+    attempt_names = sorted(os.listdir(attempts_dir))
+    assert attempt_names == ["attempt-001"], \
+        f"❌ Expected only attempt-001, got: {attempt_names}"
+
+    archived_attempt = os.path.join(attempts_dir, "attempt-001")
+    with open(os.path.join(archived_attempt, "retry_records.output")) as f:
+        assert f.read() == "FIRST_ATTEMPT\n", "❌ Failed attempt output was not copied"
+    with open(os.path.join(retry_proc.log_path, "retry_records.output")) as f:
+        assert f.read() == "FINAL_ATTEMPT\n", "❌ Top-level output is not the final attempt"
+
+    assert not os.path.exists(os.path.join(archived_attempt, "started.json")), \
+        "❌ Retry copy should not create metadata files"
+    assert not os.path.exists(os.path.join(archived_attempt, "completed.json")), \
+        "❌ Retry copy should not create metadata files"
+
+    print("✅ Passed: failed attempt copied before retry; final attempt remains top-level")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(retry_records_tmpdir, ignore_errors=True)
+    Process.reset_stop()
+
+
 # -----------------------------
 # Cleanup created directories
 # -----------------------------
