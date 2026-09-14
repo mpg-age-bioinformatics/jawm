@@ -2281,6 +2281,7 @@ try:
     h3 = utils.hash_content([f1], consider_name=False)
     h4 = utils.hash_content([f3], consider_name=False)
 
+    assert utils.hash_content([f1]) == h3, "❌ Content-only hashing should be the default"
     assert h1 == h2, "❌ Hash should be order-independent in content-only mode"
     assert h1 != h3, "❌ Combined hash should differ from a single file (aggregate content)"
     assert h1 != h4, "❌ Different contents should yield different hashes"
@@ -2311,6 +2312,15 @@ try:
     assert isinstance(dir_hash_1, str) and len(dir_hash_1) == 64, "❌ Output should be SHA256 hex digest"
     assert dir_hash_1 != dir_hash_name, "❌ Including names should change hash value"
     print("   ✓ Directory hashing stable and consistent")
+
+    # File boundaries remain explicit even when names are ignored.
+    with open(f1, "w") as fh: fh.write("AB")
+    with open(f2, "w") as fh: fh.write("C")
+    boundary_hash = utils.hash_content([f1, f2])
+    with open(f1, "w") as fh: fh.write("A")
+    with open(f2, "w") as fh: fh.write("BC")
+    assert boundary_hash != utils.hash_content([f1, f2]), \
+        "❌ File boundaries should affect content-only hashes"
 
     print("✅ Passed: hash_content() behavior test")
     passed += 1
@@ -4445,9 +4455,11 @@ try:
         return [sys.executable, "-m", "jawm.cli", *args]
 
     def run_cli():
+        env = os.environ.copy()
+        env["JAWM_HASH_CONSIDER_NAME"] = "true"
         return subprocess.run(
             cli_cmd([module_path, "-p", yaml_path, "-l", logs_dir]),
-            capture_output=True, text=True, timeout=60, cwd=tmpdir,
+            capture_output=True, text=True, timeout=60, cwd=tmpdir, env=env,
         )
 
     # --- Run 1: baseline — manifest is created with per-file hashes ---
@@ -4462,6 +4474,8 @@ try:
     combined1 = open(hash_file).read().strip()
 
     assert man1["combined_hash"] == combined1, "❌ Manifest combined_hash != <module>.hash"
+    assert man1["consider_name"] is True, \
+        "❌ JAWM_HASH_CONSIDER_NAME should set the scope: hash default"
     assert set(os.path.basename(p) for p in man1["files"]) == {"a.txt", "b.txt"}, \
         "❌ Manifest should list exactly a.txt and b.txt"
     # per-file hash must be the plain SHA-256 of the file content
@@ -4472,6 +4486,8 @@ try:
     # --- Run 2: change b.txt, add c.txt — mismatch + per-file diff ---
     with open(b_txt, "w") as f:
         f.write("BBB-CHANGED")
+    with open(yaml_path, "a") as f:
+        f.write("  consider_name: false\n")
     c_txt = os.path.join(out_dir, "c.txt")
     with open(c_txt, "w") as f:
         f.write("CCC")
@@ -4486,6 +4502,8 @@ try:
 
     with open(manifest_file) as f:
         man2 = json.load(f)
+    assert man2["consider_name"] is False, \
+        "❌ Explicit scope: hash consider_name should override the environment"
     assert man2["combined_hash"] != combined1, "❌ Manifest combined_hash should change after edit"
     assert set(os.path.basename(p) for p in man2["files"]) == {"a.txt", "b.txt", "c.txt"}, \
         "❌ Run 2 manifest should include the newly added c.txt"
