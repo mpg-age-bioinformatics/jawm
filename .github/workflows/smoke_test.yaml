@@ -1,17 +1,61 @@
 name: jawm Smoke Tests
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      python_versions:
+        description: 'JSON list of Python versions; leave empty to select three randomly'
+        required: false
+        default: ''
+        type: string
 
 jobs:
+  select_python_versions:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.select.outputs.versions }}
+    steps:
+      - name: Select Python versions
+        id: select
+        env:
+          REQUESTED_VERSIONS: ${{ github.event.inputs.python_versions || '' }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import random
+
+          supported = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+          requested = os.environ.get("REQUESTED_VERSIONS", "").strip()
+          versions = json.loads(requested) if requested else random.sample(supported, 3)
+
+          if not isinstance(versions, list) or not versions:
+              raise SystemExit("python_versions must be a non-empty JSON list")
+          versions = [str(version) for version in versions]
+          invalid = [version for version in versions if version not in supported]
+          if invalid:
+              raise SystemExit(f"Unsupported Python version(s): {', '.join(invalid)}")
+          if len(set(versions)) != len(versions):
+              raise SystemExit("python_versions must not contain duplicates")
+
+          encoded = json.dumps(versions, separators=(",", ":"))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"versions={encoded}\n")
+          print(f"Selected Python versions: {', '.join(versions)}")
+          PY
+
   # ─────────────────────────────
   #  Local core test (matrix)
   # ─────────────────────────────
   core-tests:
+    needs: select_python_versions
     # runs-on: [self-hosted, jawm]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.10", "3.13"]
+        python-version: ${{ fromJSON(needs.select_python_versions.outputs.versions) }}
 
     name: Python ${{ matrix.python-version }}
     steps:
