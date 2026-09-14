@@ -2540,6 +2540,51 @@ jawm module.py --process.my_process.outputs.report="results/report.txt"
 
 ---
 
+## `hash_exclude`
+
+- **Category**: `parameter`
+- **Type**: `list[str]`
+- **Default**: `[]`
+
+Advanced process-level control for omitting exact parameter values from the
+deterministic six-character hash prefix. This can make a process fingerprint
+portable when only machine-specific locations differ.
+
+```python
+hash_exclude=[
+    "logs_directory",
+    "var.map.input",
+    "var.mk.output",
+]
+```
+
+```yaml
+- scope: process
+  name: align
+  hash_exclude:
+    - logs_directory
+    - var.map.input
+    - var.mk.output
+```
+
+Selectors may address a top-level parameter or a nested dictionary entry. For
+example, `var.map.input` selects the literal `map.input` key inside `var`.
+Selectors are exact; wildcards are not supported.
+
+The sorted exclusion policy still contributes to the hash, while the selected
+values do not. Duplicate selectors have no additional effect. `hash_exclude`
+cannot exclude itself and is ignored with a warning if selected. Unknown or
+invalid selectors are also ignored with a warning, leaving their values hashed.
+
+Without this parameter, or with an empty list, process hashing is unchanged.
+Exclusions do not modify parameters, variable substitution, generated scripts,
+or execution. Referenced `script_file`, `param_file`, and `var_file` contents
+continue to contribute through their content digests even if their location
+parameter is excluded. A path held in an ordinary variable is not automatically
+content-hashed; use `scope: hash` for input and output file integrity.
+
+---
+
 ## `desc`
 
 - **Category**: `parameter`

@@ -44,7 +44,8 @@ def _prepare_base_dirs(self):
 def _generate_hash_params(self):
     """
     Generate a 6-char SHA256 prefix from:
-      - sorted self.params (so path strings also affect it),
+      - sorted self.params after any explicit hash exclusions,
+      - the normalized exclusion policy when exclusions apply,
       - content hash of script_file (file only),
       - content hash of param_file / var_file (files or directories),
         filtering directory contents by allowed extensions.
@@ -56,12 +57,88 @@ def _generate_hash_params(self):
     """
     from ._utils import hash_content
 
-    # Hash the parameters themselves (stable ordering)
+    def _copy_dicts(value):
+        if isinstance(value, dict):
+            return {key: _copy_dicts(item) for key, item in value.items()}
+        return value
+
+    def _drop_selector(params, selector):
+        if selector in params:
+            del params[selector]
+            return True
+
+        head, separator, remainder = selector.partition(".")
+        if not separator or not isinstance(params.get(head), dict):
+            return False
+
+        current = params[head]
+        while remainder:
+            # Prefer the exact remaining key so var.map.input addresses the
+            # common literal key self.params["var"]["map.input"].
+            if remainder in current:
+                del current[remainder]
+                return True
+            head, separator, remainder = remainder.partition(".")
+            if not separator or not isinstance(current.get(head), dict):
+                return False
+            current = current[head]
+        return False
+
+    raw_exclusions = (self.params or {}).get("hash_exclude")
+    warnings = []
+    requested = []
+    if raw_exclusions:
+        if isinstance(raw_exclusions, list):
+            for selector in raw_exclusions:
+                if not isinstance(selector, str) or not selector.strip():
+                    warnings.append("Ignoring invalid process hash exclusion; expected a non-empty string")
+                    continue
+                selector = selector.strip()
+                if selector == "hash_exclude":
+                    warnings.append("Ignoring process hash exclusion 'hash_exclude'; the policy cannot exclude itself")
+                    continue
+                if selector in {"resume", "when", "desc"}:
+                    warnings.append(
+                        f"Ignoring process hash exclusion '{selector}'; "
+                        "this parameter is already omitted from the process hash"
+                    )
+                    continue
+                requested.append(selector)
+        else:
+            warnings.append("Ignoring invalid hash_exclude; expected a list of exact parameter selectors")
+
+    # Hash the parameters themselves (stable ordering). The control parameter
+    # is handled separately so an absent or empty list preserves old hashes.
     h = hashlib.sha256()
-    ignored_params = {"resume", "when", "desc"}
-    filtered_params = {k: v for k, v in (self.params or {}).items() if k not in ignored_params}
+    ignored_params = {"resume", "when", "desc", "hash_exclude"}
+    if requested:
+        filtered_params = {
+            k: _copy_dicts(v)
+            for k, v in (self.params or {}).items()
+            if k not in ignored_params
+        }
+    else:
+        # Preserve the original hash input exactly when the feature is unused.
+        filtered_params = {
+            k: v
+            for k, v in (self.params or {}).items()
+            if k not in ignored_params
+        }
+    applied = []
+    for selector in sorted(set(requested)):
+        if _drop_selector(filtered_params, selector):
+            applied.append(selector)
+        else:
+            warnings.append(
+                f"Ignoring unknown process hash exclusion '{selector}'; the value remains hashed"
+            )
+
     base_items = sorted(filtered_params.items())
     h.update(repr(base_items).encode())
+    if applied:
+        h.update(repr(("hash_exclude", tuple(applied))).encode())
+
+    self._hash_exclude_warnings = warnings
 
     # Add content digests for referenced files/dirs
     # script_file (single file path)

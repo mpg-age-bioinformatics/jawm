@@ -321,6 +321,17 @@ def clone(self, name=None, param_file=None, **overrides):
                 short_key = k.split(".", 1)[-1]
                 base["var"][short_key] = v
 
+        # Do not let aliases derived after the original hash change a clone's
+        # parameter input when hash exclusions are in use.
+        configured_var = (self.params or {}).get("var", {})
+        exclusions = base.get("hash_exclude", [])
+        if isinstance(configured_var, dict) and isinstance(exclusions, list) and exclusions:
+            for prefixed_key in configured_var:
+                if isinstance(prefixed_key, str) and prefixed_key.startswith(("map.", "mk.")):
+                    short_key = prefixed_key.split(".", 1)[1]
+                    if short_key not in configured_var:
+                        base["var"].pop(short_key, None)
+
 
     # Return cloned instance
     return self.__class__(name=name or self.name, param_file=param_file or self.param_file, **base)
@@ -688,4 +699,3 @@ def get_var(self, key, default = None):
     """
     v = self.var or {}
     return v.get(key, default)
-

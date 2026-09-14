@@ -4595,6 +4595,66 @@ finally:
     Process.reset_stop()
 
 
+print("\n>>> Test 59: Process hash exclusions — portable and explicit")
+try:
+    common = {
+        "name": "hash_exclude_test",
+        "script": "#!/bin/bash\necho {{sample}}",
+    }
+
+    original_a = Process(
+        **common,
+        var={"map.input": "/site-a/input.txt", "sample": "S01"},
+    )
+    original_b = Process(
+        **common,
+        var={"map.input": "/site-b/input.txt", "sample": "S01"},
+    )
+    assert original_a.hash[:6] != original_b.hash[:6], \
+        "❌ Path values should affect the process hash by default"
+
+    portable_a = Process(
+        **common,
+        var={"map.input": "/site-a/input.txt", "sample": "S01"},
+        logs_directory="/site-a/logs",
+        hash_exclude=["var.map.input", "logs_directory"],
+    )
+    portable_b = Process(
+        **common,
+        var={"map.input": "/site-b/input.txt", "sample": "S01"},
+        logs_directory="/site-b/logs",
+        hash_exclude=["logs_directory", "var.map.input"],
+    )
+    assert portable_a.hash[:6] == portable_b.hash[:6], \
+        "❌ Excluded paths or selector ordering changed the process hash"
+    portable_clone = portable_a.clone()
+    assert portable_clone.hash[:6] == portable_a.hash[:6], \
+        "❌ An unchanged clone should preserve the excluded-path hash"
+
+    changed_value = Process(
+        **common,
+        var={"map.input": "/site-c/input.txt", "sample": "S02"},
+        logs_directory="/site-c/logs",
+        hash_exclude=["var.map.input", "logs_directory"],
+    )
+    assert portable_a.hash[:6] != changed_value.hash[:6], \
+        "❌ A non-excluded value should change the process hash"
+
+    self_excluded = Process(
+        **common,
+        var={"map.input": "/site-a/input.txt", "sample": "S01"},
+        hash_exclude=["hash_exclude"],
+    )
+    assert self_excluded.hash[:6] == original_a.hash[:6], \
+        "❌ Ignored self-exclusion should preserve the original process hash"
+
+    print("✅ Passed: process hash exclusions are portable, explicit, and opt-in")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+
+
 # -------------------------
 # Cleanup test workspace
 # -------------------------

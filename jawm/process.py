@@ -92,6 +92,7 @@ class Process:
         "env": dict,
         "inputs": dict,
         "outputs": dict,
+        "hash_exclude": list,
         "retries": int,
         "retry_overrides": dict,
         "error_strategy": str,
@@ -197,6 +198,7 @@ class Process:
         always_run=None,
         automated_mount=None,
         desc=None,
+        hash_exclude=None,
         **kwargs
     ):
         """
@@ -322,6 +324,9 @@ class Process:
         desc : str, optional  
             Human-readable description of the Process (one-line or multi-line docstring). No direct impact on the Process.
 
+        hash_exclude : list, optional
+            Exact process parameter selectors to omit from the deterministic hash prefix.
+
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
             and can override YAML-defined values.
@@ -391,6 +396,8 @@ class Process:
         except:
             self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
+        for message in getattr(self, "_hash_exclude_warnings", []):
+            self.logger.warning(message)
 
         # Register the process and get depends_on parameter
         Process.registry[self.name] = self
@@ -447,6 +454,7 @@ class Process:
         self.combined_env = {**os.environ.copy(), **self.env}
         self.inputs = self.params.get("inputs", {})
         self.outputs = self.params.get("outputs", {})
+        self.hash_exclude = self.params.get("hash_exclude", [])
         self.retries = self.params.get("retries", 0)
         self.retry_overrides = self.params.get("retry_overrides", {})
         self.use_scratch = self.params.get("scratch", False)
