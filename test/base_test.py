@@ -1,3 +1,4 @@
+import atexit
 import os
 import time
 import sys
@@ -17,8 +18,26 @@ failed = 0
 
 Process.reset_stop()
 
-# Create a base temp folder in current location
-base_tmp = os.path.join(os.getcwd(), "logs_temp")
+# Keep every relative test artifact inside one workspace-local directory. Using
+# the workspace (rather than the system temp directory) keeps paths accessible
+# to external managers, while atexit covers exits before the final cleanup.
+workspace_root = os.getcwd()
+test_root = tempfile.mkdtemp(prefix="jawm_base_test_", dir=workspace_root)
+
+
+def _cleanup_test_root():
+    try:
+        os.chdir(workspace_root)
+    except OSError:
+        pass
+    shutil.rmtree(test_root, ignore_errors=True)
+
+
+atexit.register(_cleanup_test_root)
+os.chdir(test_root)
+
+# Later tests create their individual temporary directories below this folder.
+base_tmp = os.path.join(test_root, "logs_temp")
 os.makedirs(base_tmp, exist_ok=True)
 
 # Create a snapshot of the Process default/override values
@@ -4576,32 +4595,15 @@ finally:
     Process.reset_stop()
 
 
-# -----------------------------
-# Cleanup created directories
-# -----------------------------
+# -------------------------
+# Cleanup test workspace
+# -------------------------
 # Deliberate failure/blocked fixtures are assessed by the assertions above.
 # Finish them before deleting evidence, then clear their runtime registry so the
 # outer CLI evaluates this test harness's summary rather than fixture exit codes.
 Process.wait("all", allowed_exit="all", abort=False, log=False)
 Process.reset_runtime()
-
-for d in [
-    "logs_test", "logs_test_default", "logs_from_yaml_global", "logs_from_yaml_process",
-    "logs_test_hash", "logs_resume_test", "logs_default_override", "logs_override_test",
-    "logs_test_update_vars", "logs_test_tail_concurrent", "logs_test_parallel", "data_test",
-    "logs", "logs_ar", "logs_allow_skip", "logs_test_auto_mount", "logs_test_clone_hash",
-    "logs_temp", "logs_cli_sanitize", "logs_nbdeps", "logs_norm", "logs_pfalse",
-    "logs_sync_test", "logs_test_alias", "cli_out_dir"
-]:
-    if d == "logs":
-        if os.path.isdir("logs"):
-            for sub in os.listdir("logs"):
-                subpath = os.path.join("logs", sub)
-                if sub.startswith("jawm_has"):
-                    continue
-                shutil.rmtree(subpath, ignore_errors=True) if os.path.isdir(subpath) else os.remove(subpath)
-    else:
-        shutil.rmtree(d, ignore_errors=True)
+_cleanup_test_root()
 
 
 # ---------------------------

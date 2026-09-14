@@ -165,6 +165,7 @@ cython_debug/
 
 # Test directories
 exercise/
+jawm_base_test_*/
 test/*_test
 test/logs*
 test/test*
