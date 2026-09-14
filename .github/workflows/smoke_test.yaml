@@ -40,11 +40,8 @@ jobs:
           echo "▶️ Running jawm with test/base_test.py"
           jawm test/base_test.py
 
-      - name: Test module runner hash comparisons
-        run: python test/runner_test.py
-
-      - name: Test CLI exit precedence
-        run: python test/cli_exit_test.py
+      - name: Test CLI regressions
+        run: python test/cli_regression_test.py
 
   # ─────────────────────────────
   #  Slurm integration test (matrix)
