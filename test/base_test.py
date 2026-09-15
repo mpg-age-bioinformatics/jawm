@@ -4655,6 +4655,83 @@ except Exception as e:
     failed += 1
 
 
+print("\n>>> Test 60: Process file-content hashing — resume-sensitive and portable")
+hash_include_tmpdir = tempfile.mkdtemp(prefix="hash_include_", dir=base_tmp)
+try:
+    site_a = os.path.join(hash_include_tmpdir, "site_a")
+    site_b = os.path.join(hash_include_tmpdir, "site_b")
+    os.makedirs(site_a)
+    os.makedirs(site_b)
+    input_a = os.path.join(site_a, "input_a.txt")
+    input_b = os.path.join(site_b, "input_b.txt")
+    with open(input_a, "w") as f:
+        f.write("same content\n")
+    with open(input_b, "w") as f:
+        f.write("same content\n")
+
+    common = {"name": "hash_include_test", "script": "#!/bin/bash\ncat {{input}}"}
+    original_a = Process(**common, var={"input": input_a})
+    original_b = Process(**common, var={"input": input_b})
+    assert original_a.hash[:6] != original_b.hash[:6], \
+        "❌ File paths should affect the process hash by default"
+
+    content_a = Process(**common, var={"input": input_a}, hash_include=["var.input"])
+    content_b = Process(**common, var={"input": input_b}, hash_include=["var.input"])
+    assert content_a.hash[:6] == content_b.hash[:6], \
+        "❌ Identical included file content should be portable across paths"
+    assert content_a.clone().hash[:6] == content_a.hash[:6], \
+        "❌ An unchanged clone should preserve its included-content hash"
+
+    with open(input_b, "w") as f:
+        f.write("changed content\n")
+    changed_content = Process(**common, var={"input": input_b}, hash_include=["var.input"])
+    assert content_a.hash[:6] != changed_content.hash[:6], \
+        "❌ Changed included file content should change the process hash"
+
+    with open(input_b, "w") as f:
+        f.write("same content\n")
+    path_a = Process(
+        **common, var={"input": input_a},
+        hash_include=["var.input"], hash_include_path=True,
+    )
+    path_b = Process(
+        **common, var={"input": input_b},
+        hash_include=["var.input"], hash_include_path=True,
+    )
+    assert path_a.hash[:6] != path_b.hash[:6], \
+        "❌ hash_include_path=True should retain path sensitivity"
+
+    excluded_a = Process(
+        **common, var={"input": input_a}, hash_include=["var.input"],
+        hash_include_path=True, hash_exclude=["var.input"],
+    )
+    excluded_b = Process(
+        **common, var={"input": input_b}, hash_include=["var.input"],
+        hash_include_path=True, hash_exclude=["var.input"],
+    )
+    assert excluded_a.hash[:6] == excluded_b.hash[:6], \
+        "❌ Explicit hash_exclude should override included path hashing"
+
+    missing_a = Process(
+        **common, var={"input": os.path.join(site_a, "missing.txt")},
+        hash_include=["var.input"],
+    )
+    missing_b = Process(
+        **common, var={"input": os.path.join(site_b, "missing.txt")},
+        hash_include=["var.input"],
+    )
+    assert missing_a.hash[:6] != missing_b.hash[:6], \
+        "❌ An unreadable included file should retain path-based hashing"
+
+    print("✅ Passed: included file content controls process resume hashes")
+    passed += 1
+except Exception as e:
+    print(f"❌ Failed: {e}")
+    failed += 1
+finally:
+    shutil.rmtree(hash_include_tmpdir, ignore_errors=True)
+
+
 # -------------------------
 # Cleanup test workspace
 # -------------------------

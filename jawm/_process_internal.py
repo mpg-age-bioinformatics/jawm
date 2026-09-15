@@ -44,8 +44,8 @@ def _prepare_base_dirs(self):
 def _generate_hash_params(self):
     """
     Generate a 6-char SHA256 prefix from:
-      - sorted self.params after any explicit hash exclusions,
-      - the normalized exclusion policy when exclusions apply,
+      - sorted self.params after any explicit hash controls,
+      - normalized exclusion and file-content policies when they apply,
       - content hash of script_file (file only),
       - content hash of param_file / var_file (files or directories),
         filtering directory contents by allowed extensions.
@@ -62,31 +62,36 @@ def _generate_hash_params(self):
             return {key: _copy_dicts(item) for key, item in value.items()}
         return value
 
-    def _drop_selector(params, selector):
+    def _selector_target(params, selector):
         if selector in params:
-            del params[selector]
-            return True
+            return params, selector
 
         head, separator, remainder = selector.partition(".")
         if not separator or not isinstance(params.get(head), dict):
-            return False
+            return None, None
 
         current = params[head]
         while remainder:
             # Prefer the exact remaining key so var.map.input addresses the
             # common literal key self.params["var"]["map.input"].
             if remainder in current:
-                del current[remainder]
-                return True
+                return current, remainder
             head, separator, remainder = remainder.partition(".")
             if not separator or not isinstance(current.get(head), dict):
-                return False
+                return None, None
             current = current[head]
-        return False
+        return None, None
+
+    def _drop_selector(params, selector):
+        target, key = _selector_target(params, selector)
+        if target is None:
+            return False
+        del target[key]
+        return True
 
     raw_exclusions = (self.params or {}).get("hash_exclude")
     warnings = []
-    requested = []
+    exclusions = []
     if raw_exclusions:
         if isinstance(raw_exclusions, list):
             for selector in raw_exclusions:
@@ -94,8 +99,10 @@ def _generate_hash_params(self):
                     warnings.append("Ignoring invalid process hash exclusion; expected a non-empty string")
                     continue
                 selector = selector.strip()
-                if selector == "hash_exclude":
-                    warnings.append("Ignoring process hash exclusion 'hash_exclude'; the policy cannot exclude itself")
+                if selector in {"hash_exclude", "hash_include", "hash_include_path"}:
+                    warnings.append(
+                        f"Ignoring process hash exclusion '{selector}'; hash controls cannot exclude themselves"
+                    )
                     continue
                 if selector in {"resume", "when", "desc"}:
                     warnings.append(
@@ -103,15 +110,46 @@ def _generate_hash_params(self):
                         "this parameter is already omitted from the process hash"
                     )
                     continue
-                requested.append(selector)
+                exclusions.append(selector)
         else:
             warnings.append("Ignoring invalid hash_exclude; expected a list of exact parameter selectors")
 
+    raw_inclusions = (self.params or {}).get("hash_include")
+    inclusions = []
+    if raw_inclusions:
+        if isinstance(raw_inclusions, list):
+            for selector in raw_inclusions:
+                if not isinstance(selector, str) or not selector.strip():
+                    warnings.append("Ignoring invalid process hash inclusion; expected a non-empty string")
+                    continue
+                selector = selector.strip()
+                if selector in {"hash_include", "hash_include_path", "hash_exclude"}:
+                    warnings.append(
+                        f"Ignoring process hash inclusion '{selector}'; hash controls cannot include themselves"
+                    )
+                    continue
+                if selector in {"script_file", "param_file", "var_file"}:
+                    warnings.append(
+                        f"Ignoring process hash inclusion '{selector}'; its contents are already hashed"
+                    )
+                    continue
+                inclusions.append(selector)
+        else:
+            warnings.append("Ignoring invalid hash_include; expected a list of exact parameter selectors")
+
+    include_path = (self.params or {}).get("hash_include_path", False)
+    if inclusions and not isinstance(include_path, bool):
+        warnings.append("Ignoring invalid hash_include_path; expected a boolean")
+        include_path = False
+
     # Hash the parameters themselves (stable ordering). The control parameter
-    # is handled separately so an absent or empty list preserves old hashes.
+    # is handled separately so unused controls preserve old hashes.
     h = hashlib.sha256()
-    ignored_params = {"resume", "when", "desc", "hash_exclude"}
-    if requested:
+    ignored_params = {
+        "resume", "when", "desc", "hash_exclude", "hash_include",
+        "hash_include_path",
+    }
+    if exclusions or inclusions:
         filtered_params = {
             k: _copy_dicts(v)
             for k, v in (self.params or {}).items()
@@ -124,10 +162,49 @@ def _generate_hash_params(self):
             for k, v in (self.params or {}).items()
             if k not in ignored_params
         }
-    applied = []
-    for selector in sorted(set(requested)):
+
+    included = []
+    for selector in sorted(set(inclusions)):
+        target, key = _selector_target(filtered_params, selector)
+        if target is None:
+            warnings.append(
+                f"Ignoring unknown process hash inclusion '{selector}'; the path remains hashed"
+            )
+            continue
+
+        value = target[key]
+        if not isinstance(value, (str, os.PathLike)):
+            warnings.append(
+                f"Ignoring process hash inclusion '{selector}'; expected a readable regular file"
+            )
+            continue
+
+        file_path = _expand_relpaths_in_value(os.fspath(value), os.getcwd())
+        try:
+            if not os.path.isfile(file_path):
+                raise ValueError("not a regular file")
+            digest = hash_content(file_path, recursive=False, consider_name=False)
+        except Exception:
+            warnings.append(
+                f"Ignoring process hash inclusion '{selector}'; expected a readable regular file"
+            )
+            continue
+
+        included.append((selector, digest))
+        if not include_path:
+            del target[key]
+
+    applied_exclusions = []
+    included_selectors = {selector for selector, _ in included}
+    for selector in sorted(set(exclusions)):
+        if selector in included_selectors and not include_path:
+            continue
         if _drop_selector(filtered_params, selector):
-            applied.append(selector)
+            applied_exclusions.append(selector)
+            if selector in included_selectors and include_path:
+                warnings.append(
+                    f"Process hash exclusion '{selector}' overrides hash_include_path=True"
+                )
         else:
             warnings.append(
                 f"Ignoring unknown process hash exclusion '{selector}'; the value remains hashed"
@@ -135,10 +212,12 @@ def _generate_hash_params(self):
 
     base_items = sorted(filtered_params.items())
     h.update(repr(base_items).encode())
-    if applied:
-        h.update(repr(("hash_exclude", tuple(applied))).encode())
+    if applied_exclusions:
+        h.update(repr(("hash_exclude", tuple(applied_exclusions))).encode())
+    if included:
+        h.update(repr(("hash_include", bool(include_path), tuple(included))).encode())
 
-    self._hash_exclude_warnings = warnings
+    self._hash_warnings = warnings
 
     # Add content digests for referenced files/dirs
     # script_file (single file path)

@@ -2540,6 +2540,54 @@ jawm module.py --process.my_process.outputs.report="results/report.txt"
 
 ---
 
+## `hash_include`
+
+- **Category**: `parameter`
+- **Type**: `list[str]`
+- **Default**: `[]`
+
+Exact parameter selectors for file paths whose contents should affect the
+deterministic process hash and therefore resume matching.
+
+```python
+hash_include=["var.input", "var.reference"]
+```
+
+Each selector must resolve to one readable regular file. By default, the file
+content replaces the selected path value in the hash calculation, so identical
+content at different locations produces the same hash prefix. The actual
+parameter and generated script remain unchanged.
+
+Set `hash_include_path=True` to hash both the selected path and its file content:
+
+```python
+hash_include=["var.input"]
+hash_include_path=True
+```
+
+Missing, unreadable, non-file, or unknown values are ignored with a warning;
+their original path value remains hashed. An explicit matching `hash_exclude`
+still removes that value. `script_file`, `param_file`, and `var_file` contents
+are already hashed and do not need to be selected again. Paths available only
+through values loaded from `var_file` are not resolved as selectors.
+
+Without `hash_include`, process hashing and resume behavior are unchanged. The
+content is recalculated when a new `Process` is created, not between retry
+attempts of an existing instance.
+
+---
+
+## `hash_include_path`
+
+- **Category**: `parameter`
+- **Type**: `bool`
+- **Default**: `False`
+
+Keep paths selected by `hash_include` in the process hash in addition to their
+file-content digests. An explicit matching `hash_exclude` takes precedence.
+
+---
+
 ## `hash_exclude`
 
 - **Category**: `parameter`
@@ -2552,9 +2600,8 @@ portable when only machine-specific locations differ.
 
 ```python
 hash_exclude=[
-    "logs_directory",
     "var.map.input",
-    "var.mk.output",
+    "var.reference",
 ]
 ```
 
@@ -2562,9 +2609,8 @@ hash_exclude=[
 - scope: process
   name: align
   hash_exclude:
-    - logs_directory
     - var.map.input
-    - var.mk.output
+    - var.reference
 ```
 
 Selectors may address a top-level parameter or a nested dictionary entry. For

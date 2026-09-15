@@ -92,7 +92,6 @@ class Process:
         "env": dict,
         "inputs": dict,
         "outputs": dict,
-        "hash_exclude": list,
         "retries": int,
         "retry_overrides": dict,
         "error_strategy": str,
@@ -116,6 +115,9 @@ class Process:
         "always_run": bool,
         "automated_mount": bool,
         "desc": str,
+        "hash_exclude": list,
+        "hash_include": list,
+        "hash_include_path": bool,
     }
     # Set of internal/reserved keys
     reserved_keys = {
@@ -199,6 +201,8 @@ class Process:
         automated_mount=None,
         desc=None,
         hash_exclude=None,
+        hash_include=None,
+        hash_include_path=None,
         **kwargs
     ):
         """
@@ -327,6 +331,12 @@ class Process:
         hash_exclude : list, optional
             Exact process parameter selectors to omit from the deterministic hash prefix.
 
+        hash_include : list, optional
+            Exact process parameter selectors whose file contents should affect the hash.
+
+        hash_include_path : bool, default=False
+            Whether selected file path values should remain in the hash with their contents.
+
         **kwargs : optional
             Additional or custom parameters not explicitly listed above. These are merged into the configuration
             and can override YAML-defined values.
@@ -396,7 +406,7 @@ class Process:
         except:
             self.hash = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
         self.logger = logging.getLogger(f"{self.name}|{self.hash}")
-        for message in getattr(self, "_hash_exclude_warnings", []):
+        for message in getattr(self, "_hash_warnings", []):
             self.logger.warning(message)
 
         # Register the process and get depends_on parameter
@@ -455,6 +465,8 @@ class Process:
         self.inputs = self.params.get("inputs", {})
         self.outputs = self.params.get("outputs", {})
         self.hash_exclude = self.params.get("hash_exclude", [])
+        self.hash_include = self.params.get("hash_include", [])
+        self.hash_include_path = self.params.get("hash_include_path", False)
         self.retries = self.params.get("retries", 0)
         self.retry_overrides = self.params.get("retry_overrides", {})
         self.use_scratch = self.params.get("scratch", False)

@@ -322,10 +322,15 @@ def clone(self, name=None, param_file=None, **overrides):
                 base["var"][short_key] = v
 
         # Do not let aliases derived after the original hash change a clone's
-        # parameter input when hash exclusions are in use.
+        # parameter input when hash selectors are in use.
         configured_var = (self.params or {}).get("var", {})
         exclusions = base.get("hash_exclude", [])
-        if isinstance(configured_var, dict) and isinstance(exclusions, list) and exclusions:
+        inclusions = base.get("hash_include", [])
+        selectors_active = (
+            (isinstance(exclusions, list) and exclusions)
+            or (isinstance(inclusions, list) and inclusions)
+        )
+        if isinstance(configured_var, dict) and selectors_active:
             for prefixed_key in configured_var:
                 if isinstance(prefixed_key, str) and prefixed_key.startswith(("map.", "mk.")):
                     short_key = prefixed_key.split(".", 1)[1]
