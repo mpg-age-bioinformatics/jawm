@@ -23,8 +23,8 @@ It is designed for researchers, data scientists, and engineers who want the flex
 - ⚙️ **Flexible configuration**  
   Configure processes with Python arguments, YAML parameter files, and CLI overrides.
 
-- 🧾 **GxP-ready by design**  
-  Built with traceability and audit-friendly execution in mind.
+- 🧾 **Traceability for GxP workflows**<br>
+  Built with reproducibility and audit-friendly execution evidence in mind.
 
 - 🔗 **Explicit workflow control**  
   Manage execution order, conditional runs, resumeability, and so on.
