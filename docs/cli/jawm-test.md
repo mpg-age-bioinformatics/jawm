@@ -10,7 +10,7 @@ By default it uses your local `jawm` installation and system Python. Optionally 
 
 ---
 
-### How it works
+## How it works
 
 1. **Download test data** (if `test/data.txt` exists) — files are fetched with `curl`, MD5-verified, and archives are auto-extracted
 2. **Set up Python environments** — if you request non-system Python versions, pyenv is bootstrapped and virtualenvs are created
@@ -22,7 +22,7 @@ By default it uses your local `jawm` installation and system Python. Optionally 
 
 ---
 
-### Prerequisites
+## Prerequisites
 
 `jawm-test` may requires the following tools to be available on `PATH` (based on the commands):
 
@@ -34,7 +34,7 @@ By default it uses your local `jawm` installation and system Python. Optionally 
 
 ---
 
-### Quick start
+## Quick start
 
 ```bash
 # Run all tests (system Python, local jawm)
@@ -52,7 +52,7 @@ jawm-test --runner download
 
 ---
 
-### Flags
+## Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -71,7 +71,7 @@ jawm-test --runner download
 | `-d`, `--dispatch` | `false` | Treat the run as dispatched (affects module tag selection) |
 | `-h`, `--help` | — | Show help and exit |
 
-#### `-r` / `--runner`
+### `-r` / `--runner`
 
 Controls how `jawm-test` operates:
 
@@ -79,17 +79,17 @@ Controls how `jawm-test` operates:
 - **`github`** — reads `GITHUB_REF_NAME` and `GITHUB_REF_TYPE` from the GitHub Actions environment to name versions. Writes `CODE_TAG` and `VERSION_TAG` to `$GITHUB_ENV`.
 - **`download`** — downloads and verifies test data from `data.txt`, then exits without running any tests. Useful for pre-populating test data in CI.
 
-#### `-o` / `--override`
+### `-o` / `--override`
 
 When a test runs successfully but the generated hash differs from the stored one, `--override` updates `tests.txt` in place with the new hash. Use this after intentional changes to a module's output.
 
 Without `--override`, a mismatch is treated as a test failure and exits with code `1`.
 
-#### `-i` / `--ignore`
+### `-i` / `--ignore`
 
 Continues running all tests even when a jawm run fails or a hash mismatches. Stored hashes are not updated unless `--override` is also set. Useful for seeing all failures in one pass rather than stopping at the first one.
 
-#### `-y` / `--yaml`
+### `-y` / `--yaml`
 
 Appends extra YAML files to every `jawm` invocation during testing. Useful for injecting environment-specific config (e.g. a Docker or Slurm YAML) on top of whatever params are defined in `tests.txt`.
 
@@ -98,7 +98,7 @@ jawm-test -y yaml/docker.yaml
 jawm-test -y yaml/base.yaml yaml/override.yaml
 ```
 
-#### `-p` / `--python_versions` and `-j` / `--jawm_versions`
+### `-p` / `--python_versions` and `-j` / `--jawm_versions`
 
 For cross-version testing. Any Python version other than `"system"` is managed via pyenv — jawm-test bootstraps pyenv if it is not already installed, installs the requested Python versions, and creates virtualenvs named `py<python>-jawm.<jawm>`.
 
@@ -118,9 +118,9 @@ If `--jawm_repo` points to a local directory, `jawm-test` forces `--jawm_version
 
 ---
 
-### File formats
+## File formats
 
-#### `test/tests.txt`
+### `test/tests.txt`
 
 Defines the tests to run. Semicolon-separated, one test per line. The first line is treated as a header and preserved as-is.
 
@@ -141,7 +141,7 @@ mymodule.py ; align ; yaml/docker.yaml -v vars.yaml ; "alignment" ; 789abc012def
 
 Lines starting with `#` and blank lines are ignored.
 
-#### `test/data.txt`
+### `test/data.txt`
 
 Lists test input files that need to be downloaded before tests run. Space-separated, one file per line.
 
@@ -166,7 +166,7 @@ If the file already exists locally, download is skipped but the MD5 is still ver
 
 ---
 
-### Where hashes come from
+## Where hashes come from
 
 With a `scope: hash` configuration, the CLI writes a hash of the selected files to:
 
@@ -182,7 +182,7 @@ The hash computation is controlled by `scope: hash` entries in your YAML paramet
 
 ---
 
-### Using jawm-test in CI
+## Using jawm-test in CI
 
 `jawm-test` is designed to drop into a GitHub Actions workflow. The `jawm_demo` template provides a ready-made `.github/workflows/test.yaml`. The key pattern is:
 
@@ -203,7 +203,7 @@ For dispatched workflows (manual triggers), pass `--dispatch` to test both the c
 
 ---
 
-### Exit codes
+## Exit codes
 
 | Code | Meaning |
 |------|---------|

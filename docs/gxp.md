@@ -22,7 +22,7 @@ The timestamp is the local date and time when the `Process` instance is created.
 
 Repeated runs with the same hash inputs normally share the six-character prefix but receive a new random suffix. The prefix is calculated before script placeholders are expanded; it is not a checksum of the final `.script` file or of every input/output file. Path changes can affect it, and Python objects such as callables can have representations that vary between runs. If a referenced-file digest cannot be calculated, that digest is omitted; if parameter-hash generation itself fails, jawm falls back to a fully random 10-character identifier. Use the file hashes described under [Inputs / Outputs](#inputs-outputs) to track data content; the short folder identifier alone does not establish content identity.
 
-For processes that must run under different filesystem layouts, [`hash_exclude`](process/parameters.md#hash_exclude) can omit explicitly selected machine-specific values from the parameter-derived prefix. [`hash_include`](process/parameters.md#hash_include) can replace a selected file path with its content digest, causing a later run to receive a different prefix when that input file changes while remaining stable when identical content is relocated. Set [`hash_include_path`](process/parameters.md#hash_include_path) when the path should also contribute. These controls do not change the actual process configuration, variable substitution, or generated scripts and commands. They support a portable and auditable process identity without replacing the full file-content hashes under [`scope: hash`](config/yaml.md#scope-hash).
+For processes that must run under different filesystem layouts, [`hash_exclude`](process/parameters.md#hash_exclude) can omit explicitly selected machine-specific values from the parameter-derived prefix. [`hash_include`](process/parameters.md#hash_include) can replace a selected file path with its content digest, causing a later run to receive a different prefix when that input file changes while remaining stable when identical content is relocated. Set [`hash_include_path`](process/parameters.md#hash_include_path) when the path should also contribute. These controls do not change the actual process configuration, variable substitution, or generated scripts and commands. They support a portable and auditable process identity without replacing the full file-content hashes under [`scope: hash`](config/yaml.md#-scope-hash).
 
 [`resume`](process/parameters.md#resume) matching uses the process name and six-character parameter-hash prefix and only reuses a successfully completed run. `hash_include` is recalculated when a new `Process` is created; the hash and log folder do not change between retry attempts of the same instance.
 
@@ -55,7 +55,7 @@ At the surrounding `logs/` level, `jawm_runs/` stores CLI run transcripts, and `
 
 ## Inputs / Outputs
 
-Use [`scope: hash`](config/yaml.md#scope-hash) to record the identity of selected inputs, outputs, workflow files, and downloaded reference data. At the end of the workflow, jawm calculates a full SHA-256 content hash and records the combined value, its history, and a per-file diagnostic manifest.
+Use [`scope: hash`](config/yaml.md#-scope-hash) to record the identity of selected inputs, outputs, workflow files, and downloaded reference data. At the end of the workflow, jawm calculates a full SHA-256 content hash and records the combined value, its history, and a per-file diagnostic manifest.
 
 ```yaml
 - scope: hash
@@ -66,11 +66,11 @@ Use [`scope: hash`](config/yaml.md#scope-hash) to record the identity of selecte
   overwrite: false
 ```
 
-With the default `consider_name: false`, identical file content can be relocated without changing the combined hash. Set it to `true` when relative names and paths are part of the expected identity. `overwrite: false` keeps the first stored value as the comparison baseline. A `reference` value can enforce an approved SHA-256 hash; a mismatch or missing included path makes the CLI exit with code `73`. See [`scope: hash`](config/yaml.md#scope-hash) for the complete policy.
+With the default `consider_name: false`, identical file content can be relocated without changing the combined hash. Set it to `true` when relative names and paths are part of the expected identity. `overwrite: false` keeps the first stored value as the comparison baseline. A `reference` value can enforce an approved SHA-256 hash; a mismatch or missing included path makes the CLI exit with code `73`. See [`scope: hash`](config/yaml.md#-scope-hash) for the complete policy.
 
 ## Reference data
 
-Remote data fetched inside a script is not automatically content-hashed. Save regulated reference data to a managed file, record its source URL or accession and release/version, and include the downloaded file under [`scope: hash`](config/yaml.md#scope-hash). If a later process must rerun when that file changes, also select its process parameter with [`hash_include`](process/parameters.md#hash_include). Where retrieval time matters, record it explicitly in the workflow output or run transcript.
+Remote data fetched inside a script is not automatically content-hashed. Save regulated reference data to a managed file, record its source URL or accession and release/version, and include the downloaded file under [`scope: hash`](config/yaml.md#-scope-hash). If a later process must rerun when that file changes, also select its process parameter with [`hash_include`](process/parameters.md#hash_include). Where retrieval time matters, record it explicitly in the workflow output or run transcript.
 
 ## Versioned workflows
 

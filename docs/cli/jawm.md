@@ -8,7 +8,7 @@ jawm <module> [workflow] [flags]
 
 ---
 
-### Synopsis
+## Synopsis
 
 ```
 jawm <module> [workflow] [-p YAML...] [-v FILE...] [-l DIR] [-w DIR]
@@ -20,9 +20,9 @@ jawm <module> [workflow] [-p YAML...] [-v FILE...] [-l DIR] [-w DIR]
 
 ---
 
-### Flags
+## Flags
 
-#### Core
+### Core
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -35,7 +35,7 @@ jawm <module> [workflow] [-p YAML...] [-v FILE...] [-l DIR] [-w DIR]
 | `--stats` | `False` | Record per-process CPU and memory usage (average and peak). |
 | `-V`, `--version` | — | Print the installed jawm version and exit. |
 
-#### Git / remote
+### Git / remote
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -44,7 +44,7 @@ jawm <module> [workflow] [-p YAML...] [-v FILE...] [-l DIR] [-w DIR]
 | `--no-web` | `False` | Disable online module lookup. jawm will only resolve modules that exist locally. |
 | `--git-cache` | `~/.jawm/git` | Local directory used as the Git clone cache. |
 
-#### `-p` / `--parameters`
+### `-p` / `--parameters`
 
 Passes one or more YAML files (or a directory of YAMLs) as `param_file` to every Process in the module. These files set Process configuration — manager, environment, container, retries, and so on.
 
@@ -60,7 +60,7 @@ HTTPS URLs are also accepted — jawm downloads and caches the file before the r
 jawm mymodule.py -p https://example.com/configs/hg38.yaml
 ```
 
-#### `-v` / `--variables`
+### `-v` / `--variables`
 
 Passes one or more YAML or `.rc` files as variable sources. The key-value pairs in these files are substituted into `{{placeholder}}` tokens in each Process's script. Multiple files are merged in order.
 
@@ -75,7 +75,7 @@ jawm mymodule.py -v samples.yaml paths.yaml
 jawm mymodule.py -p slurm.yaml -v sample_vars.yaml
 ```
 
-#### `-l` / `--logs-directory`
+### `-l` / `--logs-directory`
 
 Sets the base directory for all log output. Each Process writes its stdout, stderr, script, and exit code into a subdirectory here. The CLI run log (a full transcript of the terminal output) is written to `<logs directory>/jawm_runs/`.
 
@@ -85,7 +85,7 @@ jawm mymodule.py -l /scratch/project/logs
 
 Defaults to `./logs` in the current working directory.
 
-#### `-w` / `--workdir`
+### `-w` / `--workdir`
 
 Changes the working directory before jawm resolves any paths or runs the module. Useful when you want all relative paths in your module and YAML files to resolve against a specific project directory.
 
@@ -95,7 +95,7 @@ jawm mymodule.py -w /scratch/project123 -p params.yaml
 
 The directory is created automatically if it does not exist.
 
-#### `-r` / `--resume`
+### `-r` / `--resume`
 
 Enables resume mode. jawm checks each Process against its previous run logs — if a Process already completed successfully (exit code `0`), it is skipped and its previous logs and outputs are reused. Only Processes that failed or were not yet run are executed.
 
@@ -105,7 +105,7 @@ jawm mymodule.py -v vars.yaml -r
 
 Resume is particularly useful for long pipelines where you want to pick up after a partial failure without re-running steps that already succeeded.
 
-#### `-n` / `--no-override`
+### `-n` / `--no-override`
 
 Prevents jawm from applying override-level parameters. By default, `-p` files are applied as overrides (highest precedence). Use `-n` to make them behave as defaults instead, allowing the module's own parameter definitions to take precedence.
 
@@ -117,7 +117,7 @@ jawm mymodule.py -p params.yaml -n
 jawm mymodule.py -p params.yaml -n manager,env
 ```
 
-#### `--server` / `--user`
+### `--server` / `--user`
 
 Control how bare module names (like `jawm_bwa`) are resolved to Git SSH URLs. jawm constructs the URL as `git@<server>:<user>/<name>.git`.
 
@@ -130,7 +130,7 @@ jawm jawm_bwa --server gitlab.example.org --user my-team
 # → git@gitlab.example.org:my-team/jawm_bwa.git
 ```
 
-#### `--no-web`
+### `--no-web`
 
 Disables all online module resolution. When set, jawm will only run modules that exist as local files or directories — it will not attempt to clone from any Git server.
 
@@ -142,11 +142,11 @@ Useful in air-gapped environments or when you want to ensure no network calls ar
 
 ---
 
-### Module argument
+## Module argument
 
 The `<module>` argument tells jawm what to run. It is flexible — it can be a local path, a repository name, or a full Git URL.
 
-#### Local file or directory
+### Local file or directory
 
 ```bash
 # A single Python file
@@ -163,7 +163,7 @@ When a directory is given, jawm picks the entry point in this order:
 2. `main.py`
 3. The only `.py` file (fails if more than one exists and none of the above match)
 
-#### Remote module by name
+### Remote module by name
 
 If the module path does not exist locally and is not already a Git URL, jawm automatically constructs a Git SSH URL from `--server` and `--user`:
 
@@ -177,7 +177,7 @@ jawm mpg-age-bioinformatics/jawm_bwa
 
 Use `--no-web` to disable this behaviour and only resolve modules locally.
 
-#### Full Git URL
+### Full Git URL
 
 Any valid Git SSH or HTTPS URL is accepted directly:
 
@@ -186,7 +186,7 @@ jawm git@github.com:org/jawm_rnaseq.git
 jawm https://github.com/org/jawm_rnaseq.git
 ```
 
-#### Pinning to a ref with `@`
+### Pinning to a ref with `@`
 
 Append `@<ref>` to any module name or Git URL to pin to a specific branch, tag, or commit:
 
@@ -202,7 +202,7 @@ jawm jawm_bwa@last-tag        # most recently created tag
 
 `@latest-tag` picks the tag that sorts highest numerically (e.g. `v2.1.0` beats `v1.9.0`). `@last-tag` picks the tag most recently created by creation timestamp, regardless of version number.
 
-#### Subpath with `//`
+### Subpath with `//`
 
 Run a module nested inside a repository:
 
@@ -215,11 +215,11 @@ Everything after `//` is treated as a path relative to the repository root.
 
 ---
 
-### Parameter overrides
+## Parameter overrides
 
 Two special flag namespaces let you override any Process parameter directly from the command line, at the highest precedence level — they override YAML files, module defaults, and everything else.
 
-#### `--global.<key>=<value>`
+### `--global.<key>=<value>`
 
 Applies an override to **all** Processes in the module:
 
@@ -234,7 +234,7 @@ jawm mymodule.py --global.var.threads=16
 jawm mymodule.py --global.env.TMPDIR=/scratch/tmp
 ```
 
-#### `--process.<name>.<key>=<value>`
+### `--process.<name>.<key>=<value>`
 
 Applies an override to a **single named Process**:
 
@@ -268,7 +268,7 @@ jawm mymodule.py \
 
 ---
 
-### Remote parameter files
+## Remote parameter files
 
 `-p` and `-v` accept HTTPS URLs in addition to local paths. jawm downloads and caches the file before the run:
 
@@ -280,7 +280,7 @@ Downloaded files are cached in `~/.jawm/remote_params/` (override with `JAWM_URL
 
 ---
 
-### What jawm does when you run it
+## What jawm does when you run it
 
 When you invoke `jawm mymodule.py -p params.yaml`, the following happens in order:
 
@@ -297,7 +297,7 @@ When you invoke `jawm mymodule.py -p params.yaml`, the following happens in orde
 
 ---
 
-### Logs
+## Logs
 
 Every `jawm` run writes two kinds of logs:
 
@@ -308,7 +308,7 @@ The base logs directory defaults to `./logs` and can be changed with `-l`.
 
 ---
 
-### Environment variables
+## Environment variables
 
 These environment variables affect `jawm` behaviour without needing a command-line flag:
 
@@ -326,7 +326,7 @@ These environment variables affect `jawm` behaviour without needing a command-li
 
 ---
 
-### Examples
+## Examples
 
 ```bash
 # Run a local module with a parameter file
@@ -360,6 +360,6 @@ jawm mymodule.py -w /scratch/project123 -p params.yaml
 ```
 
 
-### Dataset hash encoding
+## Dataset hash encoding
 
 `scope: hash` uses explicit file boundaries, sizes and per-file SHA-256 digests. It hashes file contents without paths by default. Set `consider_name: true` in that hash scope, or `JAWM_HASH_CONSIDER_NAME=true` as its fallback, to include relative paths; the YAML value takes precedence and the effective policy is recorded in the diagnostic hash manifest. See [hashing semantics](../utils.md#hash_content).

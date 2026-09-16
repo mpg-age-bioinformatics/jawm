@@ -12,7 +12,7 @@ These configuration layers are merged with a defined **precedence order**.
 
 ---
 
-# Parameter Precedence
+## Parameter Precedence
 
 jawm supports flexible configuration through multiple layers.  
 When parameters are defined in multiple places, **higher-precedence values override lower-precedence ones**.
@@ -36,11 +36,11 @@ This allows workflows to be configured in a structured way while still supportin
 
 ---
 
-# Internal Precedence Logic
+## Internal Precedence Logic
 
 The parameter precedence changes slightly depending on whether a YAML parameter file is provided through the CLI using `-p`.
 
-## Normal Usage
+### Normal Usage
 
 When no CLI parameter file override is used:
 
@@ -61,7 +61,7 @@ Internally, the precedence layers are applied as:
 
 ---
 
-## CLI-driven Usage
+### CLI-driven Usage
 
 When a parameter file is supplied through the CLI with `-p`, jawm assumes the workflow is **configuration-driven**, so **YAML overrides Python arguments**.
 
@@ -78,9 +78,9 @@ default_parameters
 
 ---
 
-# Ways to Configure a Process
+## Ways to Configure a Process
 
-## 1. Python Arguments
+### 1. Python Arguments
 
 The most common method is to provide parameters directly:
 
@@ -99,7 +99,7 @@ echo "Hello"
 
 ---
 
-## 2. YAML Configuration
+### 2. YAML Configuration
 
 Processes can also read configuration from YAML files.
 
@@ -127,7 +127,7 @@ Process specific paramters would overwrite global parameters.
 
 ---
 
-## 3. CLI Overrides
+### 3. CLI Overrides
 
 Parameters can also be overridden directly from the CLI.
 

@@ -4,7 +4,7 @@ Every jawm run produces a predictable set of log files. Knowing where they live 
 
 ---
 
-### Top-level layout
+## Top-level layout
 
 All logs live under a single base directory, controlled by `-l` / `--logs-directory` (default: `./logs`), or with `Process` parameter [logs_directory](../process/parameters.md#logs_directory):
 
@@ -34,7 +34,7 @@ logs/
 
 ---
 
-### Per-process log directory
+## Per-process log directory
 
 Each `Process` gets its own log directory named:
 
@@ -46,7 +46,7 @@ For example: `logs/bwa_align_20240315_142301_a3f9bc/`
 
 The `<hash>` is a 10-character identifier partly derived from the Process parameters — the same hash used to reference the process in `depends_on`, `Process.wait()`, and the registry.
 
-#### Retry attempt records
+### Retry attempt records
 
 Before Local, Slurm or Kubernetes starts a retry, JAWM makes a best-effort copy of the failed attempt's existing execution records under:
 
@@ -68,7 +68,7 @@ Copying is best effort. A directory collision or copy error is logged as a warni
 
 These copies preserve JAWM-owned execution records that would otherwise be overwritten by a retry. They do not include scientific output files outside those records, custom scheduler stdout/stderr destinations, cluster-side pod/job records, or scheduler-internal retries. Archive storage grows with copied stdout/stderr and scripts, so include `attempts/` in the deployment's storage and retention planning when retries are enabled.
 
-#### `<name>.output` — stdout
+### `<name>.output` — stdout
 
 Everything the process writes to standard output. For bash scripts, this is any `echo` or command output. For Python scripts, this is `print()` output.
 
@@ -76,7 +76,7 @@ Everything the process writes to standard output. For bash scripts, this is any 
 cat logs/bwa_align_20240315_142301_a3f9bc/bwa_align.output
 ```
 
-#### `<name>.error` — stderr
+### `<name>.error` — stderr
 
 Standard error output. Tool warnings, progress messages, and error messages from the script go here. This is the first place to look when a process fails.
 
@@ -84,7 +84,7 @@ Standard error output. Tool warnings, progress messages, and error messages from
 cat logs/bwa_align_20240315_142301_a3f9bc/bwa_align.error
 ```
 
-#### `<name>.exitcode` — exit code
+### `<name>.exitcode` — exit code
 
 A single number — the exit code of the process. `0` means success; anything else is a failure. This is what `Process.get_exitcode()`, `Process.is_successful()`, and `Process.has_failed()` read.
 
@@ -93,7 +93,7 @@ cat logs/bwa_align_20240315_142301_a3f9bc/bwa_align.exitcode
 # 0
 ```
 
-#### `<name>.script` — resolved script
+### `<name>.script` — resolved script
 
 The actual script that was executed, after all `{{variable}}` substitutions have been applied. This is invaluable for debugging — it shows exactly what ran, not what the template said should run.
 
@@ -103,7 +103,7 @@ cat logs/bwa_align_20240315_142301_a3f9bc/bwa_align.script
 
 If `script_file` was used, the resolved content is copied here and a comment at the end shows the original file path.
 
-#### `<name>.command` — launch command
+### `<name>.command` — launch command
 
 The exact shell command used to launch the process — including any container wrapper (`apptainer exec ...`, `docker run ...`) or `before_script`/`after_script` wrapping. Useful when debugging container execution issues.
 
@@ -111,7 +111,7 @@ The exact shell command used to launch the process — including any container w
 cat logs/bwa_align_20240315_142301_a3f9bc/bwa_align.command
 ```
 
-#### `<name>.id` — process or job ID
+### `<name>.id` — process or job ID
 
 For **local** execution: the OS process ID (PID).  
 For **Slurm**: the Slurm job ID (as returned by `sbatch --parsable`).  
@@ -124,11 +124,11 @@ cat logs/bwa_align_20240315_142301_a3f9bc/bwa_align.id
 
 ---
 
-### Slurm-specific files
+## Slurm-specific files
 
 When `manager="slurm"`, an additional file is written:
 
-#### `<name>.slurm` — Slurm job script
+### `<name>.slurm` — Slurm job script
 
 The full `#SBATCH` job script submitted to Slurm, including all directives, the container wrapper (if any), and `before_script`/`after_script` content. Use this to reproduce or inspect a job submission manually:
 
@@ -146,11 +146,11 @@ Stdout and stderr from the Slurm job are still written to `<name>.output` and `<
 
 ---
 
-### Kubernetes-specific files
+## Kubernetes-specific files
 
 When `manager="kubernetes"`, an additional file is written:
 
-#### `<name>.k8s.json` — Kubernetes Job manifest
+### `<name>.k8s.json` — Kubernetes Job manifest
 
 The full Kubernetes Job manifest (JSON) that was submitted to the cluster. Contains the pod spec, container image, environment variables, volume mounts, and resource requests. Useful for inspecting exactly what was sent to the cluster:
 
@@ -162,7 +162,7 @@ Pod stdout and stderr are captured by jawm and written back to `<name>.output` a
 
 ---
 
-### `error.log` — aggregated error summary
+## `error.log` — aggregated error summary
 
 The error summary file collects failure details from **all** failed processes in one place. Instead of hunting through individual process directories, you can open this single file to see every error across the entire run.
 
@@ -194,7 +194,7 @@ jawm-monitor logs --errors 20     # last 20 errors
 
 ---
 
-### `jawm_runs/` — CLI run transcript
+## `jawm_runs/` — CLI run transcript
 
 When you run a module with the `jawm` command, a full transcript of everything printed to the terminal is written to:
 
@@ -220,19 +220,19 @@ jawm-monitor logs --run -f        # follow the current run as it writes (like ta
 
 ---
 
-### `jawm_hashes/` — output hashes and history
+## `jawm_hashes/` — output hashes and history
 
 After every `jawm` run, hash files are written here for reproducibility tracking.
 
 ---
 
-#### `<module>.hash`
+### `<module>.hash`
 
 Written only when a `scope: hash` entry is present in a parameter YAML. Contains a single SHA-256 hex digest computed from the files, directories, or glob patterns listed under `include:`. This is the hash compared by `jawm-test` to detect whether outputs have changed between runs. See [YAML Config](../config/yaml.md) for the full `scope: hash` schema.
 
 ---
 
-#### `<module>_input.history`
+### `<module>_input.history`
 
 Written automatically after every `jawm` run, regardless of whether `scope: hash` is present. Each line records the timestamp, hash, and log file for that run.
 
@@ -243,13 +243,13 @@ The hash is computed in two modes:
 
 ---
 
-#### `<module>_user_defined.history`
+### `<module>_user_defined.history`
 
 Written only when `scope: hash` is present. An append-only log that records the user-defined hash value from each run alongside the timestamp and log file. Useful for tracking how output content changes over time across multiple runs.
 
 ---
 
-#### `<module>_hash_manifest.json`
+### `<module>_hash_manifest.json`
 
 Written only when `scope: hash` is present. Contains the per-file SHA-256 hash for every file that contributed to the combined hash, alongside the combined hash and a timestamp. The manifest follows the same `overwrite` policy as `<module>.hash`: with `overwrite: true` it is rewritten every run; with `overwrite: false` (default) the first run's manifest is kept as a fixed baseline, so the per-file diff always reflects changes relative to the run that produced the stored hash. (The full combined-hash history is tracked separately in `_user_defined.history`.)
 
@@ -283,7 +283,7 @@ These files are used by `jawm-test` to detect whether a module's outputs have ch
 
 ---
 
-### Monitoring directory
+## Monitoring directory
 
 jawm also maintains a lightweight monitoring directory that tracks which processes are currently running and which have completed. Default location: `~/.jawm/monitoring/`  
 Configurable with the `monitoring_directory` Process parameter or `JAWM_MONITORING_DIRECTORY` environment variable.
@@ -306,7 +306,7 @@ jawm-monitor ps --wide     # add log-path column
 
 ---
 
-### `stats.json` — resource stats
+## `stats.json` — resource stats
 
 When `--stats` is enabled (or `JAWM_RECORD_STAT=1`), a `stats.json` file is written inside each process log directory and updated periodically while the process runs:
 
@@ -320,12 +320,12 @@ When `--stats` is enabled (or `JAWM_RECORD_STAT=1`), a `stats.json` file is writ
 }
 ```
 
-CPU is reported as a percentage where 100% = one full core (so 800% = 8 cores fully utilised). See [Stats & Performance](stats.md) for how to read and use this.
+CPU is reported as a percentage where 100% = one full core (so 800% = 8 cores fully utilised). See [Stats & Performance](../stats.md) for how to read and use this.
 
 ---
 
-### See also
+## See also
 
 - [Errors & Debugging](errors.md) — how to work through failures step by step
-- [Stats & Performance](stats.md) — CPU and memory tracking per process
+- [Stats & Performance](../stats.md) — CPU and memory tracking per process
 - [`jawm-monitor`](../cli/jawm-monitor.md) — CLI for browsing logs, errors, run transcripts, and stats without manual `cat`
