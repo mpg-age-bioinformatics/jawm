@@ -162,6 +162,49 @@ jobs:
         run: python test/git_test.py
 
   # ─────────────────────────────
+  #  Docker image publishing
+  # ─────────────────────────────
+  check-release-tag:
+    name: Check Docker release tag
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    outputs:
+      matches: ${{ steps.check.outputs.matches }}
+    steps:
+      - name: Check version tag
+        id: check
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "matches=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "matches=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish-latest-image:
+    name: 🐳 Publish latest Docker image
+    needs: [core-tests, git-tests]
+    if: >-
+      success() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/docker-latest.yaml
+    secrets:
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+  publish-release-image:
+    name: 🐳 Publish release Docker image
+    needs: [core-tests, git-tests, check-release-tag]
+    if: >-
+      success() &&
+      needs.check-release-tag.outputs.matches == 'true'
+    uses: ./.github/workflows/docker-release.yaml
+    secrets:
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+  # ─────────────────────────────
   #  Global notification handler
   # ─────────────────────────────
   notifications:
