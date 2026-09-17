@@ -62,5 +62,4 @@ COPY resources/docker/Dockerfile /usr/share/doc/jawm/Dockerfile
 
 WORKDIR /workspace
 
-ENTRYPOINT ["jawm"]
-CMD ["--help"]
+CMD ["jawm", "--help"]
