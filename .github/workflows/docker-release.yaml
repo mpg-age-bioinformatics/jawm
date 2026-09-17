@@ -7,6 +7,8 @@ on:
         required: true
       DOCKER_HUB_TOKEN:
         required: true
+      SLACK_JAWM_WEBHOOK:
+        required: true
 
 permissions:
   contents: read
@@ -60,3 +62,23 @@ jobs:
             org.opencontainers.image.version=${{ steps.metadata.outputs.version }}
           cache-from: type=gha,scope=jawm-docker
           cache-to: type=gha,mode=max,scope=jawm-docker
+
+      - name: Notify Slack of success
+        if: success()
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_JAWM_WEBHOOK }}
+        run: |
+          curl -H "Content-Type: application/json" -X POST \
+            -d '{"text":"✅ Docker release published: `mpgagebioinformatics/jawm:${{ github.ref_name }}`, `stable`, and `latest`\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"}' \
+            "$SLACK_WEBHOOK"
+
+      - name: Notify Slack of failure
+        if: failure()
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_JAWM_WEBHOOK }}
+        run: |
+          curl -H "Content-Type: application/json" -X POST \
+            -d '{"text":"🚫 Docker release publish failed: `mpgagebioinformatics/jawm:${{ github.ref_name }}`\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"}' \
+            "$SLACK_WEBHOOK"

@@ -192,6 +192,7 @@ jobs:
     secrets:
       DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
       DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+      SLACK_JAWM_WEBHOOK: ${{ secrets.SLACK_JAWM_WEBHOOK }}
 
   publish-release-image:
     name: 🐳 Publish release Docker image
@@ -203,6 +204,7 @@ jobs:
     secrets:
       DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
       DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+      SLACK_JAWM_WEBHOOK: ${{ secrets.SLACK_JAWM_WEBHOOK }}
 
   # ─────────────────────────────
   #  Global notification handler
