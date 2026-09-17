@@ -39,7 +39,7 @@ jawm <module> [workflow] [-p YAML...] [-v FILE...] [-l DIR] [-w DIR]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--server` | `github.com` | Git server host used when resolving module names to SSH URLs. |
+| `--server` | `github.com` | Git server host used when resolving module names. |
 | `--user` | `mpg-age-bioinformatics` | Git user or organisation used when resolving bare module names. |
 | `--no-web` | `False` | Disable online module lookup. jawm will only resolve modules that exist locally. |
 | `--git-cache` | `~/.jawm/git` | Local directory used as the Git clone cache. |
@@ -119,15 +119,15 @@ jawm mymodule.py -p params.yaml -n manager,env
 
 ### `--server` / `--user`
 
-Control how bare module names (like `jawm_bwa`) are resolved to Git SSH URLs. jawm constructs the URL as `git@<server>:<user>/<name>.git`.
+Control how bare module names (like `jawm_bwa`) are resolved. jawm tries `https://<server>/<user>/<name>.git` first, then falls back to `git@<server>:<user>/<name>.git` if needed.
 
 ```bash
-# Default: git@github.com:mpg-age-bioinformatics/jawm_bwa.git
+# Tries HTTPS first, with SSH fallback
 jawm jawm_bwa
 
 # Custom server and org
 jawm jawm_bwa --server gitlab.example.org --user my-team
-# → git@gitlab.example.org:my-team/jawm_bwa.git
+# → https://gitlab.example.org/my-team/jawm_bwa.git (or SSH fallback)
 ```
 
 ### `--no-web`
@@ -165,10 +165,10 @@ When a directory is given, jawm picks the entry point in this order:
 
 ### Remote module by name
 
-If the module path does not exist locally and is not already a Git URL, jawm automatically constructs a Git SSH URL from `--server` and `--user`:
+If the module path does not exist locally and is not already a Git URL, jawm tries HTTPS first and falls back to SSH, using `--server` and `--user`:
 
 ```bash
-# Resolves to git@github.com:mpg-age-bioinformatics/jawm_bwa.git
+# Tries https://github.com/mpg-age-bioinformatics/jawm_bwa.git first
 jawm jawm_bwa
 
 # With an explicit org prefix
@@ -285,7 +285,7 @@ Downloaded files are cached in `~/.jawm/remote_params/` (override with `JAWM_URL
 When you invoke `jawm mymodule.py -p params.yaml`, the following happens in order:
 
 1. **Parse arguments** — flags, workflow name, override tokens, and the `//subpath` suffix are extracted
-2. **Resolve the module** — if the module is not a local path, jawm builds a Git SSH URL and clones it into the current directory. If a matching local folder already exists with the same commit, it is reused without cloning again
+2. **Resolve the module** — if the module is not a local path, jawm tries HTTPS and then SSH if needed, and clones it into the current directory. If a matching local folder already exists with the same commit, it is reused without cloning again
 3. **Apply `--workdir`** — if set, jawm changes the working directory before any paths are resolved
 4. **Set up logging** — a timestamped CLI log file is created at `<logs>/jawm_runs/<module>_<timestamp>.log`. Everything printed to the terminal is also written to this file
 5. **Apply parameters and variables** — `-p` sets `param_file` on all Processes; `-v` sets `var_file` and injects variables into the script execution namespace; `--resume` and `--logs-directory` are applied as Process-level overrides

@@ -47,7 +47,7 @@ One of jawm's key features is that **you don't need to manually clone a module r
 If the module doesn't exist as a local file or directory, jawm synthesizes a Git target using the default server (`github.com`) and user (`mpg-age-bioinformatics`), then clones it:
 
 ```bash
-# Fetches git@github.com:mpg-age-bioinformatics/jawm_git_test.git
+# Tries HTTPS first and SSH only if needed
 jawm jawm_git_test
 ```
 
@@ -84,7 +84,7 @@ jawm jawm_git_test@latest-tag
 The `jawm` CLI accepts a variety of Git URL formats:
 
 ```bash
-# SSH (default when synthesized)
+# Explicit SSH
 jawm git@github.com:mpg-age-bioinformatics/jawm_git_test.git
 
 # HTTPS

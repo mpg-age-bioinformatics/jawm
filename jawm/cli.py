@@ -608,9 +608,9 @@ def _git_cache_root(cli_flag_path=None):
     return Path("~/.jawm/git").expanduser()
 
 
-def _synth_git_target(module, server, user):
+def _synth_git_target(module, server, user, https=False):
     """
-    Build a git SSH target from server/user/module.
+    Build a git target from server/user/module.
     Supports optional @ref suffix:
         repo
         repo@tag
@@ -623,7 +623,7 @@ def _synth_git_target(module, server, user):
     if '/' not in name:
         name = f"{user}/{name}"
 
-    target = f"git@{server}:{name}.git"
+    target = f"https://{server}/{name}.git" if https else f"git@{server}:{name}.git"
     if sep:  # module had @ref
         target = f"{target}@{ref}"
     return target
@@ -2354,7 +2354,16 @@ def main():
     #  (2) module is NOT already a git URL / git-like target.
     try:
         if not Path(args.module).exists() and not _is_git_target(args.module) and (not args.no_web):
-            args.module = _synth_git_target(args.module, args.server, args.user)
+            ssh_target = _synth_git_target(args.module, args.server, args.user)
+            https_target = _synth_git_target(args.module, args.server, args.user, https=True)
+            https_url, _, _ = _normalize_git_url(https_target)
+            git_env = os.environ.copy()
+            git_env.update({"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "echo"})
+            result = subprocess.run(
+                ["git", "ls-remote", https_url],
+                capture_output=True, text=True, env=git_env
+            )
+            args.module = https_target if result.returncode == 0 else ssh_target
 
         # If module is a git repo target, clone/cache and rewrite args.module to local 
         _git_info_line = None
@@ -2386,7 +2395,7 @@ def main():
                 try:
                     ref_commit = None
                     if ref:
-                        remote_url = f"git@{args.server}:{args.user}/{repo_name}.git"
+                        remote_url, _, _ = _normalize_git_url(args.module)
 
                         # Special tokens: resolve via the same resolver used for initial download
                         if ref in ("latest-tag", "last-tag"):
