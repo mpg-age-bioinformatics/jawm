@@ -25,6 +25,24 @@ workspace_root = os.getcwd()
 test_root = tempfile.mkdtemp(prefix="jawm_base_test_", dir=workspace_root)
 
 
+def _anchor_inherited_input_paths(value):
+    """Keep CLI-provided inputs valid after entering the isolated test root."""
+    values = value if isinstance(value, list) else [value]
+    anchored = [
+        path if os.path.isabs(path) else os.path.abspath(os.path.join(workspace_root, path))
+        for path in values
+    ]
+    return anchored if isinstance(value, list) else anchored[0]
+
+
+# The CLI validates relative -p/-v paths before this module runs, but Process
+# loads them lazily. Anchor only these inherited test inputs before changing cwd.
+for parameters in (Process.default_parameters, Process.override_parameters):
+    for key in ("param_file", "var_file"):
+        if parameters.get(key):
+            parameters[key] = _anchor_inherited_input_paths(parameters[key])
+
+
 def _cleanup_test_root():
     try:
         os.chdir(workspace_root)
