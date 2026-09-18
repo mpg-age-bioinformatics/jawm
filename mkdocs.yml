@@ -106,6 +106,8 @@ nav:
     - jawm-monitor: cli/jawm-monitor.md
     - jawm-dev: cli/jawm-dev.md
     - jawm-test: cli/jawm-test.md
+  - Distributions:
+    - Docker Image: distributions/docker.md
   - Debugging:
     - Logs: debug/logs.md
     - Error Tracing: debug/errors.md
