@@ -3348,7 +3348,7 @@ NOT_JAWM_VAR=SHOULD_IGNORE
         "❌ Failed to load JAWM_PROCESS_WAIT_POLL from default config"
 
     assert "NOT_JAWM_VAR" not in os.environ, \
-        "❌ Non-JAWM variable was incorrectly loaded"
+        "❌ Variable without the JAWM_ prefix was incorrectly loaded"
 
     # --------------------------------------------------
     # Custom config via JAWM_CONFIG_FILE

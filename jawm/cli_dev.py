@@ -1161,7 +1161,7 @@ def _format_environment_report(report):
             _append_value(lines, key, value)
         lines.append("")
 
-    lines.append("[JAWM environment]")
+    lines.append("[jawm environment]")
     if report["jawm_environment"]:
         for key, value in report["jawm_environment"].items():
             _append_value(lines, key, value)

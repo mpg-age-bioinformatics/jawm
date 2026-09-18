@@ -57,7 +57,7 @@ hello_world|cb6bc9hopa
 
 **Example `depends_on` usage:**
 ```python
-p1 = jamw.Process(name="p1", ...)
+p1 = jawm.Process(name="p1", ...)
 p2 = jawm.Process(name="p2", depends_on=[p1.hash], ...)
 # or use as the parameter of `execute` method to have the same depends_on outcome
 # p2.execute([p1.hash])
@@ -65,7 +65,7 @@ p2 = jawm.Process(name="p2", depends_on=[p1.hash], ...)
 
 **Example `jawm.Process.wait()` usage:**
 ```python
-p1 = jamw.Process(name="p1", ...)
+p1 = jawm.Process(name="p1", ...)
 p2 = jawm.Process(name="p2", ...)
 p1.execute()
 jawm.Process.wait([p1.hash])        # to wait until p1 execution is finished
@@ -1833,7 +1833,7 @@ If `retries=2`, jawm can try up to **3 total attempts**:
 - 1 initial attempt
 - 2 retry attempts
 
-Retries are handled by jawm for supported backends such as local, Slurm, and Kubernetes. Before an actual retry starts, JAWM makes a best-effort copy of the failed attempt's existing execution records in `attempts/attempt-<number>/`. The final attempt remains in the usual top-level files. No `attempts/` directory is created when no retry occurs, and a copy problem is logged without changing retry execution. See [retry attempt records](../debug/logs.md#retry-attempt-records) for contents and scope.
+Retries are handled by jawm for supported backends such as local, Slurm, and Kubernetes. Before an actual retry starts, jawm makes a best-effort copy of the failed attempt's existing execution records in `attempts/attempt-<number>/`. The final attempt remains in the usual top-level files. No `attempts/` directory is created when no retry occurs, and a copy problem is logged without changing retry execution. See [retry attempt records](../debug/logs.md#retry-attempt-records) for contents and scope.
 
 _**Note**_: `retries` works together with `error_strategy`. If `error_strategy="fail"`, jawm forces `retries=0`.
 
@@ -2064,7 +2064,7 @@ When `parallel=False`, `execute()` runs in blocking mode and waits until the pro
 
 _**Note**_: `parallel=False` does not disable workflow dependencies. It only changes whether the current `execute()` call blocks or returns immediately.
 
-_**Note**_: Even with `parallel=True`, jawm may still delay process startup if global concurrency limits are configured through JAWM config variables such as:
+_**Note**_: Even with `parallel=True`, jawm may still delay process startup if global concurrency limits are configured through jawm config variables such as:
 
 - `JAWM_MAX_PROCESS`
 - `JAWM_MAX_PROCESS_LOCAL`

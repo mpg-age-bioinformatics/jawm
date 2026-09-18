@@ -1,12 +1,12 @@
 # Kubernetes
 
-This is a small demonstration of running a JAWM process on a Kubernetes cluster with data staged through a shared PersistentVolumeClaim (PVC). The example loads a FASTQ file into Kubernetes storage and then launches a FastQC process through JAWM using the same PVC.
+This is a small demonstration of running a jawm process on a Kubernetes cluster with data staged through a shared PersistentVolumeClaim (PVC). The example loads a FASTQ file into Kubernetes storage and then launches a FastQC process through jawm using the same PVC.
 
 The workflow has three parts:
 
 1. Create a Kubernetes namespace and shared data volume.
 2. Start a temporary loader pod and copy input data into the shared volume.
-3. Run `kube_jawm_demo.py`, which asks JAWM to create a Kubernetes FastQC job in the same namespace with the shared PVC mounted at `/data`.
+3. Run `kube_jawm_demo.py`, which asks jawm to create a Kubernetes FastQC job in the same namespace with the shared PVC mounted at `/data`.
 
 ## Files list
 
@@ -14,7 +14,7 @@ The workflow has three parts:
 | --- | --- |
 | `jawm-data-pvc.yaml` | Defines the shared Kubernetes PVC named `jawm-data`. |
 | `volume-loader.yaml` | Defines a temporary BusyBox pod used to copy files into the PVC. |
-| `kube_jawm_demo.py` | Defines and executes the JAWM FastQC process. |
+| `kube_jawm_demo.py` | Defines and executes the jawm FastQC process. |
 | `fastqc_demo.py` | Optional split version containing only the reusable FastQC process definition. |
 | `k8.yaml` | Optional split version containing the Kubernetes backend, PVC mount, and demo variables. |
 
@@ -219,7 +219,7 @@ kubectl \
   -n jawm-test exec volume-loader -- ls -lah /data
 ```
 
-## 5. Run the JAWM FastQC Demo
+## 5. Run the jawm FastQC Demo
 
 Run the Python script from this repository:
 
@@ -227,28 +227,28 @@ Run the Python script from this repository:
 jawm kube_jawm_demo.py
 ```
 
-The script defines a `jawm.Process` named `fastqc`. It runs in the `jawm-test` namespace using the `mpgagebioinformatics/fastqc:0.11.9` image, mounts the `jawm-data` PVC at `/data`, and uses `mk.fastqc_output` so JAWM creates `/data/fastqc_output` before running FastQC. The `map.f` value points JAWM at the input FASTQ under `/data/raw_data/`. The rendered FastQC command is:
+The script defines a `jawm.Process` named `fastqc`. It runs in the `jawm-test` namespace using the `mpgagebioinformatics/fastqc:0.11.9` image, mounts the `jawm-data` PVC at `/data`, and uses `mk.fastqc_output` so jawm creates `/data/fastqc_output` before running FastQC. The `map.f` value points jawm at the input FASTQ under `/data/raw_data/`. The rendered FastQC command is:
 
 ```bash
 fastqc  -t 1 -o /data/fastqc_output /data/raw_data/my_test_file_1.fastq.gz
 ```
 
-JAWM writes run artifacts under `logs/fastqc_<timestamp>_<hash>/`, including:
+jawm writes run artifacts under `logs/fastqc_<timestamp>_<hash>/`, including:
 
-- `fastqc.command`: the `kubectl apply` command used by JAWM
+- `fastqc.command`: the `kubectl apply` command used by jawm
 - `fastqc.k8s.json`: the generated Kubernetes ConfigMap and Job manifest
 - `fastqc.script`: the rendered process script run inside the container
 - `fastqc.output`: captured standard output
 - `fastqc.error`: captured error output and Kubernetes diagnostic details
 - `fastqc.exitcode`: the process exit code
-- `fastqc.id`: the JAWM run identifier
+- `fastqc.id`: the jawm run identifier
 
 ## 6. Split the Demo into `fastqc_demo.py` and `k8.yaml`
 
 The single-file `kube_jawm_demo.py` is convenient for a self-contained example, but it mixes two concerns:
 
-- the reusable FastQC process definition—what command JAWM runs
-- the Kubernetes configuration—where and how JAWM runs it
+- the reusable FastQC process definition—what command jawm runs
+- the Kubernetes configuration—where and how jawm runs it
 
 You can separate those concerns into a Python module and a parameter file. Create both files:
 
@@ -307,7 +307,7 @@ Put the backend-specific settings and the values for this run in a process-scope
     map.f: /data/raw_data/my_test_file_1.fastq.gz
 ```
 
-The `name: fastqc` entry targets the `jawm.Process` with the same name. `manager` selects the Kubernetes backend, while `manager_kubernetes` supplies the namespace and PVC mount. The `var` mapping provides the values substituted into the FastQC script; the `mk.` prefix asks JAWM to create the output directory, and `map.` identifies the staged input path.
+The `name: fastqc` entry targets the `jawm.Process` with the same name. `manager` selects the Kubernetes backend, while `manager_kubernetes` supplies the namespace and PVC mount. The `var` mapping provides the values substituted into the FastQC script; the `mk.` prefix asks jawm to create the output directory, and `map.` identifies the staged input path.
 
 Run the split version by passing the YAML file as a parameter file:
 
@@ -404,7 +404,7 @@ Some older logs in this repository show failed FastQC runs with exit code `127` 
 
 That means the container started, but the executable `fastqc` was not available on `PATH` inside the image used by the generated job.
 
-The current `kube_jawm_demo.py` configures JAWM to run the generated Kubernetes resources in `jawm-test` and mount the `jawm-data` PVC at `/data`. JAWM also creates an internal `emptyDir` workspace at `/work` for run bookkeeping.
+The current `kube_jawm_demo.py` configures jawm to run the generated Kubernetes resources in `jawm-test` and mount the `jawm-data` PVC at `/data`. jawm also creates an internal `emptyDir` workspace at `/work` for run bookkeeping.
 
 Useful checks:
 
@@ -416,7 +416,7 @@ kubectl get jobs --all-namespaces | grep fastqc
 
 ## Representative Generated Artifacts
 
-These files are generated after running `kube_jawm_demo.py`; they are included here as examples of what JAWM produces with the current process variables.
+These files are generated after running `kube_jawm_demo.py`; they are included here as examples of what jawm produces with the current process variables.
 
 ### `fastqc.script`
 
@@ -429,7 +429,7 @@ fastqc  -t 1 -o /data/fastqc_output /data/raw_data/my_test_file_1.fastq.gz
 
 ### `fastqc.command`
 
-The generated command applies the JAWM Kubernetes manifest in the `jawm-test` namespace:
+The generated command applies the jawm Kubernetes manifest in the `jawm-test` namespace:
 
 ```bash
 kubectl apply -f logs/fastqc_<timestamp>_<hash>/fastqc.k8s.json -n jawm-test
@@ -437,7 +437,7 @@ kubectl apply -f logs/fastqc_<timestamp>_<hash>/fastqc.k8s.json -n jawm-test
 
 ### `fastqc.k8s.json`
 
-JAWM generates a Kubernetes `List` containing a `ConfigMap` for the rendered script and a `batch/v1` `Job` that runs the process container. The generated Job should include the `jawm-data` PVC mounted at `/data`, plus JAWM's internal workspace at `/work`.
+jawm generates a Kubernetes `List` containing a `ConfigMap` for the rendered script and a `batch/v1` `Job` that runs the process container. The generated Job should include the `jawm-data` PVC mounted at `/data`, plus jawm's internal workspace at `/work`.
 
 ```json
 {

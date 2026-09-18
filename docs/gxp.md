@@ -107,7 +107,7 @@ When a workflow is run through the [`jawm` CLI](cli/jawm.md), its transcript con
 From this part of the log, the user can recover:
 
 - the workflow commit: `6c73866`
-- the JAWM release: `0.1.0`
+- the jawm release: `0.1.0`
 - the Python release: `3.10.12`
 - the operating system and architecture
 - the execution tool used for the container

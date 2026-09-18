@@ -18,7 +18,7 @@ The example:
 2. Defines the FastQC variables and output hash in one YAML file.
 3. Runs the pinned remote workflow.
 4. Deletes the first generated output.
-5. Repeats the same JAWM command.
+5. Repeats the same jawm command.
 6. Validates the second output against the hash stored by the first run.
 
 The final layout is:
@@ -104,15 +104,15 @@ The hash section selects the extracted FastQC result:
 include: ./fastqc_output/my_test_file_1_fastqc/fastqc_data.txt
 ```
 
-On the first run, the hash file does not exist yet. JAWM creates it from the generated `fastqc_data.txt` and then validates the reference.
+On the first run, the hash file does not exist yet. jawm creates it from the generated `fastqc_data.txt` and then validates the reference.
 
-On the second run, `overwrite: false` preserves the hash from the first run. JAWM compares the new result with that existing hash.
+On the second run, `overwrite: false` preserves the hash from the first run. jawm compares the new result with that existing hash.
 
 ## 4. Run the Workflow for the First Time
 
-Using a commit - eg. 6c73866090e035efa2ac39b88e3b67a22e463ffb - keeps the workflow source fixed. JAWM retrieves the remote module automatically, so the user does not need to run `git clone`.
+Using a commit - eg. 6c73866090e035efa2ac39b88e3b67a22e463ffb - keeps the workflow source fixed. jawm retrieves the remote module automatically, so the user does not need to run `git clone`.
 
-JAWM may create a local resolved-module directory as part of its normal remote-module handling. That directory is managed by JAWM; it is not a manually prepared workflow checkout.
+jawm may create a local resolved-module directory as part of its normal remote-module handling. That directory is managed by jawm; it is not a manually prepared workflow checkout.
 
 Run a pinned `test` workflow:
 
@@ -132,7 +132,7 @@ fastqc_output/
     └── fastqc_data.txt
 ```
 
-JAWM writes the reference hash under:
+jawm writes the reference hash under:
 
 ```text
 logs/jawm_hashes/fastqc.hash
@@ -176,7 +176,7 @@ fastqc-remote-reproducibility/
 
 ## 6. Run the Same Workflow Again
 
-Before reproducing a run, the user can inspect its previous CLI transcript to see which workflow commit and execution system were used. JAWM records this information under:
+Before reproducing a run, the user can inspect its previous CLI transcript to see which workflow commit and execution system were used. jawm records this information under:
 
 ```text
 logs/jawm_runs/
@@ -188,7 +188,7 @@ Display the latest workflow transcript:
 jawm-monitor logs -l ./logs --run
 ```
 
-Display the workflow, JAWM, Python, operating-system, architecture, and execution-tool information:
+Display the workflow, jawm, Python, operating-system, architecture, and execution-tool information:
 
 ```bash
 jawm-monitor logs -l ./logs --run \
@@ -210,7 +210,7 @@ A FastQC transcript contains a section similar to:
 From this part of the log, the user can recover:
 
 - the workflow commit: `6c73866`
-- the JAWM release: `0.1.0`
+- the jawm release: `0.1.0`
 - the Python release: `3.10.12`
 - the operating system and architecture
 - the execution tool used for the container
@@ -218,7 +218,7 @@ From this part of the log, the user can recover:
 
 The commit printed in the transcript is abbreviated, but it can be reused in the `jawm_fastqc@<commit>` workflow target. Keeping the log directory therefore provides a record of the main software and system information needed when repeating the run.
 
-Repeat the exact same JAWM call:
+Repeat the exact same jawm call:
 
 ```bash
 jawm jawm_fastqc@6c73866 test \
@@ -238,7 +238,7 @@ Because `overwrite: false`, the second run cannot replace the reference hash.
 
 ## 7. Check Whether Run 2 Reproduced Run 1
 
-If the output from the second run matches the hash created by the first run, JAWM prints:
+If the output from the second run matches the hash created by the first run, jawm prints:
 
 ```text
 [hash] STATUS: MATCHED
@@ -247,7 +247,7 @@ If the output from the second run matches the hash created by the first run, JAW
 
 The command completes successfully.
 
-If the output is different, JAWM prints:
+If the output is different, jawm prints:
 
 ```text
 [hash] STATUS: MISMATCHED
@@ -301,7 +301,7 @@ logs/jawm_hashes/fastqc.hash
 
 The second run validates its new output against that reference.
 
-A Python virtual environment - [https://docs.python.org/3/library/venv.html](https://docs.python.org/3/library/venv.html) - can be used to keep you jawm installation separate from other projects. After activating the environment used for the run, save its installed packages alongside the JAWM logs:
+A Python virtual environment - [https://docs.python.org/3/library/venv.html](https://docs.python.org/3/library/venv.html) - can be used to keep your jawm installation separate from other projects. After activating the environment used for the run, save its installed packages alongside the jawm logs:
 
 ```bash
 pip freeze > ./logs/python-packages-run_1.txt

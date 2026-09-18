@@ -1536,7 +1536,7 @@ class Process:
                 os._exit(130)
 
             cls._sigint_fired = True
-            cls.logger_kill.info("Ctrl+C detected — terminating running JAWM jobs...")
+            cls.logger_kill.info("Ctrl+C detected — terminating running jawm jobs...")
 
             try:
                 cls.kill_all()
