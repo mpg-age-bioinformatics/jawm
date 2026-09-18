@@ -79,6 +79,7 @@ nav:
       - Multi-module Workflows: examples/multimodule.md
       - Jupyter Notebook: examples/jupyter.md
       - Kubernetes: examples/kubernetes.md
+      - jawm Docker Image: examples/docker.md
       - Reproducibility: examples/reproducibility.md
   - Process: 
     - Overview: process/overview.md
