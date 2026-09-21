@@ -222,7 +222,7 @@ jobs:
         env:
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
           PIP_ROOT_USER_ACTION: ignore
-          JAWM_KUBERNETES_FINISH_WAIT: "0.5"
+          JAWM_KUBERNETES_FINISH_WAIT: "1.0"
         run: |
           set -euo pipefail
           cd test
