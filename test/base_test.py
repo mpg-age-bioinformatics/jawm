@@ -4568,21 +4568,23 @@ try:
     assert not os.path.exists(os.path.join(proc1.log_path, "attempts")), \
         "❌ A successful process without retries should not create attempt records"
 
-    retry_marker = os.path.join(retry_records_tmpdir, "first_attempt_done")
     retry_logs = os.path.join(retry_records_tmpdir, "logs")
     retry_proc = Process(
         name="retry_records",
         manager="local",
         retries=1,
         logs_directory=retry_logs,
-        script=f"""#!/bin/bash
-if [ ! -f "{retry_marker}" ]; then
-    touch "{retry_marker}"
+        script="""#!/bin/bash
+if [ "{{retry_exit}}" -ne 0 ]; then
     echo FIRST_ATTEMPT
-    exit 7
+    exit "{{retry_exit}}"
 fi
 echo FINAL_ATTEMPT
 """,
+        var={"retry_exit": 7},
+        retry_overrides={
+            1: {"var": {"retry_exit": "-7"}},
+        },
     )
     retry_proc.execute()
     assert Process.wait(retry_proc.hash), "❌ Retry process did not finish successfully"
