@@ -4,6 +4,8 @@ repo_name: mpg-age-bioinformatics/jawm
 repo_url: https://github.com/mpg-age-bioinformatics/jawm
 site_url: https://bioinformatics.age.mpg.de/jawm/
 edit_uri: edit/main/docs/
+not_in_nav: |
+  404.md
 
 theme:
   name: material
@@ -117,8 +119,6 @@ nav:
     - Logs: debug/logs.md
     - Error Tracing: debug/errors.md
   - Resources Profiling: stats.md 
-  # - How-To Guides: howto.md
-  # - Advanced Development: development.md
   - Version Log: version-log.md
   - GxP: gxp.md
   - Support: support.md
