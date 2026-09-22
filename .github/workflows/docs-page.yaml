@@ -18,6 +18,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
@@ -32,9 +35,153 @@ jobs:
           python -m pip install --upgrade pip
           pip install mkdocs mkdocs-material pymdown-extensions
 
-      - name: Build MkDocs site
+      - name: Select release versions
+        id: versions
         run: |
-          mkdocs build
+          python - <<'PY'
+          import hashlib
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          minimum = (0, 1, 1)
+          versions = []
+          for tag in subprocess.check_output(
+              ["git", "tag", "--list"], text=True
+          ).splitlines():
+              match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", tag)
+              if not match:
+                  continue
+              number = tuple(map(int, match.groups()))
+              if number >= minimum:
+                  commit = subprocess.check_output(
+                      ["git", "rev-list", "-n", "1", tag], text=True
+                  ).strip()
+                  versions.append((number, tag, commit))
+
+          versions.sort(reverse=True)
+          Path(".docs-tags").write_text(
+              "".join(f"{tag}\n" for _, tag, _ in versions),
+              encoding="utf-8",
+          )
+          state = "\n".join(f"{tag}:{commit}" for _, tag, commit in versions)
+          cache_key = hashlib.sha256(state.encode()).hexdigest()[:16]
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"cache_key={cache_key}\n")
+          PY
+
+      - name: Restore rendered release documentation
+        uses: actions/cache@v5
+        with:
+          path: .docs-version-cache
+          key: jawm-docs-releases-v1-${{ steps.versions.outputs.cache_key }}
+          restore-keys: |
+            jawm-docs-releases-v1-
+
+      - name: Build versioned MkDocs site
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p .docs-version-cache
+          rm -rf site
+          mkdir -p site
+
+          build_version() {
+            source_dir="$1"
+            version="$2"
+            destination="$3"
+            config="$source_dir/.mkdocs-versioned.yml"
+
+            python - "$source_dir/mkdocs.yml" "$config" "$version" <<'PY'
+          import sys
+          from pathlib import Path
+
+          import yaml
+
+          source, destination, version = sys.argv[1:]
+          data = yaml.safe_load(Path(source).read_text(encoding="utf-8"))
+          base_url = data["site_url"].rstrip("/")
+          data["site_url"] = f"{base_url}/{version}/"
+          data.setdefault("extra", {})["version"] = {
+              "provider": "mike",
+              "default": "latest",
+          }
+          Path(destination).write_text(
+              yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
+              encoding="utf-8",
+          )
+          PY
+
+            mkdocs build --clean \
+              --config-file "$config" \
+              --site-dir "$destination"
+            rm -f "$config"
+          }
+
+          build_version "$GITHUB_WORKSPACE" latest "$GITHUB_WORKSPACE/site/latest"
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            commit="$(git rev-list -n 1 "$tag")"
+            cache_dir="$GITHUB_WORKSPACE/.docs-version-cache/$tag"
+            destination="$GITHUB_WORKSPACE/site/$tag"
+
+            if [ -f "$cache_dir/commit" ] \
+              && [ "$(cat "$cache_dir/commit")" = "$commit" ] \
+              && [ -d "$cache_dir/site" ]; then
+              echo "Reusing rendered documentation for $tag"
+              mkdir -p "$destination"
+              cp -a "$cache_dir/site/." "$destination/"
+              continue
+            fi
+
+            echo "Building documentation for $tag"
+            source_dir="$(mktemp -d "$RUNNER_TEMP/jawm-docs-${tag}.XXXXXX")"
+            git archive "$tag" | tar -x -C "$source_dir"
+            build_version "$source_dir" "$tag" "$destination"
+
+            rm -rf "$cache_dir"
+            mkdir -p "$cache_dir/site"
+            cp -a "$destination/." "$cache_dir/site/"
+            printf '%s\n' "$commit" > "$cache_dir/commit"
+            rm -rf "$source_dir"
+          done < .docs-tags
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          tags = Path(".docs-tags").read_text(encoding="utf-8").splitlines()
+          versions = [
+              {"version": "latest", "title": "latest", "aliases": []},
+              *(
+                  {"version": tag, "title": tag, "aliases": []}
+                  for tag in tags
+              ),
+          ]
+          Path("site/versions.json").write_text(
+              json.dumps(versions, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          Path("site/index.html").write_text(
+              """<!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta http-equiv="refresh" content="0; url=latest/">
+              <link rel="canonical" href="latest/">
+              <title>jawm documentation</title>
+            </head>
+            <body>
+              <p><a href="latest/">Open the latest jawm documentation</a>.</p>
+            </body>
+          </html>
+          """,
+              encoding="utf-8",
+          )
+          PY
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -51,4 +198,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        
