@@ -21,11 +21,28 @@ It is designed for researchers, data scientists, and engineers who want the flex
 - Traceable execution records
 
 ## Installation
+
+Install the latest release from PyPI:
+
+```bash
+pip install jawm
 ```
+
+Or install with optional dependencies (e.g. `pandas`, `openpyxl`):
+
+```bash
+pip install "jawm[full]"
+```
+
+To install the latest development version directly from GitHub:
+
+```bash
 pip install "git+https://github.com/mpg-age-bioinformatics/jawm.git"
 ```
-Or install with optional dependencies (e.g. `pandas`, `openpyxl`):
-```
+
+The development version can also be installed with optional dependencies:
+
+```bash
 pip install "jawm[full] @ git+https://github.com/mpg-age-bioinformatics/jawm.git"
 ```
 

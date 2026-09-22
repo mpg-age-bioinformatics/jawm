@@ -1,9 +1,9 @@
 # Installation
 
-jawm can be installed directly from the Git repository.
+Install the latest jawm release from PyPI:
 
 ```bash
-pip install "git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git"
+pip install jawm
 ```
 
 This installs the core jawm package.
@@ -15,10 +15,26 @@ This installs the core jawm package.
 If you also want optional dependencies such as `pandas` and `openpyxl`, install jawm with the `full` extra:
 
 ```bash
-pip install "jawm[full] @ git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git"
+pip install "jawm[full]"
 ```
 
 This is useful if your workflows or helper utilities rely on additional data-processing features.
+
+---
+
+**Latest Development Version**
+
+To install the latest development version directly from GitHub:
+
+```bash
+pip install "git+https://github.com/mpg-age-bioinformatics/jawm.git"
+```
+
+The development version can also be installed with optional dependencies:
+
+```bash
+pip install "jawm[full] @ git+https://github.com/mpg-age-bioinformatics/jawm.git"
+```
 
 ---
 
@@ -27,13 +43,13 @@ This is useful if your workflows or helper utilities rely on additional data-pro
 To avoid unnecessary dependency upgrades during installation:
 
 ```bash
-pip install --upgrade-strategy only-if-needed "git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git"
+pip install --upgrade-strategy only-if-needed jawm
 ```
 
 If you do not have permission to write to the system site-packages directory, install for your user only:
 
 ```bash
-pip install --user "git+ssh://git@github.com/mpg-age-bioinformatics/jawm.git"
+pip install --user jawm
 ```
 
 These options can also be combined if needed.
