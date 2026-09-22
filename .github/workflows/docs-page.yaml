@@ -75,9 +75,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .docs-version-cache
-          key: jawm-docs-releases-v1-${{ steps.versions.outputs.cache_key }}
+          key: jawm-docs-releases-v2-${{ steps.versions.outputs.cache_key }}
           restore-keys: |
-            jawm-docs-releases-v1-
+            jawm-docs-releases-v2-
 
       - name: Build versioned MkDocs site
         shell: bash
@@ -94,6 +94,12 @@ jobs:
             destination="$3"
             config="$source_dir/.mkdocs-versioned.yml"
 
+            if [ "$version" != "latest" ]; then
+              mkdir -p "$source_dir/docs/stylesheets"
+              cp "$GITHUB_WORKSPACE/docs/stylesheets/version-selector.css" \
+                "$source_dir/docs/stylesheets/version-selector.css"
+            fi
+
             python - "$source_dir/mkdocs.yml" "$config" "$version" <<'PY'
           import sys
           from pathlib import Path
@@ -108,6 +114,9 @@ jobs:
               "provider": "mike",
               "default": "latest",
           }
+          selector_css = "stylesheets/version-selector.css"
+          if selector_css not in data.setdefault("extra_css", []):
+              data["extra_css"].append(selector_css)
           Path(destination).write_text(
               yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
               encoding="utf-8",

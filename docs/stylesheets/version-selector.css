@@ -1,0 +1,14 @@
+.md-version {
+  align-items: center;
+  display: flex;
+  font-size: 0.60rem;
+  margin-left: 1rem;
+}
+
+.md-version__current {
+  border: 1px solid var(--md-primary-bg-color--light);
+  border-radius: 0.2rem;
+  line-height: 1.2;
+  margin: 0;
+  padding: 0.2rem 0.4rem;
+}
