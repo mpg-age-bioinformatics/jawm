@@ -115,6 +115,7 @@ nav:
     - jawm-dev: cli/jawm-dev.md
     - jawm-test: cli/jawm-test.md
   - Distributions:
+    - Python Package: distributions/pypi.md
     - Docker Image: distributions/docker.md
   - Debugging:
     - Logs: debug/logs.md
