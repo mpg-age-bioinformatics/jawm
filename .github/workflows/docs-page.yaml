@@ -109,11 +109,21 @@ jobs:
           source, destination, version = sys.argv[1:]
           data = yaml.safe_load(Path(source).read_text(encoding="utf-8"))
           base_url = data["site_url"].rstrip("/")
-          data["site_url"] = f"{base_url}/{version}/"
-          data.setdefault("extra", {})["version"] = {
-              "provider": "mike",
-              "default": "latest",
-          }
+          selector_script = "javascripts/version-selector.js"
+          if version == "latest":
+              data["site_url"] = f"{base_url}/"
+              data.get("extra", {}).pop("version", None)
+          else:
+              data["site_url"] = f"{base_url}/{version}/"
+              data.setdefault("extra", {})["version"] = {
+                  "provider": "mike",
+                  "default": "latest",
+              }
+              data["extra_javascript"] = [
+                  script
+                  for script in data.get("extra_javascript", [])
+                  if script != selector_script
+              ]
           selector_css = "stylesheets/version-selector.css"
           if selector_css not in data.setdefault("extra_css", []):
               data["extra_css"].append(selector_css)
@@ -129,7 +139,7 @@ jobs:
             rm -f "$config"
           }
 
-          build_version "$GITHUB_WORKSPACE" latest "$GITHUB_WORKSPACE/site/latest"
+          build_version "$GITHUB_WORKSPACE" latest "$GITHUB_WORKSPACE/site"
 
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
@@ -164,7 +174,7 @@ jobs:
 
           tags = Path(".docs-tags").read_text(encoding="utf-8").splitlines()
           versions = [
-              {"version": "latest", "title": "latest", "aliases": []},
+              {"version": ".", "title": "latest", "aliases": ["latest"]},
               *(
                   {"version": tag, "title": tag, "aliases": []}
                   for tag in tags
@@ -172,22 +182,6 @@ jobs:
           ]
           Path("site/versions.json").write_text(
               json.dumps(versions, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          Path("site/index.html").write_text(
-              """<!doctype html>
-          <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <meta http-equiv="refresh" content="0; url=latest/">
-              <link rel="canonical" href="latest/">
-              <title>jawm documentation</title>
-            </head>
-            <body>
-              <p><a href="latest/">Open the latest jawm documentation</a>.</p>
-            </body>
-          </html>
-          """,
               encoding="utf-8",
           )
           PY

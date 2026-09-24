@@ -50,11 +50,6 @@ hooks:
 plugins:
   - search
 
-extra:
-  version:
-    provider: mike
-    default: latest
-
 markdown_extensions:
   - admonition
   - attr_list
@@ -73,6 +68,9 @@ markdown_extensions:
 extra_css:
   - stylesheets/style.css
   - stylesheets/version-selector.css
+
+extra_javascript:
+  - javascripts/version-selector.js
 
 nav:
   - Home: index.md
