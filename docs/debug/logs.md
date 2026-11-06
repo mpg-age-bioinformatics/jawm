@@ -257,6 +257,7 @@ Written only when `scope: hash` is present. Contains the per-file SHA-256 hash f
 {
   "timestamp": "2024-03-15T14:23:01",
   "combined_hash": "a3f9bc...",
+  "consider_name": false,
   "files": {
     "/abs/path/to/results.tsv": "e3b0c4...",
     "/abs/path/to/summary.txt": "9f86d0..."
@@ -275,7 +276,7 @@ When a hash mismatch is detected, jawm automatically diffs the current per-file 
 [hash]   REMOVED  /path/to/old_file.txt
 ```
 
-If all per-file hashes match but the combined hash still differs, jawm logs a note that the mismatch may be due to file ordering — this should not happen in practice since file ordering is deterministic, but it helps distinguish content changes from ordering bugs.
+If all per-file hashes match but the combined hash still differs, jawm logs a note that the mismatch may be due to file ordering. Also check the runtime's aggregate encoding and `consider_name` policy: either can change the combined hash without changing per-file content hashes. See [Hash baselines after an upgrade](../gxp.md#hash-baselines-after-an-upgrade).
 
 ---
 

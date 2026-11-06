@@ -567,7 +567,11 @@ JAWM_K8S_LOG_TAIL_LINES=100
 - **Type:** `float` (seconds)
 - **Default:** `0.0`
 
-Additional wait time after a Kubernetes job completes, before jawm reads output files.
+Additional wait time after a pod reaches `Succeeded` or `Failed`, before jawm
+collects its final `kubectl logs` output. The accompanying filesystem settle
+check only checks stdout visibility/readability, not scientific output
+completeness or stability. This is a best-effort delay, not an output integrity
+check.
 
 ```text
 JAWM_KUBERNETES_FINISH_WAIT=2.0

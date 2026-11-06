@@ -317,6 +317,16 @@ Or a path to a file that contains the expected hash (first non-empty line is rea
 
 This is useful for CI or production environments where you want to ensure that the workflow inputs have not been modified.
 
+#### Upgrading hash baselines
+
+Aggregate hash encoding changed in commit `f334414` (11 September 2026): the
+`jawm-file-manifest-v2` marker was removed, and the default name policy became
+`false`. Older combined hashes therefore differ for unchanged files, even with
+the same explicit `consider_name` setting. Retain previous baselines and
+manifests, compare per-file hashes, and approve replacement references after
+verification with the selected runtime and explicit name policy. See
+[Hash baselines after an upgrade](../gxp.md#hash-baselines-after-an-upgrade).
+
 #### Output files
 
 When `scope: hash` is present, jawm writes two files under `<logs_directory>/jawm_hashes/`:

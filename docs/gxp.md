@@ -26,6 +26,8 @@ For processes that must run under different filesystem layouts, [`hash_exclude`]
 
 [`resume`](process/parameters.md#resume) matching uses the process name and six-character parameter-hash prefix and only reuses a successfully completed run. `hash_include` is recalculated when a new `Process` is created; the hash and log folder do not change between retry attempts of the same instance.
 
+Review hash selectors as part of the approved configuration. An excluded value can change without invalidating resume matching unless another hash input captures that change. Invalid or unreadable `hash_include` selections produce warnings and do not enforce a file-content check; their path value remains hashed unless explicitly excluded. Use `scope: hash` with an approved `reference` for required content verification, and review selector warnings in the run transcript.
+
 A typical completed FastQC process folder contains:
 
 ```text
@@ -51,6 +53,10 @@ Depending on the executor and options, the process folder can also contain a Slu
 
 When a retry actually occurs, existing records from the failed attempt are copied on a best-effort basis to `attempts/attempt-<number>/` before the next attempt starts. Ordinary runs create no `attempts/` directory, and the final attempt remains in the top-level files. These copies preserve jawm-owned execution records, not scientific outputs or external scheduler records; see [Retry attempt records](debug/logs.md#retry-attempt-records).
 
+Review the CLI transcript for retry-copy warnings: a copy failure or an existing attempt directory does not prevent the next attempt, so a successful final result does not establish that every failed-attempt record was retained. The copies do not contain per-attempt `started.json` / `completed.json` metadata or record checksums. Retain effective retry configuration and any required scheduler evidence separately, and verify archive completeness before accepting the run.
+
+For Kubernetes, [`JAWM_KUBERNETES_FINISH_WAIT`](config/config.md#jawm_kubernetes_finish_wait) adds a delay after a pod reaches `Succeeded` or `Failed`, before the final `kubectl logs` collection. It defaults to zero. The accompanying filesystem check only checks stdout visibility/readability; it does not verify that all scientific outputs are complete or stable. Validate output availability on the deployment's shared storage before downstream use and archiving.
+
 At the surrounding `logs/` level, `jawm_runs/` stores CLI run transcripts, and `jawm_hashes/` stores run hash history and any configured `scope: hash` baselines and manifests. See [Log Structure](debug/logs.md) for the complete layout.
 
 ## Inputs / Outputs
@@ -67,6 +73,14 @@ Use [`scope: hash`](config/yaml.md#-scope-hash) to record the identity of select
 ```
 
 With the default `consider_name: false`, identical file content can be relocated without changing the combined hash. Set it to `true` when relative names and paths are part of the expected identity. `overwrite: false` keeps the first stored value as the comparison baseline. A `reference` value can enforce an approved SHA-256 hash; a mismatch or missing included path makes the CLI exit with code `73`. See [`scope: hash`](config/yaml.md#-scope-hash) for the complete policy.
+
+Set `consider_name` explicitly in approved configuration: if omitted, the CLI uses `JAWM_HASH_CONSIDER_NAME` when set, otherwise `false`. With names omitted, renaming files or exchanging their contents can leave the combined hash unchanged when the collection of file sizes and contents remains the same. The diagnostic manifest records the name policy and per-file SHA-256 values, but a stored-baseline mismatch alone is informational; use an approved `reference` when a mismatch must fail the run.
+
+### Hash baselines after an upgrade
+
+Commit `f334414` (11 September 2026) changed the default name policy to `false` and removed the `jawm-file-manifest-v2` marker from the aggregate encoding. Consequently, aggregate hashes from the earlier implementation differ even for unchanged files with the same explicit name policy. This affects `scope: hash`, `jawm-test` references and hashes produced through the hash utilities. Process prefixes can also change when they incorporate referenced-file digests, affecting resume matching.
+
+Before upgrading an approved workflow, retain its previous runtime, hash policy, baselines, manifests and test results. Compare per-file content hashes to distinguish data changes from encoding or name-policy changes, rerun verification with the selected release and explicit policy, and approve any new baselines through change control. Do not use `overwrite: true` or a test-runner override merely to clear an unexplained mismatch.
 
 ## Reference data
 
@@ -89,6 +103,8 @@ Changes to the staged version get reported in the log file:
 ```
 
 For example, this warning appears if a file in the locally exported workflow is edited after export. jawm compares file modification times with the `.commit` stamp and logs the first eight characters of the recorded commit. This is a timestamp-based check: it does not list changed files or verify their contents against Git, and the warning does not stop execution.
+
+For module names resolved remotely, jawm now tries HTTPS first and falls back to SSH if its HTTPS probe fails. Record the repository URL and resolved full commit as well as the invocation. Branches, movable tags and selectors such as `@latest-tag` can resolve differently later; retain the staged workflow and `.commit` file for the actual run.
 
 ## Environment log
 
@@ -115,6 +131,14 @@ From this part of the log, the user can recover:
 
 We recommend running each workflow in a dedicated Python environment, such as a `venv` or Conda environment, to keep its dependencies separate from other projects. Record the Python version and pin the versions of jawm and its dependencies in a requirements file or environment lock file. Keep this file under version control alongside the workflow so the environment can be recreated for later runs.
 
+### Pin the jawm distribution
+
+The repository now provides [Python package](distributions/pypi.md) and [jawm Docker image](distributions/docker.md) distribution workflows. Pin the approved jawm package version (for example, `jawm==0.1.1` for the version declared in this checkout) and retain the package artifacts and their checksums alongside the dependency lock file. For the jawm runtime image, retain the image digest and target platform as well as its version tag; `latest` and `stable` change over time. Pin this runtime image separately from the analysis images selected by each `Process`.
+
+When launching Docker-based processes from the jawm image through the host Docker socket, mount workflow/data directories at the same absolute paths on the host and in the jawm container. Keep outputs and logs on persistent mounts, and include the host Docker daemon and socket access in the deployment's access-control procedures. See [Run Docker-Based Processes](distributions/docker.md#run-docker-based-processes).
+
+Retain the documentation used to configure and validate the deployment. The documentation build now provides release-specific versions from `0.1.1` onward, while `latest` follows the default branch. Select the matching release documentation and record its version or source commit with the run evidence.
+
 ## Container-based Process executions
 
 Developers should ensure that every data analysis process uses a container and explicitly configures the relevant `jawm.Process` arguments. This keeps the analysis tools and their dependencies in a defined software environment that can be reused across runs.
@@ -128,6 +152,10 @@ For reproducible runs, use a fixed image identity: pin registry images by digest
 ## Validation and testing
 
 [`validation="strict"`](process/parameters.md#validation) can detect common process configuration problems before execution, and [`jawm-test`](cli/jawm-test.md) can compare selected output hashes with approved regression references across configured environments. These are useful verification controls, but they do not replace documented computerized-system validation, change control, user training, or review procedures required by the organization.
+
+Retain the test definitions, expected references, runtime versions, execution backend, actual results and review decision for each approved deployment. The current repository uses `test/base_test.py` and `test/cli_regression_test.py`; passing CI checks is supporting evidence, not proof that a particular Slurm, Kubernetes or storage deployment has been validated. Preserve required logs before the base-test script's cleanup removes its generated files, as described in `test/README.md` in the source repository.
+
+Historical GxP assessments and evidence under `review/gxp-readiness-2026-09-08/` were removed from the working tree in commit `2036ea8` (16 September 2026). They remain available in earlier Git revisions, but are not a current-release validation report. Retain any relied-upon assessment and evidence in the managed validation archive, with its source commit and checksums, and reassess behavior changed since that review.
 
 ## Archiving
 
