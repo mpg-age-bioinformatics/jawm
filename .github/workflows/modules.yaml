@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout current repository
@@ -69,7 +69,7 @@ jobs:
           echo "🚫 Job failed with ${GITHUB_REPOSITORY##*/}@$(echo $GITHUB_SHA | cut -c 1-8) & jawm@$(echo $JAWM_COMMIT_HASH | cut -c 1-8)"
 
   # build-tag:
-  #   runs-on: ubuntu-latest
+  #   runs-on: ubuntu-24.04
 
   #   steps:
   #     - name: Checkout current repository

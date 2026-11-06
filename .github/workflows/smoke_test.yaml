@@ -13,7 +13,7 @@ on:
 
 jobs:
   select_python_versions:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       versions: ${{ steps.select.outputs.versions }}
     steps:
@@ -52,7 +52,7 @@ jobs:
   core-tests:
     needs: select_python_versions
     # runs-on: [self-hosted, jawm]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         python-version: ${{ fromJSON(needs.select_python_versions.outputs.versions) }}
@@ -133,7 +133,7 @@ jobs:
   # ─────────────────────────────
   git-tests:
     # runs-on: [self-hosted, jawm]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: 🌐 Git integration test (Python 3.12)
 
     steps:
@@ -211,7 +211,7 @@ jobs:
   # ─────────────────────────────
   notifications:
     # runs-on: [self-hosted, jawm]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: 🔔 Workflow Notifications
     needs: [core-tests, git-tests]  # run after both finish
     if: always()  # always run, even if one fails
